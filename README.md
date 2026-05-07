@@ -128,6 +128,8 @@ desktop process.
 See [docs/protocol.md](docs/protocol.md) for endpoint details, authentication,
 payload shapes, and WebSocket behavior.
 
+For a deeper implementation map, see [docs/architecture.md](docs/architecture.md).
+
 ## Validation
 
 Build check:
