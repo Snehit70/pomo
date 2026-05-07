@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 const currentFile = fileURLToPath(import.meta.url);
 const projectRoot = resolve(dirname(currentFile), "..");
 const execFileAsync = promisify(execFile);
+const launchdLabel = "dev.pomoremote.desktop-client";
+const systemdUnit = "pomo-remote-desktop-client.service";
 
 type ServicePlatform = "darwin" | "linux";
 
@@ -24,7 +26,23 @@ function servicePath(): string {
     return join(process.env.HOME ?? "", "Library", "LaunchAgents", "dev.pomoremote.desktop-client.plist");
   }
 
-  return join(process.env.XDG_CONFIG_HOME ?? join(process.env.HOME ?? "", ".config"), "systemd", "user", "pomo-remote-desktop-client.service");
+  return join(process.env.XDG_CONFIG_HOME ?? join(process.env.HOME ?? "", ".config"), "systemd", "user", systemdUnit);
+}
+
+function currentUid(): number {
+  const uid = process.getuid?.();
+  if (uid === undefined) {
+    throw new Error("Cannot determine current user id for launchctl.");
+  }
+  return uid;
+}
+
+function launchdServiceTarget(): string {
+  return `gui/${currentUid()}/${launchdLabel}`;
+}
+
+function launchdDomainTarget(): string {
+  return `gui/${currentUid()}`;
 }
 
 async function run(command: string, args: string[]): Promise<string> {
@@ -48,7 +66,7 @@ export function serviceTemplate(): string {
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>dev.pomoremote.desktop-client</string>
+  <string>${launchdLabel}</string>
   <key>ProgramArguments</key>
   <array>
     <string>/usr/bin/env</string>
@@ -89,57 +107,49 @@ export async function installService(): Promise<string> {
   await writeFile(path, serviceTemplate(), "utf8");
 
   if (supportedPlatform() === "darwin") {
-    const uid = process.getuid?.();
-    if (uid === undefined) {
-      throw new Error("Cannot determine current user id for launchctl.");
-    }
-    await run("launchctl", ["bootstrap", `gui/${uid}`, path]).catch(async (error: unknown) => {
+    await run("launchctl", ["bootstrap", launchdDomainTarget(), path]).catch(async (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       if (!message.includes("service already loaded")) {
         throw error;
       }
+      await run("launchctl", ["bootout", launchdServiceTarget()]);
+      await run("launchctl", ["bootstrap", launchdDomainTarget(), path]);
     });
-    await run("launchctl", ["enable", `gui/${uid}/dev.pomoremote.desktop-client`]);
+    await run("launchctl", ["enable", launchdServiceTarget()]);
     return `Installed and loaded ${path}`;
   }
 
   await run("systemctl", ["--user", "daemon-reload"]);
-  await run("systemctl", ["--user", "enable", "pomo-remote-desktop-client.service"]);
+  await run("systemctl", ["--user", "enable", systemdUnit]);
   return `Installed ${path}`;
 }
 
 export async function startService(): Promise<string> {
   if (supportedPlatform() === "darwin") {
-    const uid = process.getuid?.();
-    if (uid === undefined) {
-      throw new Error("Cannot determine current user id for launchctl.");
-    }
-    await run("launchctl", ["kickstart", "-k", `gui/${uid}/dev.pomoremote.desktop-client`]);
+    await run("launchctl", ["enable", launchdServiceTarget()]);
+    await run("launchctl", ["kickstart", "-k", launchdServiceTarget()]);
     return "Started PomoRemote desktop client.";
   }
 
-  await run("systemctl", ["--user", "start", "pomo-remote-desktop-client.service"]);
+  await run("systemctl", ["--user", "start", systemdUnit]);
   return "Started PomoRemote desktop client.";
 }
 
 export async function stopService(): Promise<string> {
   if (supportedPlatform() === "darwin") {
-    const uid = process.getuid?.();
-    if (uid === undefined) {
-      throw new Error("Cannot determine current user id for launchctl.");
-    }
-    await run("launchctl", ["bootout", `gui/${uid}/dev.pomoremote.desktop-client`]).catch(() => undefined);
+    await run("launchctl", ["disable", launchdServiceTarget()]);
+    await run("launchctl", ["kill", "TERM", launchdServiceTarget()]).catch(() => undefined);
     return "Stopped PomoRemote desktop client.";
   }
 
-  await run("systemctl", ["--user", "stop", "pomo-remote-desktop-client.service"]);
+  await run("systemctl", ["--user", "stop", systemdUnit]);
   return "Stopped PomoRemote desktop client.";
 }
 
 export async function serviceStatus(): Promise<string> {
   if (supportedPlatform() === "darwin") {
-    return run("launchctl", ["print", "gui/${UID}/dev.pomoremote.desktop-client".replace("${UID}", String(process.getuid?.() ?? ""))]);
+    return run("launchctl", ["print", launchdServiceTarget()]);
   }
 
-  return run("systemctl", ["--user", "status", "pomo-remote-desktop-client.service", "--no-pager"]);
+  return run("systemctl", ["--user", "status", systemdUnit, "--no-pager"]);
 }
