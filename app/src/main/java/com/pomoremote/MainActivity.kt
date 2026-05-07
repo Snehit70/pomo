@@ -30,7 +30,6 @@ class MainActivity : AppCompatActivity() {
             val localBinder = binder as PomodoroService.LocalBinder
             service = localBinder.service
             isBound = true
-            service?.connect()
             updateCurrentFragment()
         }
 
@@ -125,7 +124,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (isBound) {
-            service?.connect()
             updateCurrentFragment()
         }
     }

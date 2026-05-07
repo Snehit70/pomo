@@ -100,9 +100,9 @@ interface HistoryDao {
     @Query("UPDATE sessions SET synced = 1 WHERE start IN (:startTimes)")
     suspend fun markAsSynced(startTimes: List<Long>)
 
-    @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1")
+    @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1 AND type = 'work'")
     fun getTodayCompletedCountFlow(date: String): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1")
+    @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1 AND type = 'work'")
     suspend fun getTodayCompletedCount(date: String): Int
 }
