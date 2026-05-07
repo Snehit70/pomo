@@ -23,11 +23,11 @@ import androidx.room.PrimaryKey
     indices = [Index("date")]
 )
 data class SessionEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    @PrimaryKey(autoGenerate = false)
+    val start: Long,        // Unix timestamp - used as Primary Key to prevent duplicates
     val date: String,
     val type: String,       // "work", "short", "long"
-    val start: Long,        // Unix timestamp
     val duration: Int,      // Duration in seconds
-    val completed: Boolean
+    val completed: Boolean,
+    val synced: Boolean = true // Default to true for backward compatibility with server data
 )

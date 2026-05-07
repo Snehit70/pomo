@@ -33,9 +33,9 @@ import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.widget.FrameLayout
-import kotlinx.coroutines.CoroutineScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -60,21 +60,24 @@ class StatsFragment : Fragment() {
     private lateinit var graphToggleGroup: MaterialButtonToggleGroup
     private lateinit var recyclerView: RecyclerView
     private lateinit var btnToggleBreakdown: MaterialButton
+    private lateinit var btnSortLog: MaterialButton
     private lateinit var tvTodayProgress: TextView
     private lateinit var progressToday: LinearProgressIndicator
     private lateinit var periodToggleGroup: MaterialButtonToggleGroup
     private lateinit var tvGraphTitle: TextView
+    private lateinit var tvTodayLogTitle: TextView
     private lateinit var heatmapView: HeatmapView
     private lateinit var btnExport: MaterialButton
     private var isBreakdownVisible = false
     private var isMonthlyView = false
+    private var isSortAscending = false
     private var historyData: Map<String, DayEntry> = emptyMap()
+    private var currentTodaySessions: List<com.pomoremote.db.SessionEntity> = emptyList()
     private var lineGraphView: LineGraphView? = null
     private var weekData: List<Pair<String, Int>> = emptyList()
 
     private var historyCacheRepository: HistoryCacheRepository? = null
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
-    private var isOfflineMode = false
+    // Removed custom scope in favor of lifecycleScope
 
     private val mainActivity: MainActivity?
         get() = activity as? MainActivity
@@ -108,10 +111,12 @@ class StatsFragment : Fragment() {
         graphToggleGroup = view.findViewById(R.id.graphToggleGroup)
         recyclerView = view.findViewById(R.id.statsRecyclerView)
         btnToggleBreakdown = view.findViewById(R.id.btnToggleBreakdown)
+        btnSortLog = view.findViewById(R.id.btnSortLog)
         tvTodayProgress = view.findViewById(R.id.tvTodayProgress)
         progressToday = view.findViewById(R.id.progressToday)
         periodToggleGroup = view.findViewById(R.id.periodToggleGroup)
         tvGraphTitle = view.findViewById(R.id.tvGraphTitle)
+        tvTodayLogTitle = view.findViewById(R.id.tvTodayLogTitle)
         heatmapView = view.findViewById(R.id.heatmapView)
         btnExport = view.findViewById(R.id.btnExport)
 
@@ -162,6 +167,13 @@ class StatsFragment : Fragment() {
             animateBreakdown(isBreakdownVisible)
         }
 
+        btnSortLog.setOnClickListener {
+            isSortAscending = !isSortAscending
+            // Update icon rotation to indicate direction (optional, but nice touch)
+            btnSortLog.animate().rotation(if (isSortAscending) 180f else 0f).setDuration(200).start()
+            updateTodayLogSort()
+        }
+
         btnExport.setOnClickListener {
             exportStats()
         }
@@ -171,65 +183,61 @@ class StatsFragment : Fragment() {
             historyCacheRepository = HistoryCacheRepository(it)
         }
 
-        loadStats()
+        observeData()
+        triggerSync()
     }
 
-    /**
-     * Offline-first stats loading:
-     * 1. Show cached data immediately
-     * 2. Sync from server in background
-     * 3. Update UI when sync completes
-     */
-    private fun loadStats() {
+    private fun getLogicalToday(): String {
+        val dayStartHour = mainActivity?.prefs?.dayStartHour ?: 3
+        val calendar = Calendar.getInstance()
+        if (calendar.get(Calendar.HOUR_OF_DAY) < dayStartHour) {
+            calendar.add(Calendar.DAY_OF_YEAR, -1)
+        }
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        return dateFormat.format(calendar.time)
+    }
+
+    private fun observeData() {
+        val repo = historyCacheRepository ?: return
+        val todayStr = getLogicalToday()
+
+        // 1. Observe all day stats (for graphs, totals, streaks)
+        viewLifecycleOwner.lifecycleScope.launch {
+            repo.observeDayStats().collectLatest { entities ->
+                val historyMap = convertToHistoryMap(entities)
+                populateStats(historyMap)
+            }
+        }
+
+        // 2. Observe today's sessions (for the log)
+        viewLifecycleOwner.lifecycleScope.launch {
+            repo.observeSessionsForDate(todayStr).collectLatest { sessions ->
+                populateTodayLog(sessions)
+            }
+        }
+    }
+
+    private fun triggerSync() {
         val activity = mainActivity ?: return
         val repo = historyCacheRepository ?: return
 
-        scope.launch {
-            // Step 1: Load cached data immediately
-            val cached = withContext(Dispatchers.IO) {
-                repo.getCachedDayStats()
-            }
-
-            if (cached.isNotEmpty()) {
-                val historyMap = convertToHistoryMap(cached)
-                populateStats(historyMap)
-                isOfflineMode = false
-            }
-
-            // Step 2: Sync from server in background
+        viewLifecycleOwner.lifecycleScope.launch {
             val ip = activity.prefs.laptopIp
             val port = activity.prefs.laptopPort
 
             val result = withContext(Dispatchers.IO) {
-                repo.syncFromServer(ip, port)
+                repo.syncWithServer(ip, port)
             }
 
             if (!isAdded) return@launch
 
-            when (result) {
-                is HistoryCacheRepository.SyncResult.Success -> {
-                    // Reload from cache after successful sync
-                    val updated = withContext(Dispatchers.IO) {
-                        repo.getCachedDayStats()
-                    }
-                    if (updated.isNotEmpty()) {
-                        val historyMap = convertToHistoryMap(updated)
-                        populateStats(historyMap)
-                    }
-                    isOfflineMode = false
-                }
-                is HistoryCacheRepository.SyncResult.NetworkError -> {
-                    // Already showing cached data, just mark as offline
-                    if (cached.isEmpty()) {
-                        showEmptyState()
-                    }
-                    isOfflineMode = true
-                }
-                is HistoryCacheRepository.SyncResult.Error -> {
-                    if (cached.isEmpty()) {
-                        showEmptyState()
-                    }
-                    isOfflineMode = true
+            if (result is HistoryCacheRepository.SyncResult.NetworkError ||
+                result is HistoryCacheRepository.SyncResult.Error) {
+                // If we have no data at all, show empty state (though Flow should handle updates)
+                // We can just show a toast if needed, or rely on cached data
+                val cached = withContext(Dispatchers.IO) { repo.getCachedDayStats() }
+                if (cached.isEmpty()) {
+                    showEmptyState()
                 }
             }
         }
@@ -398,13 +406,33 @@ class StatsFragment : Fragment() {
 
         // Bar graph
         populateBarGraph(history, dayStartHour)
+    }
 
-        // History list (last 14 days)
-        val historyList = history.entries
-            .map { HistoryItem(it.key, it.value) }
-            .sortedByDescending { it.date }
-            .take(14)
-        recyclerView.adapter = StatsAdapter(historyList)
+    private fun populateTodayLog(sessions: List<com.pomoremote.db.SessionEntity>) {
+        if (sessions.isEmpty()) {
+            recyclerView.visibility = View.GONE
+            btnToggleBreakdown.visibility = View.GONE
+            btnSortLog.visibility = View.GONE
+            tvTodayLogTitle.text = "Today's Log (0)"
+            return
+        }
+
+        currentTodaySessions = sessions
+        tvTodayLogTitle.text = "Today's Log (${sessions.size})"
+        btnToggleBreakdown.visibility = View.VISIBLE
+        btnSortLog.visibility = View.VISIBLE
+        updateTodayLogSort()
+    }
+
+    private fun updateTodayLogSort() {
+        if (currentTodaySessions.isEmpty()) return
+
+        val sortedSessions = if (isSortAscending) {
+            currentTodaySessions.sortedBy { it.start }
+        } else {
+            currentTodaySessions.sortedByDescending { it.start }
+        }
+        recyclerView.adapter = TodaySessionsAdapter(sortedSessions)
     }
 
     private fun calculateBestStreak(history: Map<String, DayEntry>): Int {
@@ -683,37 +711,61 @@ class StatsFragment : Fragment() {
     }
 }
 
-// Adapter for stats history
-class StatsAdapter(private val list: List<HistoryItem>) : RecyclerView.Adapter<StatsAdapter.ViewHolder>() {
+// Adapter for today's sessions
+class TodaySessionsAdapter(private val list: List<com.pomoremote.db.SessionEntity>) : RecyclerView.Adapter<TodaySessionsAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val tvDate: TextView = view.findViewById(R.id.tvDate)
-        val tvFocus: TextView = view.findViewById(R.id.tvFocusTime)
-        val tvBreak: TextView = view.findViewById(R.id.tvBreakTime)
+        val tvTimeRange: TextView = view.findViewById(R.id.tvTimeRange)
+        val tvDuration: TextView = view.findViewById(R.id.tvDuration)
+        val tvType: TextView = view.findViewById(R.id.tvType)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_history, parent, false)
+            .inflate(R.layout.item_session_detail, parent, false)
         return ViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val item = list[position]
-        // Format date nicely
-        try {
-            val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-            val outputFormat = SimpleDateFormat("MMM d", Locale.US)
-            val date = inputFormat.parse(item.date)
-            holder.tvDate.text = date?.let { outputFormat.format(it) } ?: item.date
-        } catch (e: Exception) {
-            holder.tvDate.text = item.date
-        }
+        val session = list[position]
 
-        val hours = item.entry.work_minutes / 60
-        val mins = item.entry.work_minutes % 60
-        holder.tvFocus.text = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
-        holder.tvBreak.text = "${item.entry.completed} sessions"
+        // Format start - end time
+        val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
+        val startTime = Date(session.start)
+        val endTime = Date(session.start + (session.duration * 1000L))
+        val startStr = dateFormat.format(startTime)
+        val endStr = dateFormat.format(endTime)
+
+        holder.tvTimeRange.text = "$startStr - $endStr"
+
+        // Duration
+        val mins = session.duration / 60
+        holder.tvDuration.text = "${mins}m"
+
+        // Type styling
+        holder.tvType.text = session.type.uppercase()
+
+        val ctx = holder.itemView.context
+        val bg = holder.tvType.background as GradientDrawable
+
+        when (session.type) {
+            "work" -> {
+                holder.tvType.setTextColor(ContextCompat.getColor(ctx, R.color.md_theme_onPrimaryContainer))
+                bg.setColor(ContextCompat.getColor(ctx, R.color.md_theme_primaryContainer))
+            }
+            "short" -> {
+                holder.tvType.setTextColor(ContextCompat.getColor(ctx, R.color.md_theme_onSecondaryContainer))
+                bg.setColor(ContextCompat.getColor(ctx, R.color.md_theme_secondaryContainer))
+            }
+            "long" -> {
+                holder.tvType.setTextColor(ContextCompat.getColor(ctx, R.color.md_theme_onTertiaryContainer))
+                bg.setColor(ContextCompat.getColor(ctx, R.color.md_theme_tertiaryContainer))
+            }
+            else -> {
+                holder.tvType.setTextColor(ContextCompat.getColor(ctx, R.color.md_theme_onSurfaceVariant))
+                bg.setColor(ContextCompat.getColor(ctx, R.color.md_theme_surfaceVariant))
+            }
+        }
     }
 
     override fun getItemCount() = list.size

@@ -105,29 +105,6 @@ class SyncManager {
         }
     }
 
-    suspend fun syncHistory(ip: String, port: Int, sessions: List<com.pomoremote.models.Session>) = withContext(Dispatchers.IO) {
-        try {
-            val url = "http://$ip:$port/api/history/sync"
-            val json = gson.toJson(sessions)
-            val body = json.toRequestBody("application/json".toMediaTypeOrNull())
-            val request = Request.Builder()
-                .url(url)
-                .post(body)
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) {
-                    Log.d(TAG, "History sync successful")
-                } else {
-                    throw Exception("History sync failed: ${response.code}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "History sync failed", e)
-            throw e
-        }
-    }
-
     suspend fun fetchConfig(ip: String, port: Int): ConfigPayload? = withContext(Dispatchers.IO) {
         try {
             val url = "http://$ip:$port/api/config"

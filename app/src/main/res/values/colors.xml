@@ -18,6 +18,13 @@
     <color name="md_theme_surface">#1E1E1E</color> <!-- Dark Grey -->
     <color name="md_theme_onSurface">#E6E1E5</color>
     <color name="md_theme_surfaceVariant">#49454F</color>
+    <color name="md_theme_onSurfaceVariant">#CAC4D0</color>
+
+    <color name="md_theme_onPrimaryContainer">#FFD8D8</color>
+    <color name="md_theme_secondaryContainer">#1F4E4B</color>
+    <color name="md_theme_onSecondaryContainer">#A0EFE7</color>
+    <color name="md_theme_tertiaryContainer">#4A4458</color>
+    <color name="md_theme_onTertiaryContainer">#E8DEF8</color>
 
     <color name="status_connected">#4CAF50</color>
     <color name="status_offline">#FF9800</color>

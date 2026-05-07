@@ -8,15 +8,15 @@ import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.pomoremote.MainActivity
 import com.pomoremote.R
 import com.pomoremote.db.DayStatsEntity
 import com.pomoremote.db.HistoryCacheRepository
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -27,7 +27,6 @@ class HistoryFragment : Fragment() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: HistoryAdapter
     private var historyCacheRepository: HistoryCacheRepository? = null
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -47,60 +46,41 @@ class HistoryFragment : Fragment() {
             historyCacheRepository = HistoryCacheRepository(it)
         }
 
-        loadHistory()
+        observeHistory()
+        syncHistory()
     }
 
-    /**
-     * Offline-first history loading:
-     * 1. Show cached data immediately
-     * 2. Sync from server in background
-     * 3. Update UI when sync completes
-     */
-    private fun loadHistory() {
+    private fun observeHistory() {
+        val repo = historyCacheRepository ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            repo.observeDayStats().collectLatest { entities ->
+                val historyList = convertToHistoryList(entities)
+                adapter.submitList(historyList)
+            }
+        }
+    }
+
+    private fun syncHistory() {
         val activity = activity as? MainActivity ?: return
         val repo = historyCacheRepository ?: return
 
-        scope.launch {
-            // Step 1: Load cached data immediately
-            val cached = withContext(Dispatchers.IO) {
-                repo.getCachedDayStats()
-            }
-
-            if (cached.isNotEmpty()) {
-                val historyList = convertToHistoryList(cached)
-                adapter.submitList(historyList)
-            }
-
-            // Step 2: Sync from server in background
+        viewLifecycleOwner.lifecycleScope.launch {
             val ip = activity.prefs.laptopIp
             val port = activity.prefs.laptopPort
 
             val result = withContext(Dispatchers.IO) {
-                repo.syncFromServer(ip, port)
+                repo.syncWithServer(ip, port)
             }
 
             if (!isAdded) return@launch
 
-            when (result) {
-                is HistoryCacheRepository.SyncResult.Success -> {
-                    // Reload from cache after successful sync
-                    val updated = withContext(Dispatchers.IO) {
-                        repo.getCachedDayStats()
-                    }
-                    if (updated.isNotEmpty()) {
-                        val historyList = convertToHistoryList(updated)
-                        adapter.submitList(historyList)
-                    }
-                }
-                is HistoryCacheRepository.SyncResult.NetworkError -> {
-                    if (cached.isEmpty()) {
-                        Toast.makeText(context, "Offline - no cached data", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                is HistoryCacheRepository.SyncResult.Error -> {
-                    if (cached.isEmpty()) {
-                        Toast.makeText(context, "Error loading history", Toast.LENGTH_SHORT).show()
-                    }
+            if (result is HistoryCacheRepository.SyncResult.NetworkError ||
+                result is HistoryCacheRepository.SyncResult.Error) {
+                val current = repo.getCachedDayStats()
+                if (current.isEmpty()) {
+                    val msg = if (result is HistoryCacheRepository.SyncResult.NetworkError)
+                        "Offline - no cached data" else "Error loading history"
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                 }
             }
         }

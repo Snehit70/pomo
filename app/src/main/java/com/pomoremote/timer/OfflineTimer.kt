@@ -1,15 +1,18 @@
 package com.pomoremote.timer
 
 import android.os.CountDownTimer
+import com.pomoremote.db.HistoryCacheRepository
 import com.pomoremote.models.Session
 import com.pomoremote.service.PomodoroService
-import com.pomoremote.storage.HistoryRepository
 import com.pomoremote.util.UtilPreferenceManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 class OfflineTimer(
     private val service: PomodoroService,
     private val prefs: UtilPreferenceManager,
-    private val historyRepository: HistoryRepository
+    private val historyRepository: HistoryCacheRepository,
+    private val scope: CoroutineScope
 ) {
     private var timer: CountDownTimer? = null
     var state: TimerState = TimerState()
@@ -55,34 +58,37 @@ class OfflineTimer(
             duration = state.duration.toInt(),
             completed = true
         )
-        historyRepository.saveSession(session)
 
-        state.remaining = 0.0
-        state.status = TimerState.STATUS_STOPPED
+        scope.launch {
+            historyRepository.saveLocalSession(session, prefs.dayStartHour)
 
-        if (TimerState.PHASE_WORK == state.phase) {
-            // Calculate completed from session history (source of truth)
-            state.completed = historyRepository.countTodayCompletedSessions(prefs.dayStartHour)
-            state.date = historyRepository.getEffectiveDateString(prefs.dayStartHour)
-            val longBreakAfter = prefs.longBreakAfter
+            state.remaining = 0.0
+            state.status = TimerState.STATUS_STOPPED
 
-            if (state.completed > 0 && state.completed % longBreakAfter == 0) {
-                state.phase = TimerState.PHASE_LONG
-                state.duration = (prefs.longBreakDuration * 60).toDouble()
+            if (TimerState.PHASE_WORK == state.phase) {
+                // Calculate completed from session history (source of truth)
+                state.completed = historyRepository.getTodayCompletedCount(prefs.dayStartHour)
+                state.date = historyRepository.getEffectiveDateString(prefs.dayStartHour)
+                val longBreakAfter = prefs.longBreakAfter
+
+                if (state.completed > 0 && state.completed % longBreakAfter == 0) {
+                    state.phase = TimerState.PHASE_LONG
+                    state.duration = (prefs.longBreakDuration * 60).toDouble()
+                } else {
+                    state.phase = TimerState.PHASE_SHORT
+                    state.duration = (prefs.shortBreakDuration * 60).toDouble()
+                }
             } else {
-                state.phase = TimerState.PHASE_SHORT
-                state.duration = (prefs.shortBreakDuration * 60).toDouble()
+                // Break is done, back to work
+                state.phase = TimerState.PHASE_WORK
+                state.duration = (prefs.pomodoroDuration * 60).toDouble()
             }
-        } else {
-            // Break is done, back to work
-            state.phase = TimerState.PHASE_WORK
-            state.duration = (prefs.pomodoroDuration * 60).toDouble()
+
+            recalculateNextPhase()
+
+            state.remaining = state.duration
+            service.onTimerComplete(state)
         }
-
-        recalculateNextPhase()
-
-        state.remaining = state.duration
-        service.onTimerComplete(state)
     }
 
     fun toggle() {

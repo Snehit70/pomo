@@ -433,13 +433,23 @@
             android:layout_marginBottom="12dp">
 
             <TextView
+                android:id="@+id/tvTodayLogTitle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Daily Breakdown"
+                android:text="Today's Log"
                 android:textColor="@color/md_theme_onSurface"
                 android:textSize="18sp"
                 android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSortLog"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:icon="@drawable/ic_sort"
+                app:iconTint="@color/md_theme_primary"
+                android:contentDescription="Sort Log" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnToggleBreakdown"

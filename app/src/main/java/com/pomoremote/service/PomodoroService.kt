@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.*
 import android.util.Log
 import com.pomoremote.network.WebSocketClient
-import com.pomoremote.storage.HistoryRepository
 import com.pomoremote.db.HistoryCacheRepository
 import com.pomoremote.timer.OfflineTimer
 import com.pomoremote.timer.SyncManager
@@ -34,7 +33,6 @@ class PomodoroService : Service(), WebSocketClient.Listener {
     private lateinit var notificationHelper: NotificationHelper
     private lateinit var offlineTimer: OfflineTimer
     private lateinit var syncManager: SyncManager
-    private lateinit var historyRepository: HistoryRepository
     private lateinit var historyCacheRepository: HistoryCacheRepository
     private lateinit var prefs: UtilPreferenceManager
     var isConnected: Boolean = false
@@ -67,10 +65,9 @@ class PomodoroService : Service(), WebSocketClient.Listener {
         currentState.goal = prefs.dailyGoal
         notificationHelper = NotificationHelper(this)
         webSocketClient = WebSocketClient(this)
-        historyRepository = HistoryRepository(this)
         historyCacheRepository = HistoryCacheRepository(this)
 
-        offlineTimer = OfflineTimer(this, prefs, historyRepository)
+        offlineTimer = OfflineTimer(this, prefs, historyCacheRepository, serviceScope)
         syncManager = SyncManager()
         httpClient = OkHttpClient()
         mainHandler = Handler(Looper.getMainLooper())
@@ -98,8 +95,13 @@ class PomodoroService : Service(), WebSocketClient.Listener {
             currentState = savedState
         } else {
             // Initialize state with current date and completed count
-            currentState.date = historyRepository.getEffectiveDateString(prefs.dayStartHour)
-            currentState.completed = historyRepository.countTodayCompletedSessions(prefs.dayStartHour)
+            currentState.date = historyCacheRepository.getEffectiveDateString(prefs.dayStartHour)
+            // Fetch completed count async
+            serviceScope.launch {
+                currentState.completed = historyCacheRepository.getTodayCompletedCount(prefs.dayStartHour)
+                offlineTimer.updateState(currentState)
+                saveCurrentState()
+            }
             // Ensure next_phase is set
             sanitizeState(currentState)
         }
@@ -178,7 +180,6 @@ class PomodoroService : Service(), WebSocketClient.Listener {
         serviceScope.cancel() // Cancel all coroutines
         syncTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
         webSocketClient.close()
-        historyRepository.shutdown()
     }
 
     override fun onConnected() {
@@ -202,24 +203,11 @@ class PomodoroService : Service(), WebSocketClient.Listener {
             serviceScope.launch {
                 val localState = offlineTimer.state
 
-                // Sync offline history first
-                val offlineSessions = historyRepository.loadSessions()
-                if (offlineSessions.isNotEmpty()) {
-                    Log.d(TAG, "Found ${offlineSessions.size} offline sessions to sync")
-                    try {
-                        syncManager.syncHistory(prefs.laptopIp, prefs.laptopPort, offlineSessions)
-                        Log.d(TAG, "History sync successful - clearing local history")
-                        historyRepository.clearSessions()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "History sync failed - keeping local history", e)
-                    }
-                }
-
-                // Sync full history from server to ensure local DB is up to date and valid
+                // Sync history (Push unsynced -> Pull latest)
                 try {
-                    historyCacheRepository.syncFromServer(prefs.laptopIp, prefs.laptopPort)
+                    historyCacheRepository.syncWithServer(prefs.laptopIp, prefs.laptopPort)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Full history sync failed", e)
+                    Log.e(TAG, "History sync failed", e)
                 }
 
                 try {
@@ -230,7 +218,7 @@ class PomodoroService : Service(), WebSocketClient.Listener {
                     Log.d(TAG, "Sync successful - applying merged state")
 
                     // Validate completed count against actual history (timestamps)
-                    val today = historyRepository.getEffectiveDateString(prefs.dayStartHour)
+                    val today = historyCacheRepository.getEffectiveDateString(prefs.dayStartHour)
                     // If the state is for today, verify the count
                     if (mergedState.date == today) {
                         val historySessions = historyCacheRepository.getSessionsForDate(today)
@@ -399,7 +387,7 @@ class PomodoroService : Service(), WebSocketClient.Listener {
     }
 
     private fun checkDayTransition() {
-        val today = historyRepository.getEffectiveDateString(prefs.dayStartHour)
+        val today = historyCacheRepository.getEffectiveDateString(prefs.dayStartHour)
         if (currentState.date != today) {
             Log.d(TAG, "Day transition detected: ${currentState.date} -> $today. Resetting state.")
             currentState.status = TimerState.STATUS_STOPPED
@@ -408,9 +396,19 @@ class PomodoroService : Service(), WebSocketClient.Listener {
             currentState.start_time = 0.0
             currentState.duration = 0.0
             currentState.remaining = 0.0
-            currentState.completed = historyRepository.countTodayCompletedSessions(prefs.dayStartHour)
             currentState.date = today
             currentState.last_action_time = System.currentTimeMillis() / 1000
+
+            // Reset count immediately to avoid showing yesterday's count, update with true count async
+            currentState.completed = 0
+
+            serviceScope.launch {
+                currentState.completed = historyCacheRepository.getTodayCompletedCount(prefs.dayStartHour)
+                offlineTimer.updateState(currentState)
+                saveCurrentState()
+                updateNotification()
+                broadcastStateUpdate()
+            }
 
             offlineTimer.updateState(currentState)
             saveCurrentState()

@@ -91,4 +91,18 @@ interface HistoryDao {
 
     @Query("SELECT MAX(lastUpdated) FROM day_stats")
     suspend fun getLastSyncTime(): Long?
+
+    // ─── Sync Logic ──────────────────────────────────────────────────────────────
+
+    @Query("SELECT * FROM sessions WHERE synced = 0 ORDER BY start ASC")
+    suspend fun getUnsyncedSessions(): List<SessionEntity>
+
+    @Query("UPDATE sessions SET synced = 1 WHERE start IN (:startTimes)")
+    suspend fun markAsSynced(startTimes: List<Long>)
+
+    @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1")
+    fun getTodayCompletedCountFlow(date: String): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1")
+    suspend fun getTodayCompletedCount(date: String): Int
 }
