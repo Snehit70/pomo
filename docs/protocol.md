@@ -18,6 +18,9 @@ The pairing payload shown in Android Settings contains the base URL and token:
 }
 ```
 
+Android Settings can also render this payload as a QR code. Desktop tooling may
+print or consume the same JSON payload; it does not change the protocol.
+
 ## Authentication
 
 REST requests must include:

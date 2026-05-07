@@ -26,6 +26,7 @@ desktop-client/
 npm --prefix desktop-client run build
 node desktop-client/dist/cli.js pair http://PHONE_IP:9876 PAIRING_TOKEN
 node desktop-client/dist/cli.js pair-json '{"url":"http://PHONE_IP:9876","token":"PAIRING_TOKEN"}'
+node desktop-client/dist/cli.js qr
 node desktop-client/dist/cli.js status
 node desktop-client/dist/cli.js status --waybar
 node desktop-client/dist/cli.js toggle
@@ -33,6 +34,10 @@ node desktop-client/dist/cli.js skip
 node desktop-client/dist/cli.js reset
 node desktop-client/dist/cli.js extend 5
 node desktop-client/dist/cli.js service-template
+node desktop-client/dist/cli.js service install
+node desktop-client/dist/cli.js service start
+node desktop-client/dist/cli.js service status
+node desktop-client/dist/cli.js service stop
 ```
 
 The command names intentionally match the old desktop affordances where useful,
@@ -71,6 +76,39 @@ offline marker. The cache is never sent back to the phone.
 ## Service
 
 `service-template` prints a launchd plist on macOS and a systemd user unit on
-Linux. The service runs `watch`, which periodically refreshes the stale cache.
+Linux. The `service` command can also write and manage that user service:
+
+```bash
+node desktop-client/dist/cli.js service install
+node desktop-client/dist/cli.js service start
+node desktop-client/dist/cli.js service status
+node desktop-client/dist/cli.js service stop
+```
+
+On macOS this writes:
+
+```text
+~/Library/LaunchAgents/dev.pomoremote.desktop-client.plist
+```
+
+On Linux this writes:
+
+```text
+${XDG_CONFIG_HOME:-~/.config}/systemd/user/pomo-remote-desktop-client.service
+```
+
+The service runs `watch`, which periodically refreshes the stale cache.
 Notifications and richer WebSocket behavior can be layered on later without
 changing Android ownership.
+
+## QR Pairing
+
+The Android app shows a QR code for its pairing payload. After pairing the CLI,
+`qr` prints the same payload as a terminal QR code:
+
+```bash
+node desktop-client/dist/cli.js qr
+```
+
+This is mainly useful when moving pairing details between machines or checking
+that the saved desktop config still points at the expected phone.

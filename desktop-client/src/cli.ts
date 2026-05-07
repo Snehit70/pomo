@@ -3,8 +3,9 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { extend, getStatus, postCommand } from "./api.js";
 import { cachePath, configPath, readCache, readConfig, writeCache, writeConfig } from "./config.js";
 import { formatHuman, formatWaybar } from "./format.js";
-import { serviceTemplate } from "./service.js";
+import { installService, serviceFilePath, serviceStatus, serviceTemplate, startService, stopService } from "./service.js";
 import { parseClientConfig } from "./validate.js";
+import qrcode from "qrcode-terminal";
 
 type OutputMode = "human" | "json" | "waybar";
 
@@ -14,6 +15,7 @@ function usage(): string {
 Commands:
   pair <url> <token>        Save phone pairing details
   pair-json '<payload>'     Save the JSON payload shown by Android pairing
+  qr                        Print the saved phone pairing as a terminal QR
   status [--json|--waybar]  Print current phone state, falling back to stale cache
   toggle                   Start, pause, or resume on the phone
   skip                     Skip to next phase on the phone
@@ -21,6 +23,10 @@ Commands:
   extend <minutes>         Extend current timer on the phone
   watch                    Poll phone state and refresh the stale cache
   service-template         Print launchd/systemd template
+  service install          Write and enable the user service
+  service start            Start the user service
+  service stop             Stop the user service
+  service status           Print user service status
   paths                    Print config/cache paths
 `;
 }
@@ -124,6 +130,13 @@ async function main(argv: string[]): Promise<void> {
     case "status":
       await status(args);
       return;
+    case "qr": {
+      const config = await readConfig();
+      const payload = JSON.stringify({ url: config.phone_url, token: config.pairing_token });
+      qrcode.generate(payload, { small: true });
+      console.log(payload);
+      return;
+    }
     case "toggle":
     case "skip":
     case "reset":
@@ -138,6 +151,28 @@ async function main(argv: string[]): Promise<void> {
     case "service-template":
       process.stdout.write(serviceTemplate());
       return;
+    case "service": {
+      const [action] = args;
+      switch (action) {
+        case "install":
+          console.log(await installService());
+          return;
+        case "start":
+          console.log(await startService());
+          return;
+        case "stop":
+          console.log(await stopService());
+          return;
+        case "status":
+          console.log(await serviceStatus());
+          return;
+        case "path":
+          console.log(serviceFilePath());
+          return;
+        default:
+          throw new Error("service requires one of: install, start, stop, status, path");
+      }
+    }
     case "paths":
       console.log(JSON.stringify({ config: configPath(), cache: cachePath() }, null, 2));
       return;

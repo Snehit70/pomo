@@ -59,7 +59,7 @@ adb logcat -s PomodoroService PhoneServer
 1. Open the Android app.
 2. Go to Settings.
 3. Tap "Pair desktop client".
-4. Use the displayed JSON payload in the desktop client:
+4. Use the displayed JSON payload or QR code in the desktop client:
 
 ```json
 {
@@ -70,6 +70,17 @@ adb logcat -s PomodoroService PhoneServer
 
 The phone must be reachable on the same network. The default API port is
 `9876`, configurable in Settings.
+
+The TypeScript desktop client can store this pairing and manage its background
+cache service:
+
+```bash
+npm --prefix desktop-client install
+npm --prefix desktop-client run build
+node desktop-client/dist/cli.js pair-json '{"url":"http://<phone-ip>:9876","token":"<pairing-token>"}'
+node desktop-client/dist/cli.js service install
+node desktop-client/dist/cli.js service start
+```
 
 ## Architecture
 

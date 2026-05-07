@@ -29,8 +29,21 @@
     <string name="phone_api_port_title">Phone API port</string>
     <string name="phone_api_port_summary">Port used by desktop clients on this phone</string>
     <string name="pair_desktop_title">Pair desktop client</string>
-    <string name="pair_desktop_summary">Open after the timer service starts to view URL and token</string>
+    <string name="pair_desktop_summary">Show URL, token, and QR for desktop setup</string>
     <string name="pair_desktop_unavailable">Start the timer service, then reopen this screen.</string>
+    <string name="pairing_url_label">Phone URL</string>
+    <string name="pairing_token_label">Pairing token</string>
+    <string name="pairing_payload_label">Pairing payload</string>
+    <string name="pairing_copy">Copy</string>
+    <string name="pairing_share">Share</string>
+    <string name="pairing_copied">Pairing payload copied</string>
+    <string name="pairing_share_title">Share PomoRemote pairing</string>
+    <string name="scan_pairing_qr_title">Scan pairing QR</string>
+    <string name="scan_pairing_qr_summary">Read a PomoRemote pairing QR from another screen</string>
+    <string name="scan_pairing_qr_missing">No QR scanner app is installed.</string>
+    <string name="scan_pairing_qr_invalid">That QR code is not a PomoRemote pairing payload.</string>
+    <string name="scan_pairing_qr_match">This QR matches the current phone pairing token.</string>
+    <string name="scan_pairing_qr_other">This QR is for a different PomoRemote phone.</string>
     
     <string name="vibrate_title">Vibrate</string>
     <string name="vibrate_summary">Vibrate when timer completes</string>
