@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -23,7 +24,7 @@ public interface HistoryDao {
     @Query("SELECT * FROM day_stats WHERE date >= :startDate ORDER BY date ASC")
     public suspend fun getDayStatsSince(startDate: String): List<DayStatsEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     public suspend fun insertDayStats(dayStats: DayStatsEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

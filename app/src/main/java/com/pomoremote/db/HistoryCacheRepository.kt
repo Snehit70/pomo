@@ -57,8 +57,9 @@ public class HistoryCacheRepository(context: Context) {
             completed = session.completed,
             synced = true,
         )
-        dao.insertSession(entity)
+        // day_stats parent row must exist before sessions FK insert
         updateLocalDayStats(date, entity)
+        dao.insertSession(entity)
     }
 
     public suspend fun getTodayCompletedCount(dayStartHour: Int): Int {
