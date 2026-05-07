@@ -15,8 +15,7 @@
     <string name="phase_short">Short Break</string>
     <string name="phase_long">Long Break</string>
     
-    <string name="pref_laptop_ip">laptop_ip</string>
-    <string name="pref_laptop_port">laptop_port</string>
+    <string name="pref_phone_server_port">phone_server_port</string>
     <string name="pref_vibrate">vibrate_enabled</string>
     <string name="pref_sound">sound_enabled</string>
     
@@ -25,7 +24,7 @@
     <string name="category_notifications">Notifications</string>
     
     <string name="ip_address_title">Laptop IP Address</string>
-    <string name="ip_address_summary">Enter the local IP of your laptop (e.g., 192.168.1.100)</string>
+    <string name="ip_address_summary">Desktop clients connect to the phone URL shown in pairing.</string>
     
     <string name="port_title">Port</string>
     <string name="port_summary">Default: 9876</string>

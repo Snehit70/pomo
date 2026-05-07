@@ -33,15 +33,15 @@ class NotificationHelper(private val context: Context) {
         }
     }
 
-    fun buildNotification(state: TimerState, isConnected: Boolean): Notification {
+    fun buildNotification(state: TimerState, isServing: Boolean): Notification {
         val openAppIntent = Intent(context, MainActivity::class.java)
         val pendingOpenApp = PendingIntent.getActivity(
             context, 0, openAppIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
         var title = "Pomo Remote"
-        title += if (!isConnected) {
-            " (Offline)"
+        title += if (!isServing) {
+            " (API off)"
         } else if (TimerState.STATUS_RUNNING == state.status) {
             " (Running)"
         } else {
@@ -86,8 +86,8 @@ class NotificationHelper(private val context: Context) {
         return builder.build()
     }
 
-    fun updateNotification(state: TimerState, isConnected: Boolean) {
-        notificationManager.notify(NOTIFICATION_ID, buildNotification(state, isConnected))
+    fun updateNotification(state: TimerState, isServing: Boolean) {
+        notificationManager.notify(NOTIFICATION_ID, buildNotification(state, isServing))
     }
 
     companion object {
