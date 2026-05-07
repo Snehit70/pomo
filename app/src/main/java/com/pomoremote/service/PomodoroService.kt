@@ -13,6 +13,7 @@ import com.google.gson.Gson
 import com.pomoremote.db.HistoryCacheRepository
 import com.pomoremote.network.PhoneServer
 import com.pomoremote.timer.OfflineTimer
+import com.pomoremote.timer.TimerObserver
 import com.pomoremote.timer.TimerState
 import com.pomoremote.util.UtilPreferenceManager
 import com.pomoremote.widget.TimerWidgetProvider
@@ -24,7 +25,7 @@ import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
-public class PomodoroService : Service() {
+public class PomodoroService : Service(), TimerObserver {
 
     private val binder = LocalBinder()
     private lateinit var notificationHelper: NotificationHelper
@@ -219,7 +220,7 @@ public class PomodoroService : Service() {
         }
     }
 
-    public fun onTimerUpdate(state: TimerState) {
+    override fun onTimerUpdate(state: TimerState) {
         this.currentState = state
         if (shouldSaveState(state)) {
             saveCurrentState()
@@ -228,7 +229,7 @@ public class PomodoroService : Service() {
         broadcastStateUpdate()
     }
 
-    public fun onTimerComplete(state: TimerState) {
+    override fun onTimerComplete(state: TimerState) {
         this.currentState = state
         saveCurrentState()
         updateNotification()

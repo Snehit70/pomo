@@ -3,13 +3,12 @@ package com.pomoremote.timer
 import android.os.CountDownTimer
 import com.pomoremote.db.HistoryCacheRepository
 import com.pomoremote.models.Session
-import com.pomoremote.service.PomodoroService
 import com.pomoremote.util.UtilPreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 public class OfflineTimer(
-    private val service: PomodoroService,
+    private val observer: TimerObserver,
     private val prefs: UtilPreferenceManager,
     private val historyRepository: HistoryCacheRepository,
     private val scope: CoroutineScope,
@@ -36,7 +35,7 @@ public class OfflineTimer(
         timer = object : CountDownTimer(remainingMillis, 1000) {
             override fun onTick(millisUntilFinished: Long) {
                 state.remaining = millisUntilFinished / 1000.0
-                service.onTimerUpdate(state)
+                observer.onTimerUpdate(state)
             }
 
             override fun onFinish() {
@@ -84,7 +83,7 @@ public class OfflineTimer(
             recalculateNextPhase()
 
             state.remaining = state.duration
-            service.onTimerComplete(state)
+            observer.onTimerComplete(state)
         }
     }
 
@@ -93,7 +92,7 @@ public class OfflineTimer(
             state.status = TimerState.STATUS_PAUSED
             state.last_action_time = System.currentTimeMillis() / 1000
             stopLocalTimer()
-            service.onTimerUpdate(state)
+            observer.onTimerUpdate(state)
         } else {
             state.status = TimerState.STATUS_RUNNING
             state.last_action_time = System.currentTimeMillis() / 1000
@@ -103,7 +102,7 @@ public class OfflineTimer(
             }
             state.start_time = (System.currentTimeMillis() / 1000).toDouble() - (state.duration - state.remaining)
             startLocalTimer()
-            service.onTimerUpdate(state)
+            observer.onTimerUpdate(state)
         }
     }
 
@@ -123,7 +122,7 @@ public class OfflineTimer(
         recalculateNextPhase()
 
         state.remaining = state.duration
-        service.onTimerUpdate(state)
+        observer.onTimerUpdate(state)
     }
 
     public fun reset() {
@@ -135,7 +134,7 @@ public class OfflineTimer(
 
         recalculateNextPhase()
 
-        service.onTimerUpdate(state)
+        observer.onTimerUpdate(state)
     }
 
     public fun extend(minutes: Int) {
@@ -148,7 +147,7 @@ public class OfflineTimer(
             startLocalTimer()
         }
 
-        service.onTimerUpdate(state)
+        observer.onTimerUpdate(state)
     }
 
     private fun recalculateNextPhase() {
