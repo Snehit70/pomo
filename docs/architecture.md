@@ -110,5 +110,7 @@ Remote clients are thin:
 - Commands go to the phone API.
 - Display state comes from polling or WebSocket updates.
 - Local desktop cache is only for stale/offline display.
+- Desktop background services refresh cache only; they do not own timer
+  lifecycle, history, or sync.
 
 See [protocol.md](protocol.md) for endpoint details.

@@ -13,6 +13,11 @@
             app:key="pairing_info"
             app:title="@string/pair_desktop_title"
             app:summary="@string/pair_desktop_summary" />
+
+        <Preference
+            app:key="scan_pairing_qr"
+            app:title="@string/scan_pairing_qr_title"
+            app:summary="@string/scan_pairing_qr_summary" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/category_timer">

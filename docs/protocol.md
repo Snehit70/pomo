@@ -18,6 +18,11 @@ The pairing payload shown in Android Settings contains the base URL and token:
 }
 ```
 
+Android Settings can also render this payload as a QR code. Desktop tooling may
+print or consume the same JSON payload; it does not change the protocol.
+The Android scanner entry uses the same payload shape and only compares it to
+the current phone pairing token; scanning does not mutate canonical phone state.
+
 ## Authentication
 
 REST requests must include:
@@ -230,4 +235,5 @@ Desktop clients should:
 - Use REST endpoints for commands.
 - Use WebSocket updates or polling for display.
 - Cache the last successful state only for stale/offline display.
+- Treat cache writes as best-effort and local-only.
 - Never write canonical timer or history state locally.
