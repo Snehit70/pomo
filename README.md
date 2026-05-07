@@ -17,6 +17,7 @@ of truth. Existing laptop history is not imported or merged.
   phone-owned state.
 - Hosts a local HTTP/WebSocket API for desktop clients.
 - Protects remote control with a pairing token.
+- Includes a thin TypeScript desktop client for laptop display/control.
 
 ## Build
 
@@ -59,7 +60,7 @@ adb logcat -s PomodoroService PhoneServer
 1. Open the Android app.
 2. Go to Settings.
 3. Tap "Pair desktop client".
-4. Use the displayed JSON payload or QR code in the desktop client:
+4. Use the displayed JSON payload or QR code in the desktop client.
 
 ```json
 {
@@ -71,16 +72,35 @@ adb logcat -s PomodoroService PhoneServer
 The phone must be reachable on the same network. The default API port is
 `9876`, configurable in Settings.
 
-The TypeScript desktop client can store this pairing and manage its background
-cache service:
+Android Settings can copy/share the pairing payload, show it as a QR code, and
+scan another PomoRemote pairing QR when an external ZXing-compatible scanner app
+is installed.
+
+## Desktop Client
+
+The TypeScript desktop client stores pairing details, sends commands to the
+phone API, and keeps a local stale cache for offline display. The cache is
+best-effort: cache write failures do not make successful phone commands fail.
 
 ```bash
 npm --prefix desktop-client install
 npm --prefix desktop-client run build
 node desktop-client/dist/cli.js pair-json '{"url":"http://<phone-ip>:9876","token":"<pairing-token>"}'
+node desktop-client/dist/cli.js status
+node desktop-client/dist/cli.js toggle
+node desktop-client/dist/cli.js qr
+```
+
+The background service only refreshes the stale display cache:
+
+```bash
 node desktop-client/dist/cli.js service install
 node desktop-client/dist/cli.js service start
+node desktop-client/dist/cli.js service status
 ```
+
+See [docs/desktop-client.md](docs/desktop-client.md) for service paths,
+Waybar output, QR commands, and failure behavior.
 
 ## Architecture
 
@@ -141,8 +161,7 @@ payload shapes, and WebSocket behavior.
 
 For a deeper implementation map, see [docs/architecture.md](docs/architecture.md).
 
-For the new thin TypeScript laptop client, see
-[docs/desktop-client.md](docs/desktop-client.md).
+For the thin TypeScript laptop client, see [docs/desktop-client.md](docs/desktop-client.md).
 
 ## Validation
 
@@ -161,6 +180,8 @@ Manual checks worth doing on device:
 - Restarting the app restores stopped/paused/running timer state sensibly.
 - `GET /api/status` rejects missing tokens and returns state with a valid token.
 - `/ws` accepts a valid hello token and streams state updates.
+- Desktop `status --waybar` shows fresh phone state when reachable and stale
+  offline state when not.
 
 ## Releases
 
