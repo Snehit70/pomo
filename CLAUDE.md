@@ -1,98 +1,64 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Lean repo guidance for agents working here.
 
-## Build Commands
+## Project
 
-**Requires**: JDK 17+
+- Android app: `com.pomoremote`
+- Language: Kotlin
+- Min SDK: 26
+- Target SDK: 34
+- Source of truth: Android phone
+
+The phone owns timer state, settings, Room history, notifications, widgets, and
+the embedded desktop-client API. Do not reintroduce laptop/server authority.
+
+## Build
+
+Requires JDK 17+.
 
 ```bash
-# Build debug APK (uses local SDK/Gradle setup)
 ./build_apk.sh
-
-# Manual gradle build
-./gradlew assembleDebug
-
-# Build release
-./gradlew assembleRelease
 ```
 
-The `build_apk.sh` script auto-downloads SDK/Gradle if missing and installs to connected device via ADB.
-
-## ADB Quick Reference
+If local Gradle and Android SDK are configured:
 
 ```bash
-# Connect wirelessly (Android 11+)
-adb pair <ip>:<port>
-adb connect <ip>:<port>
+gradle assembleDebug
+```
 
-# Install
+This repo currently has no `./gradlew`.
+
+## Useful ADB
+
+```bash
 adb install -r -g app/build/outputs/apk/debug/app-debug.apk
-
-# Launch app
 adb shell am start -n com.pomoremote/.MainActivity
-
-# View logs
-adb logcat -s "PomodoroService"
-
-# Screenshot
-adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png .
+adb logcat -s PomodoroService PhoneServer
 ```
 
 ## Architecture
 
-**Package**: `com.pomoremote` | **Min SDK**: 26 | **Target SDK**: 34 | **Language**: Kotlin
-
-```
-MainActivity.kt          # Hosts NavController + binds to PomodoroService
-├── ui/
-│   ├── TimerFragment    # Main timer display with circular progress
-│   ├── StatsFragment    # Statistics with bar/line graphs
-│   ├── SettingsFragment # PreferenceFragmentCompat for settings
-│   ├── AboutFragment    # Version info & credits
-│   ├── HistoryFragment  # Session history list
-│   └── LineGraphView    # Custom Canvas-based graph view
-├── service/
-│   └── PomodoroService  # Foreground service, owns timer state
-├── widget/
-│   └── TimerWidgetProvider # Home screen widget provider
-├── timer/
-│   ├── TimerState       # Data class for timer state
-│   ├── OfflineTimer     # Local countdown when server unavailable
-│   └── SyncManager      # Coordinates online/offline mode
-├── network/
-│   └── WebSocketClient  # OkHttp WebSocket to Pomodoro server
-└── util/
-    ├── UtilPreferenceManager  # SharedPreferences wrapper
-    └── SoundManager           # Vibration and notification sounds
+```text
+service/PomodoroService.kt   # canonical timer owner
+timer/OfflineTimer.kt        # local countdown engine
+db/                          # Room history and stats
+network/PhoneServer.kt       # Ktor REST/WebSocket API
+ui/                          # Timer, Stats, History, Settings, About
+widget/TimerWidgetProvider.kt
 ```
 
-## Key Patterns
+State flow:
 
-- **Service-Activity Binding**: `MainActivity` binds to `PomodoroService` via `ServiceConnection`. Service broadcasts state changes via `LocalBroadcastManager`.
-- **Navigation**: Jetpack Navigation with `BottomNavigationView`. Fragments use `MaterialFadeThrough` transitions.
-- **State Flow**: Server → WebSocket → SyncManager → PomodoroService → BroadcastReceiver → UI update
-- **Offline Fallback**: `SyncManager` switches to `OfflineTimer` when WebSocket disconnects.
+```text
+PomodoroService -> OfflineTimer/Room -> UI, notification, widget, PhoneServer
+```
 
-## Dependencies
+## Development Rules
 
-- **OkHttp** - WebSocket client for server sync
-- **Gson** - JSON parsing for timer state
-- **Material 3** - UI components and theming
-- **Navigation** - Fragment navigation with bottom nav
-
-## Notes
-
-- `network_security_config.xml` allows cleartext traffic for local WebSocket connections
-- Timer state is persisted across app restarts via `UtilPreferenceManager`
-
-## Development Workflow
-
-1. **Read & Plan**: Understand the requirements and explore existing code.
-2. **Implement**: Write code using idiomatic Kotlin and Android best practices.
-3. **Update Version**: Increment `versionCode` and `versionName` in `app/build.gradle.kts` for significant changes.
-4. **Verify**:
-   - Run `./build_apk.sh` to compile and install.
-   - Use `adb logcat -s "PomodoroService"` to debug.
-5. **Commit**: Use Conventional Commits (e.g., `feat:`, `fix:`).
-
+- Keep changes minimal and Kotlin-first.
+- Read relevant files before editing.
+- Do not restore old laptop sync paths.
+- Treat Room as canonical history.
+- Update `versionCode` and `versionName` for significant app changes.
+- Run the narrowest relevant build/check before finishing.
