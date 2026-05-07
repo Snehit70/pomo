@@ -45,7 +45,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
             android:gravity="center"
-            android:text="A premium remote control for your Pomodoro workflow."
+            android:text="A mobile-first Pomodoro timer with optional desktop control."
             android:textAppearance="?attr/textAppearanceBodyLarge"
             android:textColor="?attr/colorOnSurface" />
 
@@ -75,7 +75,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="• Real-time Synchronization\n• Offline Fallback Mode\n• Detailed Statistics &amp; Analytics\n• Interactive Graphs\n• Home Screen Widget"
+                    android:text="• Phone-owned timer state\n• Local session history\n• Paired desktop API\n• Detailed statistics &amp; analytics\n• Home screen widget"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="?attr/colorOnSurfaceVariant"
                     android:lineSpacingExtra="4dp"/>

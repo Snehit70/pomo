@@ -42,10 +42,12 @@ class NotificationHelper(private val context: Context) {
         var title = "Pomo Remote"
         title += if (!isServing) {
             " (API off)"
-        } else if (TimerState.STATUS_RUNNING == state.status) {
-            " (Running)"
         } else {
-            " (Paused)"
+            when (state.status) {
+                TimerState.STATUS_RUNNING -> " (Running)"
+                TimerState.STATUS_PAUSED -> " (Paused)"
+                else -> " (Ready)"
+            }
         }
 
         val minutes = state.remaining.toInt() / 60

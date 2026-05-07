@@ -85,6 +85,9 @@ class PomodoroService : Service() {
             }
             sanitizeState(savedState)
             currentState = savedState
+            serviceScope.launch {
+                reconcileStateWithHistory()
+            }
         } else {
             // Initialize state with current date and completed count
             currentState.date = historyCacheRepository.getEffectiveDateString(prefs.dayStartHour)
@@ -175,6 +178,12 @@ class PomodoroService : Service() {
         if (state.remaining > state.duration) {
             state.remaining = state.duration
         }
+        if (state.status == TimerState.STATUS_STOPPED && state.remaining <= 0) {
+            state.remaining = state.duration
+        }
+        if (state.version < TimerState().version) {
+            state.version = TimerState().version
+        }
 
         // Ensure next_phase is populated
         if (state.next_phase == null) {
@@ -191,6 +200,37 @@ class PomodoroService : Service() {
             } else {
                 state.next_phase = TimerState.PHASE_WORK
             }
+        }
+    }
+
+    private suspend fun reconcileStateWithHistory() {
+        val today = historyCacheRepository.getEffectiveDateString(prefs.dayStartHour)
+        val completed = historyCacheRepository.getTodayCompletedCount(prefs.dayStartHour)
+        var changed = false
+
+        if (currentState.date != today) {
+            currentState.status = TimerState.STATUS_STOPPED
+            currentState.phase = TimerState.PHASE_WORK
+            currentState.next_phase = null
+            currentState.start_time = 0.0
+            currentState.duration = 0.0
+            currentState.remaining = 0.0
+            currentState.date = today
+            currentState.last_action_time = System.currentTimeMillis() / 1000
+            changed = true
+        }
+
+        if (currentState.completed != completed) {
+            currentState.completed = completed
+            changed = true
+        }
+
+        sanitizeState(currentState)
+        offlineTimer.updateState(currentState)
+        if (changed) {
+            saveCurrentState()
+            updateNotification()
+            broadcastStateUpdate()
         }
     }
 

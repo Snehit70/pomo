@@ -250,8 +250,10 @@ class TimerFragment : Fragment() {
         // Button Icon
         if (TimerState.STATUS_RUNNING == state.status) {
             btnToggle.setImageResource(R.drawable.ic_pause)
+            btnToggle.contentDescription = "Pause"
         } else {
             btnToggle.setImageResource(R.drawable.ic_play)
+            btnToggle.contentDescription = if (state.status == TimerState.STATUS_PAUSED) "Resume" else "Start"
         }
 
         tvStatus.text = "Phone primary"
