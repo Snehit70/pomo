@@ -113,15 +113,18 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
         content.addView(labelValueView(R.string.pairing_token_label, token))
         content.addView(labelValueView(R.string.pairing_payload_label, payload))
 
-        val qrView = ImageView(context).apply {
-            setImageBitmap(createQrBitmap(payload, qrSize))
-            adjustViewBounds = true
-            layoutParams = LinearLayout.LayoutParams(qrSize, qrSize).apply {
-                topMargin = (12 * density).toInt()
+        val qrBitmap = createQrBitmap(payload, qrSize)
+        if (qrBitmap != null) {
+            val qrView = ImageView(context).apply {
+                setImageBitmap(qrBitmap)
+                adjustViewBounds = true
+                layoutParams = LinearLayout.LayoutParams(qrSize, qrSize).apply {
+                    topMargin = (12 * density).toInt()
+                }
+                contentDescription = getString(R.string.pair_desktop_title)
             }
-            contentDescription = getString(R.string.pair_desktop_title)
+            content.addView(qrView)
         }
-        content.addView(qrView)
 
         val scrollView = ScrollView(context).apply {
             addView(content)
@@ -149,15 +152,19 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
         }
     }
 
-    private fun createQrBitmap(payload: String, size: Int): Bitmap {
-        val matrix = MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, size, size)
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        for (x in 0 until size) {
-            for (y in 0 until size) {
-                bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+    private fun createQrBitmap(payload: String, size: Int): Bitmap? {
+        return try {
+            val matrix = MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, size, size)
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            for (x in 0 until size) {
+                for (y in 0 until size) {
+                    bitmap.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+                }
             }
+            bitmap
+        } catch (e: Exception) {
+            null
         }
-        return bitmap
     }
 
     private fun copyPairingPayload(payload: String) {
@@ -168,7 +175,7 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
 
     private fun sharePairingPayload(payload: String) {
         val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/json"
+            type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, payload)
         }
         startActivity(Intent.createChooser(intent, getString(R.string.pairing_share_title)))
@@ -196,10 +203,10 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
         }
 
         val service = (activity as? MainActivity)?.service
-        val message = if (service != null && scannedToken == service.pairingToken) {
-            getString(R.string.scan_pairing_qr_match)
-        } else {
-            getString(R.string.scan_pairing_qr_other)
+        val message = when {
+            service == null -> getString(R.string.scan_pairing_qr_service_unavailable)
+            scannedToken == service.pairingToken -> getString(R.string.scan_pairing_qr_match)
+            else -> getString(R.string.scan_pairing_qr_other)
         }
 
         AlertDialog.Builder(requireContext())

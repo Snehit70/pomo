@@ -49,6 +49,14 @@ function printState(mode: OutputMode, state: Awaited<ReturnType<typeof getStatus
   console.log(formatHuman(state));
 }
 
+async function safeReadCache() {
+  try {
+    return await readCache();
+  } catch {
+    return undefined;
+  }
+}
+
 async function status(args: string[]): Promise<void> {
   const mode = outputMode(args);
   try {
@@ -57,7 +65,7 @@ async function status(args: string[]): Promise<void> {
     await writeCache(state);
     printState(mode, state);
   } catch (error) {
-    const cached = await readCache();
+    const cached = await safeReadCache();
     if (cached === undefined) {
       throw error;
     }

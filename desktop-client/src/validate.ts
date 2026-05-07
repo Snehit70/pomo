@@ -76,8 +76,18 @@ export function parseClientConfig(value: unknown): ClientConfig {
     throw new Error("Config must contain phone_url and pairing_token.");
   }
 
-  return {
-    phone_url: value.phone_url.replace(/\/+$/, ""),
-    pairing_token: value.pairing_token
+  const phoneUrl = value.phone_url.replace(/\/+$/, "");
+  const pairingToken = value.pairing_token.trim();
+  if (phoneUrl === "" || pairingToken === "") {
+    throw new Error("Config must contain phone_url and pairing_token.");
+  }
+
+  const config: ClientConfig = {
+    phone_url: phoneUrl,
+    pairing_token: pairingToken
   };
+  if (isNumber(value.request_timeout_ms) && value.request_timeout_ms > 0) {
+    config.request_timeout_ms = value.request_timeout_ms;
+  }
+  return config;
 }

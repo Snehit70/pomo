@@ -1,7 +1,7 @@
 declare module "qrcode-terminal" {
-  export type GenerateOptions = {
+  export interface GenerateOptions {
     small?: boolean;
-  };
+  }
 
   export function generate(input: string, options?: GenerateOptions): void;
 

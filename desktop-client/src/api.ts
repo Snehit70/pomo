@@ -1,6 +1,8 @@
 import type { ClientConfig, TimerState } from "./types.js";
 import { parseCommandResponse, parseTimerState } from "./validate.js";
 
+const defaultRequestTimeoutMs = 10_000;
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (text.length === 0) {
@@ -10,21 +12,44 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 async function request(config: ClientConfig, path: string, init: RequestInit = {}): Promise<unknown> {
-  const response = await fetch(`${config.phone_url}${path}`, {
-    ...init,
-    headers: {
-      "X-Pomo-Token": config.pairing_token,
-      ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
-      ...init.headers
-    }
-  });
+  const controller = new AbortController();
+  const timeoutMs = config.request_timeout_ms ?? defaultRequestTimeoutMs;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = init.signal;
+  const abortFromExternalSignal = (): void => controller.abort();
 
-  const body = await readJson(response);
-  if (!response.ok) {
-    throw new Error(`Phone API returned ${response.status}: ${JSON.stringify(body)}`);
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener("abort", abortFromExternalSignal, { once: true });
   }
 
-  return body;
+  try {
+    const response = await fetch(`${config.phone_url}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        "X-Pomo-Token": config.pairing_token,
+        ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...init.headers
+      }
+    });
+
+    const body = await readJson(response);
+    if (!response.ok) {
+      throw new Error(`Phone API returned ${response.status}: ${JSON.stringify(body)}`);
+    }
+
+    return body;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Phone API request timed out after ${timeoutMs}ms.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    externalSignal?.removeEventListener("abort", abortFromExternalSignal);
+  }
 }
 
 export async function getStatus(config: ClientConfig): Promise<TimerState> {

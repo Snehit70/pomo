@@ -33,7 +33,7 @@ export async function readConfig(): Promise<ClientConfig> {
 export async function writeConfig(config: ClientConfig): Promise<void> {
   const path = configPath();
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
 }
 
 export async function readCache(): Promise<CacheState | undefined> {

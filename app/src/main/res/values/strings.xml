@@ -44,6 +44,7 @@
     <string name="scan_pairing_qr_invalid">That QR code is not a PomoRemote pairing payload.</string>
     <string name="scan_pairing_qr_match">This QR matches the current phone pairing token.</string>
     <string name="scan_pairing_qr_other">This QR is for a different PomoRemote phone.</string>
+    <string name="scan_pairing_qr_service_unavailable">Start the timer service before comparing pairing tokens.</string>
     
     <string name="vibrate_title">Vibrate</string>
     <string name="vibrate_summary">Vibrate when timer completes</string>

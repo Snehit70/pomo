@@ -1,7 +1,7 @@
 export type TimerStatus = "stopped" | "running" | "paused";
 export type TimerPhase = "work" | "short" | "long";
 
-export type TimerState = {
+export interface TimerState {
   status: TimerStatus;
   phase: TimerPhase;
   next_phase: TimerPhase;
@@ -13,20 +13,21 @@ export type TimerState = {
   date: string;
   last_action_time: number;
   version: number;
-};
+}
 
-export type ClientConfig = {
+export interface ClientConfig {
   phone_url: string;
   pairing_token: string;
-};
+  request_timeout_ms?: number;
+}
 
-export type CacheState = {
+export interface CacheState {
   fetched_at: string;
   state: TimerState;
-};
+}
 
-export type CommandResponse = {
+export interface CommandResponse {
   success: boolean;
   state?: TimerState;
   error?: string;
-};
+}

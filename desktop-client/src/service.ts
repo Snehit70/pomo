@@ -1,4 +1,4 @@
-import { platform } from "node:os";
+import { homedir, platform } from "node:os";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -21,12 +21,34 @@ function supportedPlatform(): ServicePlatform {
   throw new Error(`Service management is not supported on ${current}.`);
 }
 
+function homeDirectory(): string {
+  const home = process.env.HOME ?? homedir();
+  if (home === "") {
+    throw new Error("Cannot determine the current user's home directory.");
+  }
+  return home;
+}
+
+function shellQuote(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function xmlEscape(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
 function servicePath(): string {
+  const home = homeDirectory();
   if (supportedPlatform() === "darwin") {
-    return join(process.env.HOME ?? "", "Library", "LaunchAgents", "dev.pomoremote.desktop-client.plist");
+    return join(home, "Library", "LaunchAgents", "dev.pomoremote.desktop-client.plist");
   }
 
-  return join(process.env.XDG_CONFIG_HOME ?? join(process.env.HOME ?? "", ".config"), "systemd", "user", systemdUnit);
+  return join(process.env.XDG_CONFIG_HOME ?? join(home, ".config"), "systemd", "user", systemdUnit);
 }
 
 function currentUid(): number {
@@ -57,10 +79,30 @@ async function run(command: string, args: string[]): Promise<string> {
   }
 }
 
+async function runAllowingFailure(command: string, args: string[]): Promise<string> {
+  try {
+    const { stdout, stderr } = await execFileAsync(command, args);
+    return [stdout, stderr].filter(Boolean).join("").trim();
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "stdout" in error &&
+      typeof error.stdout === "string" &&
+      "stderr" in error &&
+      typeof error.stderr === "string"
+    ) {
+      return [error.stdout, error.stderr].filter(Boolean).join("").trim() || error.message;
+    }
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 export function serviceTemplate(): string {
   const cliPath = join(projectRoot, "dist", "cli.js");
+  const nodePath = process.execPath;
+  const currentPlatform = supportedPlatform();
 
-  if (platform() === "darwin") {
+  if (currentPlatform === "darwin") {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -69,9 +111,8 @@ export function serviceTemplate(): string {
   <string>${launchdLabel}</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/env</string>
-    <string>node</string>
-    <string>${cliPath}</string>
+    <string>${xmlEscape(nodePath)}</string>
+    <string>${xmlEscape(cliPath)}</string>
     <string>watch</string>
   </array>
   <key>RunAtLoad</key>
@@ -88,7 +129,7 @@ Description=PomoRemote desktop client
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/env node ${cliPath} watch
+ExecStart=${shellQuote(nodePath)} ${shellQuote(cliPath)} watch
 Restart=always
 RestartSec=5
 
@@ -107,14 +148,16 @@ export async function installService(): Promise<string> {
   await writeFile(path, serviceTemplate(), "utf8");
 
   if (supportedPlatform() === "darwin") {
-    await run("launchctl", ["bootstrap", launchdDomainTarget(), path]).catch(async (error: unknown) => {
+    try {
+      await run("launchctl", ["bootstrap", launchdDomainTarget(), path]);
+    } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (!message.includes("service already loaded")) {
+      if (!message.includes("service already loaded") && !message.includes("Bootstrap failed: 5")) {
         throw error;
       }
       await run("launchctl", ["bootout", launchdServiceTarget()]);
       await run("launchctl", ["bootstrap", launchdDomainTarget(), path]);
-    });
+    }
     await run("launchctl", ["enable", launchdServiceTarget()]);
     return `Installed and loaded ${path}`;
   }
@@ -138,7 +181,10 @@ export async function startService(): Promise<string> {
 export async function stopService(): Promise<string> {
   if (supportedPlatform() === "darwin") {
     await run("launchctl", ["disable", launchdServiceTarget()]);
-    await run("launchctl", ["kill", "TERM", launchdServiceTarget()]).catch(() => undefined);
+    await run("launchctl", ["kill", "TERM", launchdServiceTarget()]).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`launchctl kill failed for ${launchdServiceTarget()}: ${message}`);
+    });
     return "Stopped PomoRemote desktop client.";
   }
 
@@ -151,5 +197,5 @@ export async function serviceStatus(): Promise<string> {
     return run("launchctl", ["print", launchdServiceTarget()]);
   }
 
-  return run("systemctl", ["--user", "status", systemdUnit, "--no-pager"]);
+  return runAllowingFailure("systemctl", ["--user", "status", systemdUnit, "--no-pager"]);
 }
