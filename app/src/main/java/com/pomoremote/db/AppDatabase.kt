@@ -9,17 +9,17 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [DayStatsEntity::class, SessionEntity::class],
     version = 3,
-    exportSchema = false
+    exportSchema = false,
 )
-abstract class AppDatabase : RoomDatabase() {
+public abstract class AppDatabase : RoomDatabase() {
 
-    abstract fun historyDao(): HistoryDao
+    public abstract fun historyDao(): HistoryDao
 
-    companion object {
+    public companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
-        fun getInstance(context: Context): AppDatabase {
+        public fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: buildDatabase(context).also { INSTANCE = it }
             }
@@ -29,7 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
             return Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
-                "pomoremote.db"
+                "pomoremote.db",
             )
                 .fallbackToDestructiveMigration()
                 .build()

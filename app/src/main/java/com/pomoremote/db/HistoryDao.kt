@@ -9,57 +9,51 @@ import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface HistoryDao {
-
-    // ─── Day Stats ───────────────────────────────────────────────────────────────
+public interface HistoryDao {
 
     @Query("SELECT * FROM day_stats ORDER BY date DESC")
-    fun getAllDayStats(): Flow<List<DayStatsEntity>>
+    public fun getAllDayStats(): Flow<List<DayStatsEntity>>
 
     @Query("SELECT * FROM day_stats ORDER BY date DESC")
-    suspend fun getAllDayStatsSnapshot(): List<DayStatsEntity>
+    public suspend fun getAllDayStatsSnapshot(): List<DayStatsEntity>
 
     @Query("SELECT * FROM day_stats WHERE date = :date")
-    suspend fun getDayStats(date: String): DayStatsEntity?
+    public suspend fun getDayStats(date: String): DayStatsEntity?
 
     @Query("SELECT * FROM day_stats WHERE date >= :startDate ORDER BY date ASC")
-    suspend fun getDayStatsSince(startDate: String): List<DayStatsEntity>
+    public suspend fun getDayStatsSince(startDate: String): List<DayStatsEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertDayStats(dayStats: DayStatsEntity)
+    public suspend fun insertDayStats(dayStats: DayStatsEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAllDayStats(dayStats: List<DayStatsEntity>)
+    public suspend fun insertAllDayStats(dayStats: List<DayStatsEntity>)
 
     @Query("DELETE FROM day_stats")
-    suspend fun clearAllDayStats()
-
-    // ─── Sessions ────────────────────────────────────────────────────────────────
+    public suspend fun clearAllDayStats()
 
     @Query("SELECT * FROM sessions WHERE date = :date ORDER BY start ASC")
-    suspend fun getSessionsForDate(date: String): List<SessionEntity>
+    public suspend fun getSessionsForDate(date: String): List<SessionEntity>
 
     @Query("SELECT * FROM sessions WHERE date = :date ORDER BY start ASC")
-    fun getSessionsForDateFlow(date: String): Flow<List<SessionEntity>>
+    public fun getSessionsForDateFlow(date: String): Flow<List<SessionEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertSession(session: SessionEntity)
+    public suspend fun insertSession(session: SessionEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAllSessions(sessions: List<SessionEntity>)
+    public suspend fun insertAllSessions(sessions: List<SessionEntity>)
 
     @Query("DELETE FROM sessions WHERE date = :date")
-    suspend fun clearSessionsForDate(date: String)
+    public suspend fun clearSessionsForDate(date: String)
 
     @Query("DELETE FROM sessions")
-    suspend fun clearAllSessions()
-
-    // ─── Combined Operations ─────────────────────────────────────────────────────
+    public suspend fun clearAllSessions()
 
     @Transaction
-    suspend fun replaceAllHistory(
+    public suspend fun replaceAllHistory(
         dayStats: List<DayStatsEntity>,
-        sessions: List<SessionEntity>
+        sessions: List<SessionEntity>,
     ) {
         clearAllSessions()
         clearAllDayStats()
@@ -68,41 +62,37 @@ interface HistoryDao {
     }
 
     @Transaction
-    suspend fun replaceDayHistory(
+    public suspend fun replaceDayHistory(
         date: String,
         dayStats: DayStatsEntity,
-        sessions: List<SessionEntity>
+        sessions: List<SessionEntity>,
     ) {
         clearSessionsForDate(date)
         insertDayStats(dayStats)
         insertAllSessions(sessions)
     }
 
-    // ─── Aggregates ──────────────────────────────────────────────────────────────
-
     @Query("SELECT SUM(workMinutes) FROM day_stats")
-    suspend fun getTotalWorkMinutes(): Int?
+    public suspend fun getTotalWorkMinutes(): Int?
 
     @Query("SELECT SUM(completed) FROM day_stats")
-    suspend fun getTotalSessions(): Int?
+    public suspend fun getTotalSessions(): Int?
 
     @Query("SELECT COUNT(*) FROM day_stats WHERE completed > 0")
-    suspend fun getDaysWithActivity(): Int
+    public suspend fun getDaysWithActivity(): Int
 
     @Query("SELECT MAX(lastUpdated) FROM day_stats")
-    suspend fun getLastSyncTime(): Long?
-
-    // ─── Sync Logic ──────────────────────────────────────────────────────────────
+    public suspend fun getLastSyncTime(): Long?
 
     @Query("SELECT * FROM sessions WHERE synced = 0 ORDER BY start ASC")
-    suspend fun getUnsyncedSessions(): List<SessionEntity>
+    public suspend fun getUnsyncedSessions(): List<SessionEntity>
 
     @Query("UPDATE sessions SET synced = 1 WHERE start IN (:startTimes)")
-    suspend fun markAsSynced(startTimes: List<Long>)
+    public suspend fun markAsSynced(startTimes: List<Long>)
 
     @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1 AND type = 'work'")
-    fun getTodayCompletedCountFlow(date: String): Flow<Int>
+    public fun getTodayCompletedCountFlow(date: String): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1 AND type = 'work'")
-    suspend fun getTodayCompletedCount(date: String): Int
+    public suspend fun getTodayCompletedCount(date: String): Int
 }

@@ -9,11 +9,11 @@ import androidx.room.PrimaryKey
  * Date format: "yyyy-MM-dd"
  */
 @Entity(tableName = "day_stats")
-data class DayStatsEntity(
+public data class DayStatsEntity(
     @PrimaryKey
     val date: String,
     val completed: Int,
     val workMinutes: Int,
     val breakMinutes: Int,
-    val lastUpdated: Long = System.currentTimeMillis()
+    val lastUpdated: Long = System.currentTimeMillis(),
 )

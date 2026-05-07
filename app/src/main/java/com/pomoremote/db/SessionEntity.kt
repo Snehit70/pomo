@@ -17,17 +17,17 @@ import androidx.room.PrimaryKey
             entity = DayStatsEntity::class,
             parentColumns = ["date"],
             childColumns = ["date"],
-            onDelete = ForeignKey.CASCADE
-        )
+            onDelete = ForeignKey.CASCADE,
+        ),
     ],
-    indices = [Index("date")]
+    indices = [Index("date")],
 )
-data class SessionEntity(
+public data class SessionEntity(
     @PrimaryKey(autoGenerate = false)
-    val start: Long,        // Unix timestamp - used as Primary Key to prevent duplicates
+    val start: Long,
     val date: String,
-    val type: String,       // "work", "short", "long"
-    val duration: Int,      // Duration in seconds
+    val type: String,
+    val duration: Int,
     val completed: Boolean,
-    val synced: Boolean = true // Default to true for backward compatibility with server data
+    val synced: Boolean = true,
 )

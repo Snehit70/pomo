@@ -1,15 +1,13 @@
 package com.pomoremote.util
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 
-class SoundManager(private val context: Context) {
+public class SoundManager(private val context: Context) {
 
     private val vibrator: Vibrator
 
@@ -23,7 +21,7 @@ class SoundManager(private val context: Context) {
         }
     }
 
-    fun playComplete() {
+    public fun playComplete() {
         try {
             val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val ringtone = RingtoneManager.getRingtone(context, notification)
@@ -33,7 +31,7 @@ class SoundManager(private val context: Context) {
         }
     }
 
-    fun playAlarm() {
+    public fun playAlarm() {
         try {
             val alarm = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             val ringtone = RingtoneManager.getRingtone(context, alarm)
@@ -43,7 +41,7 @@ class SoundManager(private val context: Context) {
         }
     }
 
-    fun vibrateShort() {
+    public fun vibrateShort() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
         } else {
@@ -52,9 +50,8 @@ class SoundManager(private val context: Context) {
         }
     }
 
-    fun vibrateComplete() {
+    public fun vibrateComplete() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Pattern: wait, vibrate, wait, vibrate, wait, vibrate (celebration pattern)
             val pattern = longArrayOf(0, 200, 100, 200, 100, 300)
             vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
         } else {
@@ -63,7 +60,7 @@ class SoundManager(private val context: Context) {
         }
     }
 
-    fun vibrateStrong() {
+    public fun vibrateStrong() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
         } else {

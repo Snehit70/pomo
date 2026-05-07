@@ -13,7 +13,7 @@ import com.pomoremote.R
 import com.pomoremote.timer.TimerState
 import java.util.Locale
 
-class NotificationHelper(private val context: Context) {
+public class NotificationHelper(private val context: Context) {
     private val notificationManager: NotificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -26,17 +26,17 @@ class NotificationHelper(private val context: Context) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Pomodoro Timer",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_LOW,
             )
             channel.description = "Shows active timer status"
             notificationManager.createNotificationChannel(channel)
         }
     }
 
-    fun buildNotification(state: TimerState, isServing: Boolean): Notification {
+    public fun buildNotification(state: TimerState, isServing: Boolean): Notification {
         val openAppIntent = Intent(context, MainActivity::class.java)
         val pendingOpenApp = PendingIntent.getActivity(
-            context, 0, openAppIntent, PendingIntent.FLAG_IMMUTABLE
+            context, 0, openAppIntent, PendingIntent.FLAG_IMMUTABLE,
         )
 
         var title = "Pomo Remote"
@@ -72,13 +72,13 @@ class NotificationHelper(private val context: Context) {
         val toggleIntent = Intent(context, NotificationActionReceiver::class.java)
         toggleIntent.action = "TOGGLE"
         val pendingToggle = PendingIntent.getBroadcast(
-            context, 1, toggleIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            context, 1, toggleIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
         val skipIntent = Intent(context, NotificationActionReceiver::class.java)
         skipIntent.action = "SKIP"
         val pendingSkip = PendingIntent.getBroadcast(
-            context, 2, skipIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            context, 2, skipIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
         val toggleLabel = if (TimerState.STATUS_RUNNING == state.status) "Pause" else "Start"
@@ -88,12 +88,12 @@ class NotificationHelper(private val context: Context) {
         return builder.build()
     }
 
-    fun updateNotification(state: TimerState, isServing: Boolean) {
+    public fun updateNotification(state: TimerState, isServing: Boolean) {
         notificationManager.notify(NOTIFICATION_ID, buildNotification(state, isServing))
     }
 
-    companion object {
-        const val CHANNEL_ID = "pomodoro_channel"
-        const val NOTIFICATION_ID = 1
+    public companion object {
+        public const val CHANNEL_ID: String = "pomodoro_channel"
+        public const val NOTIFICATION_ID: Int = 1
     }
 }

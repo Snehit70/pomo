@@ -7,16 +7,16 @@ import com.google.gson.Gson
 import com.pomoremote.timer.TimerState
 import java.security.SecureRandom
 
-class UtilPreferenceManager(context: Context) {
+public class UtilPreferenceManager(context: Context) {
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
     private val gson = Gson()
 
-    fun saveTimerState(state: TimerState) {
+    public fun saveTimerState(state: TimerState) {
         val json = gson.toJson(state)
         prefs.edit().putString("saved_timer_state", json).apply()
     }
 
-    fun loadTimerState(): TimerState? {
+    public fun loadTimerState(): TimerState? {
         val json = prefs.getString("saved_timer_state", null) ?: return null
         return try {
             gson.fromJson(json, TimerState::class.java)
@@ -25,7 +25,7 @@ class UtilPreferenceManager(context: Context) {
         }
     }
 
-    val phoneServerPort: Int
+    public val phoneServerPort: Int
         get() {
             val portStr = prefs.getString("phone_server_port", "9876")
             return portStr
@@ -34,7 +34,7 @@ class UtilPreferenceManager(context: Context) {
                 ?: 9876
         }
 
-    val pairingToken: String
+    public val pairingToken: String
         get() {
             val existing = prefs.getString("pairing_token", null)
             if (!existing.isNullOrBlank()) return existing
@@ -46,13 +46,13 @@ class UtilPreferenceManager(context: Context) {
             return token
         }
 
-    val isVibrateEnabled: Boolean
+    public val isVibrateEnabled: Boolean
         get() = prefs.getBoolean("vibrate_enabled", true)
 
-    val isSoundEnabled: Boolean
+    public val isSoundEnabled: Boolean
         get() = prefs.getBoolean("sound_enabled", true)
 
-    var pomodoroDuration: Int
+    public var pomodoroDuration: Int
         get() {
             val str = prefs.getString("pomodoro_duration", "25")
             return try { str?.toInt() ?: 25 } catch (e: NumberFormatException) { 25 }
@@ -61,7 +61,7 @@ class UtilPreferenceManager(context: Context) {
             prefs.edit().putString("pomodoro_duration", value.toString()).apply()
         }
 
-    var shortBreakDuration: Int
+    public var shortBreakDuration: Int
         get() {
             val str = prefs.getString("short_break_duration", "5")
             return try { str?.toInt() ?: 5 } catch (e: NumberFormatException) { 5 }
@@ -70,7 +70,7 @@ class UtilPreferenceManager(context: Context) {
             prefs.edit().putString("short_break_duration", value.toString()).apply()
         }
 
-    var longBreakDuration: Int
+    public var longBreakDuration: Int
         get() {
             val str = prefs.getString("long_break_duration", "15")
             return try { str?.toInt() ?: 15 } catch (e: NumberFormatException) { 15 }
@@ -79,7 +79,7 @@ class UtilPreferenceManager(context: Context) {
             prefs.edit().putString("long_break_duration", value.toString()).apply()
         }
 
-    var longBreakAfter: Int
+    public var longBreakAfter: Int
         get() {
             val str = prefs.getString("long_break_after", "4")
             return try { str?.toInt() ?: 4 } catch (e: NumberFormatException) { 4 }
@@ -88,7 +88,7 @@ class UtilPreferenceManager(context: Context) {
             prefs.edit().putString("long_break_after", value.toString()).apply()
         }
 
-    var dailyGoal: Int
+    public var dailyGoal: Int
         get() {
             val str = prefs.getString("daily_goal", "8")
             return try { str?.toInt() ?: 8 } catch (e: NumberFormatException) { 8 }
@@ -97,7 +97,7 @@ class UtilPreferenceManager(context: Context) {
             prefs.edit().putString("daily_goal", value.toString()).apply()
         }
 
-    var dayStartHour: Int
+    public var dayStartHour: Int
         get() {
             val str = prefs.getString("day_start_hour", "3")
             return try { str?.toInt() ?: 3 } catch (e: NumberFormatException) { 3 }

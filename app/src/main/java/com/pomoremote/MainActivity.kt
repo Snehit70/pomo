@@ -16,13 +16,13 @@ import com.pomoremote.service.PomodoroService
 import com.pomoremote.ui.TimerFragment
 import com.pomoremote.util.UtilPreferenceManager
 
-class MainActivity : AppCompatActivity() {
-    var service: PomodoroService? = null
+public class MainActivity : AppCompatActivity() {
+    public var service: PomodoroService? = null
         private set
-    var isBound = false
+    public var isBound: Boolean = false
         private set
 
-    lateinit var prefs: UtilPreferenceManager
+    public lateinit var prefs: UtilPreferenceManager
         private set
 
     private val connection = object : ServiceConnection {
@@ -71,15 +71,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun toggleTimer() {
+    public fun toggleTimer() {
         if (isBound) service?.toggleTimer()
     }
 
-    fun skipTimer() {
+    public fun skipTimer() {
         if (isBound) service?.skipTimer()
     }
 
-    fun resetTimer() {
+    public fun resetTimer() {
         if (isBound) service?.resetTimer()
     }
 
@@ -141,7 +141,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    companion object {
-        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1
+    public companion object {
+        private const val NOTIFICATION_PERMISSION_REQUEST_CODE: Int = 1
     }
 }

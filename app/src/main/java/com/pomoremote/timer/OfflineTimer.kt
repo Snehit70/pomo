@@ -8,17 +8,17 @@ import com.pomoremote.util.UtilPreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-class OfflineTimer(
+public class OfflineTimer(
     private val service: PomodoroService,
     private val prefs: UtilPreferenceManager,
     private val historyRepository: HistoryCacheRepository,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
 ) {
     private var timer: CountDownTimer? = null
-    var state: TimerState = TimerState()
+    public var state: TimerState = TimerState()
         private set
 
-    fun updateState(newState: TimerState) {
+    public fun updateState(newState: TimerState) {
         this.state = newState
         if (TimerState.STATUS_RUNNING == state.status) {
             startLocalTimer()
@@ -51,12 +51,11 @@ class OfflineTimer(
     }
 
     private fun handleTimerComplete() {
-        // Record session before updating state
         val session = Session(
             type = state.phase,
             start = System.currentTimeMillis() / 1000 - state.duration.toLong(),
             duration = state.duration.toInt(),
-            completed = true
+            completed = true,
         )
 
         scope.launch {
@@ -66,7 +65,6 @@ class OfflineTimer(
             state.status = TimerState.STATUS_STOPPED
 
             if (TimerState.PHASE_WORK == state.phase) {
-                // Calculate completed from session history (source of truth)
                 state.completed = historyRepository.getTodayCompletedCount(prefs.dayStartHour)
                 state.date = historyRepository.getEffectiveDateString(prefs.dayStartHour)
                 val longBreakAfter = prefs.longBreakAfter
@@ -79,7 +77,6 @@ class OfflineTimer(
                     state.duration = (prefs.shortBreakDuration * 60).toDouble()
                 }
             } else {
-                // Break is done, back to work
                 state.phase = TimerState.PHASE_WORK
                 state.duration = (prefs.pomodoroDuration * 60).toDouble()
             }
@@ -91,7 +88,7 @@ class OfflineTimer(
         }
     }
 
-    fun toggle() {
+    public fun toggle() {
         if (TimerState.STATUS_RUNNING == state.status) {
             state.status = TimerState.STATUS_PAUSED
             state.last_action_time = System.currentTimeMillis() / 1000
@@ -101,18 +98,16 @@ class OfflineTimer(
             state.status = TimerState.STATUS_RUNNING
             state.last_action_time = System.currentTimeMillis() / 1000
             if (state.remaining <= 0) {
-                // Should not happen usually as onFinish resets it, but just in case
                 state.remaining = getDurationForPhase(state.phase)
                 state.duration = state.remaining
             }
-            // Set start_time to now - elapsed, matching Go logic
             state.start_time = (System.currentTimeMillis() / 1000).toDouble() - (state.duration - state.remaining)
             startLocalTimer()
             service.onTimerUpdate(state)
         }
     }
 
-    fun skip() {
+    public fun skip() {
         state.status = TimerState.STATUS_STOPPED
         state.last_action_time = System.currentTimeMillis() / 1000
         stopLocalTimer()
@@ -131,7 +126,7 @@ class OfflineTimer(
         service.onTimerUpdate(state)
     }
 
-    fun reset() {
+    public fun reset() {
         state.status = TimerState.STATUS_STOPPED
         state.duration = getDurationForPhase(state.phase)
         state.remaining = state.duration
@@ -143,7 +138,7 @@ class OfflineTimer(
         service.onTimerUpdate(state)
     }
 
-    fun extend(minutes: Int) {
+    public fun extend(minutes: Int) {
         val seconds = (minutes.coerceAtLeast(1) * 60).toDouble()
         state.duration += seconds
         state.remaining += seconds
@@ -158,8 +153,6 @@ class OfflineTimer(
 
     private fun recalculateNextPhase() {
         if (TimerState.PHASE_WORK == state.phase) {
-            // Current is WORK. Next is a break.
-            // If we finish this WORK, completed count will go up by 1.
             val nextCompleted = state.completed + 1
             val longBreakAfter = prefs.longBreakAfter
 
@@ -169,7 +162,6 @@ class OfflineTimer(
                 state.next_phase = TimerState.PHASE_SHORT
             }
         } else {
-            // Current is BREAK. Next is WORK.
             state.next_phase = TimerState.PHASE_WORK
         }
     }

@@ -24,14 +24,14 @@ import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
-class PomodoroService : Service() {
+public class PomodoroService : Service() {
 
     private val binder = LocalBinder()
     private lateinit var notificationHelper: NotificationHelper
     private lateinit var offlineTimer: OfflineTimer
     private lateinit var historyCacheRepository: HistoryCacheRepository
     private lateinit var prefs: UtilPreferenceManager
-    var currentState: TimerState = TimerState()
+    public var currentState: TimerState = TimerState()
         private set
     private lateinit var phoneServer: PhoneServer
     private var activePhoneServerPort: Int = PhoneServer.DEFAULT_PORT
@@ -40,20 +40,19 @@ class PomodoroService : Service() {
 
     private var lastSavedState: TimerState? = null
 
-    // Coroutine scope for service operations
     private val serviceScope = MainScope()
 
-    val pairingToken: String
+    public val pairingToken: String
         get() = prefs.pairingToken
 
-    val pairingUrl: String
+    public val pairingUrl: String
         get() = "http://${getLocalIpAddress()}:${prefs.phoneServerPort}"
 
-    val pairingPayload: String
+    public val pairingPayload: String
         get() = gson.toJson(mapOf("url" to pairingUrl, "token" to pairingToken))
 
-    inner class LocalBinder : Binder() {
-        val service: PomodoroService
+    public inner class LocalBinder : Binder() {
+        public val service: PomodoroService
             get() = this@PomodoroService
     }
 
@@ -68,11 +67,9 @@ class PomodoroService : Service() {
         activePhoneServerPort = prefs.phoneServerPort
         phoneServer = PhoneServer(this, activePhoneServerPort)
 
-        // Restore state or initialize default
         val savedState = prefs.loadTimerState()
         if (savedState != null) {
             Log.d(TAG, "Restoring saved state: ${savedState.status} - ${savedState.remaining}s")
-            // Recalculate if it was running
             if (savedState.status == TimerState.STATUS_RUNNING) {
                 val now = System.currentTimeMillis() / 1000.0
                 val elapsed = now - savedState.start_time
@@ -81,8 +78,6 @@ class PomodoroService : Service() {
                 if (newRemaining <= 0) {
                     savedState.remaining = 0.0
                     savedState.status = TimerState.STATUS_STOPPED
-                    // We treat it as stopped at 0, user has to handle completion manually or we just let it be.
-                    // For simplicity, we just show it as 0.
                 } else {
                     savedState.remaining = newRemaining
                 }
@@ -93,32 +88,26 @@ class PomodoroService : Service() {
                 reconcileStateWithHistory()
             }
         } else {
-            // Initialize state with current date and completed count
             currentState.date = historyCacheRepository.getEffectiveDateString(prefs.dayStartHour)
-            // Fetch completed count async
             serviceScope.launch {
                 currentState.completed = historyCacheRepository.getTodayCompletedCount(prefs.dayStartHour)
                 offlineTimer.updateState(currentState)
                 saveCurrentState()
             }
-            // Ensure next_phase is set
             sanitizeState(currentState)
         }
 
-        // Sync the OfflineTimer with the restored/initial state
         offlineTimer.updateState(currentState)
 
         startForeground(
             NotificationHelper.NOTIFICATION_ID,
-            notificationHelper.buildNotification(currentState, true)
+            notificationHelper.buildNotification(currentState, true),
         )
 
         phoneServer.start()
     }
 
     private fun saveCurrentState() {
-        // We use a copy to avoid concurrency issues if the state object is being mutated elsewhere
-        // (though currently it's all on main thread)
         val stateToSave = currentState.copy()
         lastSavedState = stateToSave
         prefs.saveTimerState(stateToSave)
@@ -132,11 +121,8 @@ class PomodoroService : Service() {
         if (newState.goal != last.goal) return true
         if (newState.completed != last.completed) return true
         if (newState.date != last.date) return true
-        // If start_time changed (e.g. restart/resume), we must save
         if (newState.start_time != last.start_time) return true
 
-        // If NOT running, any change in remaining time is a manual adjustment or pause-time update
-        // that we should probably persist.
         if (newState.status != TimerState.STATUS_RUNNING && newState.remaining != last.remaining) {
             return true
         }
@@ -165,7 +151,7 @@ class PomodoroService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        serviceScope.cancel() // Cancel all coroutines
+        serviceScope.cancel()
         phoneServer.stop()
     }
 
@@ -178,7 +164,6 @@ class PomodoroService : Service() {
                 else -> state.duration = (prefs.pomodoroDuration * 60).toDouble()
             }
         }
-        // Ensure remaining doesn't exceed duration
         if (state.remaining > state.duration) {
             state.remaining = state.duration
         }
@@ -189,12 +174,8 @@ class PomodoroService : Service() {
             state.version = TimerState().version
         }
 
-        // Ensure next_phase is populated
         if (state.next_phase == null) {
             if (TimerState.PHASE_WORK == state.phase) {
-                // If we are in WORK, next is BREAK.
-                // We assume we are looking at the *current* state.
-                // If this state finishes, completed + 1.
                 val nextCompleted = state.completed + 1
                 if (nextCompleted > 0 && nextCompleted % prefs.longBreakAfter == 0) {
                     state.next_phase = TimerState.PHASE_LONG
@@ -238,7 +219,7 @@ class PomodoroService : Service() {
         }
     }
 
-    fun onTimerUpdate(state: TimerState) {
+    public fun onTimerUpdate(state: TimerState) {
         this.currentState = state
         if (shouldSaveState(state)) {
             saveCurrentState()
@@ -247,7 +228,7 @@ class PomodoroService : Service() {
         broadcastStateUpdate()
     }
 
-    fun onTimerComplete(state: TimerState) {
+    public fun onTimerComplete(state: TimerState) {
         this.currentState = state
         saveCurrentState()
         updateNotification()
@@ -269,42 +250,42 @@ class PomodoroService : Service() {
         notificationHelper.updateNotification(currentState, true)
     }
 
-    fun toggleTimer() {
+    public fun toggleTimer() {
         checkDayTransition()
         offlineTimer.toggle()
     }
 
-    fun skipTimer() {
+    public fun skipTimer() {
         checkDayTransition()
         offlineTimer.skip()
     }
 
-    fun resetTimer() {
+    public fun resetTimer() {
         checkDayTransition()
         offlineTimer.reset()
     }
 
-    fun extendTimer(minutes: Int) {
+    public fun extendTimer(minutes: Int) {
         checkDayTransition()
         offlineTimer.extend(minutes)
     }
 
-    suspend fun toggleTimerBlocking(): TimerState = withContext(Dispatchers.Main) {
+    public suspend fun toggleTimerBlocking(): TimerState = withContext(Dispatchers.Main) {
         toggleTimer()
         currentState.copy()
     }
 
-    suspend fun skipTimerBlocking(): TimerState = withContext(Dispatchers.Main) {
+    public suspend fun skipTimerBlocking(): TimerState = withContext(Dispatchers.Main) {
         skipTimer()
         currentState.copy()
     }
 
-    suspend fun resetTimerBlocking(): TimerState = withContext(Dispatchers.Main) {
+    public suspend fun resetTimerBlocking(): TimerState = withContext(Dispatchers.Main) {
         resetTimer()
         currentState.copy()
     }
 
-    suspend fun extendTimerBlocking(minutes: Int): TimerState = withContext(Dispatchers.Main) {
+    public suspend fun extendTimerBlocking(minutes: Int): TimerState = withContext(Dispatchers.Main) {
         extendTimer(minutes)
         currentState.copy()
     }
@@ -315,14 +296,13 @@ class PomodoroService : Service() {
             Log.d(TAG, "Day transition detected: ${currentState.date} -> $today. Resetting state.")
             currentState.status = TimerState.STATUS_STOPPED
             currentState.phase = TimerState.PHASE_WORK
-            currentState.next_phase = TimerState.PHASE_WORK // Ensure next phase is reset too
+            currentState.next_phase = TimerState.PHASE_WORK
             currentState.start_time = 0.0
             currentState.duration = 0.0
             currentState.remaining = 0.0
             currentState.date = today
             currentState.last_action_time = System.currentTimeMillis() / 1000
 
-            // Reset count immediately to avoid showing yesterday's count, update with true count async
             currentState.completed = 0
 
             serviceScope.launch {
@@ -340,7 +320,7 @@ class PomodoroService : Service() {
         }
     }
 
-    fun updateDailyGoal() {
+    public fun updateDailyGoal() {
         val newGoal = prefs.dailyGoal
         if (currentState.goal != newGoal) {
             currentState.goal = newGoal
@@ -350,7 +330,7 @@ class PomodoroService : Service() {
         }
     }
 
-    fun syncConfig() {
+    public fun syncConfig() {
         updateDailyGoal()
         restartPhoneServerIfPortChanged()
         broadcastStateUpdate()
@@ -367,24 +347,24 @@ class PomodoroService : Service() {
         phoneServer.start()
     }
 
-    suspend fun stateSnapshot(): TimerState = withContext(Dispatchers.Main) {
+    public suspend fun stateSnapshot(): TimerState = withContext(Dispatchers.Main) {
         currentState.copy()
     }
 
-    fun getConfigPayload(): ConfigPayload {
+    public fun getConfigPayload(): ConfigPayload {
         return ConfigPayload(
             durations = Durations(
                 work = prefs.pomodoroDuration,
                 short_break = prefs.shortBreakDuration,
-                long_break = prefs.longBreakDuration
+                long_break = prefs.longBreakDuration,
             ),
             long_break_after = prefs.longBreakAfter,
             daily_goal = prefs.dailyGoal,
-            day_start_hour = prefs.dayStartHour
+            day_start_hour = prefs.dayStartHour,
         )
     }
 
-    suspend fun applyConfigPayload(body: String): TimerState = withContext(Dispatchers.Main) {
+    public suspend fun applyConfigPayload(body: String): TimerState = withContext(Dispatchers.Main) {
         val config = gson.fromJson(body, ConfigPayload::class.java)
         prefs.pomodoroDuration = config.durations.work.takeIf { it > 0 } ?: prefs.pomodoroDuration
         prefs.shortBreakDuration = config.durations.short_break.takeIf { it > 0 } ?: prefs.shortBreakDuration
@@ -406,7 +386,7 @@ class PomodoroService : Service() {
         currentState.copy()
     }
 
-    suspend fun getHistoryPayload(): Map<String, HistoryCacheRepository.ServerDayEntry> {
+    public suspend fun getHistoryPayload(): Map<String, HistoryCacheRepository.ServerDayEntry> {
         return historyCacheRepository.getHistoryPayload()
     }
 
@@ -499,20 +479,20 @@ class PomodoroService : Service() {
         }
     }
 
-    companion object {
-        private const val TAG = "PomodoroService"
+    public companion object {
+        private const val TAG: String = "PomodoroService"
     }
 
-    data class ConfigPayload(
+    public data class ConfigPayload(
         val durations: Durations,
         val long_break_after: Int,
         val daily_goal: Int,
-        val day_start_hour: Int
+        val day_start_hour: Int,
     )
 
-    data class Durations(
+    public data class Durations(
         val work: Int,
         val short_break: Int,
-        val long_break: Int
+        val long_break: Int,
     )
 }

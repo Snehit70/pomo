@@ -28,16 +28,16 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-class PhoneServer(
+public class PhoneServer(
     private val service: PomodoroService,
-    private val port: Int = DEFAULT_PORT
+    private val port: Int = DEFAULT_PORT,
 ) {
     private val gson = Gson()
     private val sessions = mutableSetOf<DefaultWebSocketServerSession>()
     private val sessionsMutex = Mutex()
     private var engine: ApplicationEngine? = null
 
-    fun start() {
+    public fun start() {
         if (engine != null) return
 
         engine = embeddedServer(CIO, host = "0.0.0.0", port = port) {
@@ -120,12 +120,12 @@ class PhoneServer(
         Log.d(TAG, "Phone API listening on port $port")
     }
 
-    fun stop() {
+    public fun stop() {
         engine?.stop(gracePeriodMillis = 500, timeoutMillis = 1500)
         engine = null
     }
 
-    suspend fun broadcastState() {
+    public suspend fun broadcastState() {
         val message = stateMessage()
         val deadSessions = mutableListOf<DefaultWebSocketServerSession>()
         sessionsMutex.withLock {
@@ -143,8 +143,8 @@ class PhoneServer(
     private suspend fun stateMessage(): String = gson.toJson(
         mapOf(
             "type" to "state",
-            "data" to service.stateSnapshot()
-        )
+            "data" to service.stateSnapshot(),
+        ),
     )
 
     private fun success(state: Any): Map<String, Any> = mapOf("success" to true, "state" to state)
@@ -174,7 +174,7 @@ class PhoneServer(
         respondText(
             gson.toJson(mapOf("success" to false, "error" to "unauthorized")),
             ContentType.Application.Json,
-            HttpStatusCode.Unauthorized
+            HttpStatusCode.Unauthorized,
         )
     }
 
@@ -182,7 +182,7 @@ class PhoneServer(
         respondText(
             gson.toJson(mapOf("success" to false, "error" to error)),
             ContentType.Application.Json,
-            HttpStatusCode.BadRequest
+            HttpStatusCode.BadRequest,
         )
     }
 
@@ -192,8 +192,8 @@ class PhoneServer(
         }
     }
 
-    companion object {
-        const val DEFAULT_PORT = 9876
-        private const val TAG = "PhoneServer"
+    public companion object {
+        public const val DEFAULT_PORT: Int = 9876
+        private const val TAG: String = "PhoneServer"
     }
 }
