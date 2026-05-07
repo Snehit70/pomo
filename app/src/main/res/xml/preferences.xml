@@ -3,18 +3,16 @@
 
     <PreferenceCategory app:title="@string/category_connection">
         <EditTextPreference
-            app:key="laptop_ip"
-            app:title="@string/ip_address_title"
-            app:summary="@string/ip_address_summary"
-            app:defaultValue="192.168.29.98"
-            android:inputType="phone" />
-
-        <EditTextPreference
-            app:key="laptop_port"
-            app:title="@string/port_title"
-            app:summary="@string/port_summary"
+            app:key="phone_server_port"
+            app:title="@string/phone_api_port_title"
+            app:summary="@string/phone_api_port_summary"
             app:defaultValue="9876"
             android:inputType="number" />
+
+        <Preference
+            app:key="pairing_info"
+            app:title="@string/pair_desktop_title"
+            app:summary="@string/pair_desktop_summary" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/category_timer">
@@ -50,8 +48,8 @@
 
         <EditTextPreference
             app:key="day_start_hour"
-            app:title="Day Start Hour"
-            app:summary="The hour (0-23) when a new day begins (e.g., 3 for 3 AM)"
+            app:title="@string/day_start_hour_title"
+            app:summary="@string/day_start_hour_summary"
             app:defaultValue="3"
             android:inputType="number" />
     </PreferenceCategory>
@@ -70,11 +68,11 @@
             app:defaultValue="true" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="Info">
+    <PreferenceCategory app:title="@string/category_info">
         <Preference
             app:key="about"
-            app:title="About"
-            app:summary="Version info &amp; credits"
+            app:title="@string/about_title"
+            app:summary="@string/about_summary"
             app:icon="@drawable/ic_info" />
     </PreferenceCategory>
 

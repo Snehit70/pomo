@@ -34,10 +34,8 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.widget.FrameLayout
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class StatsFragment : Fragment() {
 
@@ -184,7 +182,6 @@ class StatsFragment : Fragment() {
         }
 
         observeData()
-        triggerSync()
     }
 
     private fun getLogicalToday(): String {
@@ -213,32 +210,6 @@ class StatsFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repo.observeSessionsForDate(todayStr).collectLatest { sessions ->
                 populateTodayLog(sessions)
-            }
-        }
-    }
-
-    private fun triggerSync() {
-        val activity = mainActivity ?: return
-        val repo = historyCacheRepository ?: return
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            val ip = activity.prefs.laptopIp
-            val port = activity.prefs.laptopPort
-
-            val result = withContext(Dispatchers.IO) {
-                repo.syncWithServer(ip, port)
-            }
-
-            if (!isAdded) return@launch
-
-            if (result is HistoryCacheRepository.SyncResult.NetworkError ||
-                result is HistoryCacheRepository.SyncResult.Error) {
-                // If we have no data at all, show empty state (though Flow should handle updates)
-                // We can just show a toast if needed, or rely on cached data
-                val cached = withContext(Dispatchers.IO) { repo.getCachedDayStats() }
-                if (cached.isEmpty()) {
-                    showEmptyState()
-                }
             }
         }
     }

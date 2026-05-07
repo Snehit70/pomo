@@ -2,6 +2,7 @@ package com.pomoremote.ui
 
 import android.content.SharedPreferences
 import android.os.Bundle
+import androidx.appcompat.app.AlertDialog
 import androidx.preference.PreferenceFragmentCompat
 import androidx.navigation.fragment.findNavController
 import com.pomoremote.MainActivity
@@ -27,6 +28,18 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
                 false
             }
         }
+
+        findPreference<androidx.preference.Preference>("pairing_info")?.setOnPreferenceClickListener {
+            val service = (activity as? MainActivity)?.service
+            val message = service?.pairingPayload
+                ?: getString(R.string.pair_desktop_unavailable)
+            AlertDialog.Builder(requireContext())
+                .setTitle(R.string.pair_desktop_title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            true
+        }
     }
 
     override fun onResume() {
@@ -40,13 +53,12 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        if (key == "laptop_ip" || key == "laptop_port") {
-            (activity as? MainActivity)?.service?.reconnect()
-        } else if (key == "daily_goal" || key == "day_start_hour") {
+        if (key == "daily_goal" || key == "day_start_hour") {
             (activity as? MainActivity)?.service?.updateDailyGoal()
             (activity as? MainActivity)?.service?.syncConfig()
         } else if (key == "pomodoro_duration" || key == "short_break_duration" ||
-                   key == "long_break_duration" || key == "long_break_after") {
+                   key == "long_break_duration" || key == "long_break_after" ||
+                   key == "phone_server_port") {
             (activity as? MainActivity)?.service?.syncConfig()
         }
     }

@@ -6,19 +6,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.pomoremote.MainActivity
 import com.pomoremote.R
 import com.pomoremote.db.DayStatsEntity
 import com.pomoremote.db.HistoryCacheRepository
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,7 +43,6 @@ class HistoryFragment : Fragment() {
         }
 
         observeHistory()
-        syncHistory()
     }
 
     private fun observeHistory() {
@@ -56,32 +51,6 @@ class HistoryFragment : Fragment() {
             repo.observeDayStats().collectLatest { entities ->
                 val historyList = convertToHistoryList(entities)
                 adapter.submitList(historyList)
-            }
-        }
-    }
-
-    private fun syncHistory() {
-        val activity = activity as? MainActivity ?: return
-        val repo = historyCacheRepository ?: return
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            val ip = activity.prefs.laptopIp
-            val port = activity.prefs.laptopPort
-
-            val result = withContext(Dispatchers.IO) {
-                repo.syncWithServer(ip, port)
-            }
-
-            if (!isAdded) return@launch
-
-            if (result is HistoryCacheRepository.SyncResult.NetworkError ||
-                result is HistoryCacheRepository.SyncResult.Error) {
-                val current = repo.getCachedDayStats()
-                if (current.isEmpty()) {
-                    val msg = if (result is HistoryCacheRepository.SyncResult.NetworkError)
-                        "Offline - no cached data" else "Error loading history"
-                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                }
             }
         }
     }

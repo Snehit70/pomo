@@ -10,19 +10,18 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.progressindicator.CircularProgressIndicator
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.pomoremote.MainActivity
 import com.pomoremote.R
+import com.pomoremote.db.HistoryCacheRepository
 import com.pomoremote.timer.TimerState
-import okhttp3.*
-import java.io.IOException
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import com.google.android.material.transition.MaterialFadeThrough
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class TimerFragment : Fragment() {
 
@@ -46,8 +45,7 @@ class TimerFragment : Fragment() {
     private lateinit var tvSessions: TextView
     private lateinit var tvStreak: TextView
 
-    private val client = OkHttpClient()
-    private val gson = Gson()
+    private var historyRepository: HistoryCacheRepository? = null
 
     // We access the service through MainActivity which holds the connection
     private val mainActivity: MainActivity?
@@ -91,6 +89,7 @@ class TimerFragment : Fragment() {
         btnToggle.setOnClickListener { mainActivity?.toggleTimer() }
         btnSkip.setOnClickListener { mainActivity?.skipTimer() }
         btnReset.setOnClickListener { mainActivity?.resetTimer() }
+        historyRepository = context?.let { HistoryCacheRepository(it) }
 
         // Start animation loop
         animationHandler.post(animationRunnable)
@@ -98,8 +97,7 @@ class TimerFragment : Fragment() {
         // Initial UI update if service is already bound
         mainActivity?.service?.currentState?.let { updateUI(it) }
 
-        // Fetch stats
-        fetchStats()
+        observeStats()
     }
 
     override fun onDestroyView() {
@@ -107,54 +105,34 @@ class TimerFragment : Fragment() {
         animationHandler.removeCallbacks(animationRunnable)
     }
 
-    private fun fetchStats() {
-        val activity = mainActivity ?: return
-        val ip = activity.prefs.laptopIp
-        val port = activity.prefs.laptopPort
-        val url = "http://$ip:$port/api/history"
-
-        val request = Request.Builder().url(url).build()
-
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                // Silently fail - stats will show defaults
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                if (response.isSuccessful) {
-                    val json = response.body?.string()
-                    val type = object : TypeToken<Map<String, DayEntry>>() {}.type
-                    val historyMap: Map<String, DayEntry> = gson.fromJson(json, type) ?: emptyMap()
-
-                    val dayStartHour = mainActivity?.prefs?.dayStartHour ?: 3
-                    val calendar = java.util.Calendar.getInstance()
-                    if (calendar.get(java.util.Calendar.HOUR_OF_DAY) < dayStartHour) {
-                        calendar.add(java.util.Calendar.DAY_OF_YEAR, -1)
-                    }
-                    val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
-                    val todayEntry = historyMap[today]
-
-                    // Calculate streak (consecutive days with sessions)
-                    val streak = calculateStreak(historyMap, dayStartHour)
-
-                    Handler(Looper.getMainLooper()).post {
-                        if (!isAdded) return@post
-
-                        // Today's focus time
-                        val minutes = todayEntry?.work_minutes ?: 0
-                        val hours = minutes / 60
-                        val mins = minutes % 60
-                        tvTodayFocus.text = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
-
-                        // Today's sessions
-                        tvSessions.text = "${todayEntry?.completed ?: 0}"
-
-                        // Streak
-                        tvStreak.text = "$streak\uD83D\uDD25"
-                    }
+    private fun observeStats() {
+        val repo = historyRepository ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            repo.observeDayStats().collectLatest { entities ->
+                val historyMap = entities.associate {
+                    it.date to DayEntry(
+                        completed = it.completed,
+                        work_minutes = it.workMinutes,
+                        break_minutes = it.breakMinutes
+                    )
                 }
+                val dayStartHour = mainActivity?.prefs?.dayStartHour ?: 3
+                val calendar = java.util.Calendar.getInstance()
+                if (calendar.get(java.util.Calendar.HOUR_OF_DAY) < dayStartHour) {
+                    calendar.add(java.util.Calendar.DAY_OF_YEAR, -1)
+                }
+                val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(calendar.time)
+                val todayEntry = historyMap[today]
+                val streak = calculateStreak(historyMap, dayStartHour)
+
+                val minutes = todayEntry?.work_minutes ?: 0
+                val hours = minutes / 60
+                val mins = minutes % 60
+                tvTodayFocus.text = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
+                tvSessions.text = "${todayEntry?.completed ?: 0}"
+                tvStreak.text = "$streak"
             }
-        })
+        }
     }
 
     private fun calculateStreak(history: Map<String, DayEntry>, dayStartHour: Int): Int {
@@ -272,19 +250,14 @@ class TimerFragment : Fragment() {
         // Button Icon
         if (TimerState.STATUS_RUNNING == state.status) {
             btnToggle.setImageResource(R.drawable.ic_pause)
+            btnToggle.contentDescription = "Pause"
         } else {
             btnToggle.setImageResource(R.drawable.ic_play)
+            btnToggle.contentDescription = if (state.status == TimerState.STATUS_PAUSED) "Resume" else "Start"
         }
 
-        // Connection Status
-        val isConnected = mainActivity?.service?.isConnected == true
-        if (isConnected) {
-            tvStatus.text = "Connected"
-            tvStatus.setTextColor(ContextCompat.getColor(context, R.color.status_connected))
-        } else {
-            tvStatus.text = "Offline"
-            tvStatus.setTextColor(ContextCompat.getColor(context, R.color.status_offline))
-        }
+        tvStatus.text = "Phone primary"
+        tvStatus.setTextColor(ContextCompat.getColor(context, R.color.status_connected))
 
         // Real-time session update
         tvSessions.text = "${state.completed}"

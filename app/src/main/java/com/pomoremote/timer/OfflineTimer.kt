@@ -143,6 +143,19 @@ class OfflineTimer(
         service.onTimerUpdate(state)
     }
 
+    fun extend(minutes: Int) {
+        val seconds = (minutes.coerceAtLeast(1) * 60).toDouble()
+        state.duration += seconds
+        state.remaining += seconds
+        state.last_action_time = System.currentTimeMillis() / 1000
+
+        if (TimerState.STATUS_RUNNING == state.status) {
+            startLocalTimer()
+        }
+
+        service.onTimerUpdate(state)
+    }
+
     private fun recalculateNextPhase() {
         if (TimerState.PHASE_WORK == state.phase) {
             // Current is WORK. Next is a break.

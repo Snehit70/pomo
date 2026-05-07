@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
 import com.google.gson.Gson
 import com.pomoremote.timer.TimerState
+import java.security.SecureRandom
 
 class UtilPreferenceManager(context: Context) {
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
@@ -24,17 +25,25 @@ class UtilPreferenceManager(context: Context) {
         }
     }
 
-    val laptopIp: String
-        get() = prefs.getString("laptop_ip", "192.168.29.98") ?: "192.168.29.98"
-
-    val laptopPort: Int
+    val phoneServerPort: Int
         get() {
-            val portStr = prefs.getString("laptop_port", "9876")
-            return try {
-                portStr?.toInt() ?: 9876
-            } catch (e: NumberFormatException) {
-                9876
-            }
+            val portStr = prefs.getString("phone_server_port", "9876")
+            return portStr
+                ?.toIntOrNull()
+                ?.takeIf { it in 1..65535 }
+                ?: 9876
+        }
+
+    val pairingToken: String
+        get() {
+            val existing = prefs.getString("pairing_token", null)
+            if (!existing.isNullOrBlank()) return existing
+
+            val bytes = ByteArray(24)
+            SecureRandom().nextBytes(bytes)
+            val token = bytes.joinToString("") { "%02x".format(it) }
+            prefs.edit().putString("pairing_token", token).apply()
+            return token
         }
 
     val isVibrateEnabled: Boolean
