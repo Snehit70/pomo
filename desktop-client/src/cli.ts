@@ -57,12 +57,21 @@ async function safeReadCache() {
   }
 }
 
+async function safeWriteCache(state: Awaited<ReturnType<typeof getStatus>>): Promise<void> {
+  try {
+    await writeCache(state);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Could not update stale cache: ${message}`);
+  }
+}
+
 async function status(args: string[]): Promise<void> {
   const mode = outputMode(args);
   try {
     const config = await readConfig();
     const state = await getStatus(config);
-    await writeCache(state);
+    await safeWriteCache(state);
     printState(mode, state);
   } catch (error) {
     const cached = await safeReadCache();
@@ -84,7 +93,7 @@ async function status(args: string[]): Promise<void> {
 async function command(name: "toggle" | "skip" | "reset"): Promise<void> {
   const config = await readConfig();
   const state = await postCommand(config, name);
-  await writeCache(state);
+  await safeWriteCache(state);
   printState("human", state);
 }
 
@@ -95,7 +104,7 @@ async function extendCommand(minutesArg: string | undefined): Promise<void> {
   }
   const config = await readConfig();
   const state = await extend(config, minutes);
-  await writeCache(state);
+  await safeWriteCache(state);
   printState("human", state);
 }
 
@@ -103,7 +112,7 @@ async function watch(): Promise<void> {
   for (;;) {
     try {
       const config = await readConfig();
-      await writeCache(await getStatus(config));
+      await safeWriteCache(await getStatus(config));
     } catch {
       // The service cache is display-only, so transient phone/network failures are harmless.
     }
