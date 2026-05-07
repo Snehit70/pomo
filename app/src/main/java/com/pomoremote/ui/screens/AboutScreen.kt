@@ -21,7 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -46,7 +45,6 @@ public fun AboutScreen() {
             painter = painterResource(R.mipmap.ic_launcher),
             contentDescription = null,
             modifier = Modifier.size(120.dp),
-            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
         )
         Spacer(Modifier.height(16.dp))
         Text(

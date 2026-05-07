@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import com.pomoremote.db.SessionEntity
 import com.pomoremote.ui.DayEntry
 import com.pomoremote.ui.theme.Gold
+import com.pomoremote.util.DateLogic
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -71,6 +72,7 @@ public fun StatsScreen(
     todaySessions: List<SessionEntity>,
     dailyGoal: Int,
     dayStartHour: Int,
+    sessionMinutes: Int = 25,
     onExport: () -> Unit,
 ) {
     val scroll = rememberScrollState()
@@ -90,13 +92,18 @@ public fun StatsScreen(
     }
     val (totalMinutes, totalSessions) = totals
 
-    val today = remember(dayStartHour) { logicalToday(dayStartHour) }
+    val today = remember(dayStartHour) { DateLogic.effectiveDate(System.currentTimeMillis(), dayStartHour) }
     val todayEntry = history[today]
     val todaySessionsCount = todayEntry?.completed ?: 0
     val daysWithActivity = history.values.count { it.completed > 0 }
     val avgMinutes = if (daysWithActivity > 0) totalMinutes / daysWithActivity else 0
-    val bestStreak = remember(history) { calculateBestStreak(history) }
-    val currentStreak = remember(history, dayStartHour) { calculateCurrentStreak(history, dayStartHour) }
+    val activeDates = remember(history) {
+        history.entries.filter { it.value.completed > 0 }.map { it.key }.toSet()
+    }
+    val bestStreak = remember(activeDates) { DateLogic.bestStreak(activeDates) }
+    val currentStreak = remember(activeDates, dayStartHour) {
+        DateLogic.currentStreak(activeDates, System.currentTimeMillis(), dayStartHour)
+    }
 
     val periodData = remember(history, periodType, dayStartHour) {
         buildPeriodData(history, periodType, dayStartHour)
@@ -244,9 +251,9 @@ public fun StatsScreen(
                     .padding(16.dp),
             ) {
                 if (graphType == GraphType.Bar) {
-                    BarGraph(periodData, dailyGoal, periodType)
+                    BarGraph(periodData, dailyGoal, periodType, sessionMinutes)
                 } else {
-                    LineGraph(periodData, dailyGoal)
+                    LineGraph(periodData, dailyGoal, sessionMinutes)
                 }
             }
         }
@@ -377,12 +384,13 @@ private fun BarGraph(
     data: List<Pair<String, Int>>,
     dailyGoal: Int,
     period: PeriodType,
+    sessionMinutes: Int = 25,
 ) {
     if (data.isEmpty()) return
     val primary = MaterialTheme.colorScheme.primary
     val onSurface = MaterialTheme.colorScheme.onSurface
     val maxMins = (data.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
-    val goalMins = dailyGoal * 25
+    val goalMins = dailyGoal * sessionMinutes
 
     Row(
         modifier = Modifier.fillMaxSize(),
@@ -429,7 +437,7 @@ private fun BarGraph(
 }
 
 @Composable
-private fun LineGraph(data: List<Pair<String, Int>>, dailyGoal: Int) {
+private fun LineGraph(data: List<Pair<String, Int>>, dailyGoal: Int, sessionMinutes: Int = 25) {
     if (data.size < 2) return
     val primary = MaterialTheme.colorScheme.primary
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -437,7 +445,7 @@ private fun LineGraph(data: List<Pair<String, Int>>, dailyGoal: Int) {
     val labelStyle = TextStyle(fontSize = 10.sp, color = onSurface.copy(alpha = 0.6f))
     val valueStyle = TextStyle(fontSize = 9.sp)
     val maxMins = (data.maxOfOrNull { it.second } ?: 60).coerceAtLeast(60)
-    val goalMins = dailyGoal * 25
+    val goalMins = dailyGoal * sessionMinutes
 
     androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
         val padX = 16.dp.toPx()
@@ -598,18 +606,14 @@ private fun formatHM(minutes: Int): String {
     return if (h > 0) "${h}h ${m}m" else "${m}m"
 }
 
-private fun logicalToday(dayStartHour: Int): String {
-    val cal = Calendar.getInstance()
-    if (cal.get(Calendar.HOUR_OF_DAY) < dayStartHour) cal.add(Calendar.DAY_OF_YEAR, -1)
-    return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
-}
-
 private fun last7Days(history: Map<String, DayEntry>, dayStartHour: Int): List<Pair<String, DayEntry?>> {
     val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val dayFmt = SimpleDateFormat("EEE", Locale.US)
-    val cal = Calendar.getInstance()
-    if (cal.get(Calendar.HOUR_OF_DAY) < dayStartHour) cal.add(Calendar.DAY_OF_YEAR, -1)
-    cal.add(Calendar.DAY_OF_YEAR, -6)
+    val todayKey = DateLogic.effectiveDate(System.currentTimeMillis(), dayStartHour)
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = df.parse(todayKey)!!.time
+        add(Calendar.DAY_OF_YEAR, -6)
+    }
     val out = mutableListOf<Pair<String, DayEntry?>>()
     for (i in 0 until 7) {
         val label = dayFmt.format(cal.time).take(1).uppercase()
@@ -627,10 +631,12 @@ private fun buildPeriodData(
     val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val dayFmt = SimpleDateFormat("EEE", Locale.US)
     val domFmt = SimpleDateFormat("d", Locale.US)
-    val cal = Calendar.getInstance()
-    if (cal.get(Calendar.HOUR_OF_DAY) < dayStartHour) cal.add(Calendar.DAY_OF_YEAR, -1)
+    val todayKey = DateLogic.effectiveDate(System.currentTimeMillis(), dayStartHour)
     val days = if (period == PeriodType.Month) 30 else 7
-    cal.add(Calendar.DAY_OF_YEAR, -(days - 1))
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = df.parse(todayKey)!!.time
+        add(Calendar.DAY_OF_YEAR, -(days - 1))
+    }
     val out = mutableListOf<Pair<String, Int>>()
     for (i in 0 until days) {
         val label = if (period == PeriodType.Month) {
@@ -644,38 +650,4 @@ private fun buildPeriodData(
     return out
 }
 
-private fun calculateBestStreak(history: Map<String, DayEntry>): Int {
-    val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    val dates = history.entries.filter { it.value.completed > 0 }
-        .mapNotNull { runCatching { df.parse(it.key) }.getOrNull() }
-        .sortedDescending()
-    if (dates.isEmpty()) return 0
-    var best = 1
-    var cur = 1
-    for (i in 0 until dates.size - 1) {
-        val diff = (dates[i].time - dates[i + 1].time) / (1000 * 60 * 60 * 24)
-        if (diff == 1L) {
-            cur++
-            best = maxOf(best, cur)
-        } else cur = 1
-    }
-    return best
-}
 
-private fun calculateCurrentStreak(history: Map<String, DayEntry>, dayStartHour: Int): Int {
-    val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    val cal = Calendar.getInstance()
-    if (cal.get(Calendar.HOUR_OF_DAY) < dayStartHour) cal.add(Calendar.DAY_OF_YEAR, -1)
-    val todayKey = df.format(cal.time)
-    val todayActive = (history[todayKey]?.completed ?: 0) > 0
-    if (!todayActive) cal.add(Calendar.DAY_OF_YEAR, -1)
-    var streak = 0
-    while (true) {
-        val key = df.format(cal.time)
-        if ((history[key]?.completed ?: 0) > 0) {
-            streak++
-            cal.add(Calendar.DAY_OF_YEAR, -1)
-        } else break
-    }
-    return streak
-}

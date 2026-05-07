@@ -97,3 +97,11 @@ public interface HistoryDao {
     @Query("SELECT COUNT(*) FROM sessions WHERE date = :date AND completed = 1 AND type = 'work'")
     public suspend fun getTodayCompletedCount(date: String): Int
 }
+
+/**
+ * Chunk-safe wrapper for [HistoryDao.markAsSynced].
+ * SQLite caps host parameters at 999 on older Android versions; chunking prevents overflow.
+ */
+public suspend fun HistoryDao.markAsSyncedChunked(startTimes: List<Long>, chunkSize: Int = 500) {
+    startTimes.chunked(chunkSize).forEach { markAsSynced(it) }
+}

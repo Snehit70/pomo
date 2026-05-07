@@ -6,6 +6,7 @@ import com.pomoremote.db.HistoryCacheRepository
 import com.pomoremote.util.UtilPreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -49,6 +50,7 @@ public class OfflineTimerTest {
 
     @After
     public fun tearDown() {
+        scope.cancel()
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         PreferenceManager.getDefaultSharedPreferences(ctx).edit().clear().apply()
     }

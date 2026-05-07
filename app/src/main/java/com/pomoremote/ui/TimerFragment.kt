@@ -17,12 +17,10 @@ import com.pomoremote.timer.TimerState
 import com.pomoremote.ui.screens.TimerScreen
 import com.pomoremote.ui.screens.TimerStats
 import com.pomoremote.ui.theme.PomoRemoteTheme
+import com.pomoremote.util.DateLogic
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 public class TimerFragment : Fragment() {
 
@@ -71,7 +69,7 @@ public class TimerFragment : Fragment() {
     }
 
     public fun updateUI(state: TimerState) {
-        timerState.value = state
+        timerState.value = state.copy()
     }
 
     private fun observeStats() {
@@ -87,59 +85,16 @@ public class TimerFragment : Fragment() {
                     )
                 }
                 val dayStartHour = mainActivity?.prefs?.dayStartHour ?: 3
-                val today = logicalToday(dayStartHour)
+                val today = DateLogic.effectiveDate(System.currentTimeMillis(), dayStartHour)
                 val todayEntry = map[today]
+                val activeDates = map.entries.filter { it.value.completed > 0 }.map { it.key }.toSet()
                 timerStats.value = TimerStats(
                     todayMinutes = todayEntry?.work_minutes ?: 0,
                     todaySessions = todayEntry?.completed ?: 0,
-                    streak = calculateStreak(map, dayStartHour),
+                    streak = DateLogic.currentStreak(activeDates, System.currentTimeMillis(), dayStartHour),
                 )
             }
         }
     }
 
-    private fun logicalToday(dayStartHour: Int): String {
-        val cal = Calendar.getInstance()
-        if (cal.get(Calendar.HOUR_OF_DAY) < dayStartHour) {
-            cal.add(Calendar.DAY_OF_YEAR, -1)
-        }
-        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
-    }
-
-    private fun calculateStreak(history: Map<String, DayEntry>, dayStartHour: Int): Int {
-        val df = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val activeDates = history.entries
-            .filter { it.value.completed > 0 }
-            .map { it.key }
-            .sortedDescending()
-        if (activeDates.isEmpty()) return 0
-
-        val cal = Calendar.getInstance()
-        if (cal.get(Calendar.HOUR_OF_DAY) < dayStartHour) {
-            cal.add(Calendar.DAY_OF_YEAR, -1)
-        }
-
-        var streak = 0
-        var first = true
-        while (true) {
-            val key = df.format(cal.time)
-            if (activeDates.contains(key)) {
-                streak++
-                cal.add(Calendar.DAY_OF_YEAR, -1)
-            } else if (first) {
-                cal.add(Calendar.DAY_OF_YEAR, -1)
-                val prev = df.format(cal.time)
-                if (activeDates.contains(prev)) {
-                    streak++
-                    cal.add(Calendar.DAY_OF_YEAR, -1)
-                } else {
-                    break
-                }
-            } else {
-                break
-            }
-            first = false
-        }
-        return streak
-    }
 }

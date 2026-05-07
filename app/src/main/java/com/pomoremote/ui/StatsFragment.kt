@@ -18,12 +18,10 @@ import com.pomoremote.db.HistoryCacheRepository
 import com.pomoremote.db.SessionEntity
 import com.pomoremote.ui.screens.StatsScreen
 import com.pomoremote.ui.theme.PomoRemoteTheme
+import com.pomoremote.util.DateLogic
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 public class StatsFragment : Fragment() {
 
@@ -52,7 +50,7 @@ public class StatsFragment : Fragment() {
                 )
             }
         }
-        val today = logicalToday(mainActivity?.prefs?.dayStartHour ?: 3)
+        val today = DateLogic.effectiveDate(System.currentTimeMillis(), mainActivity?.prefs?.dayStartHour ?: 3)
         val sessionsFlow: Flow<List<SessionEntity>> = repo.observeSessionsForDate(today)
 
         return ComposeView(ctx).apply {
@@ -65,11 +63,13 @@ public class StatsFragment : Fragment() {
                     val goal = act?.service?.currentState?.goal?.takeIf { it > 0 }
                         ?: act?.prefs?.dailyGoal ?: 8
                     val dayStart = act?.prefs?.dayStartHour ?: 3
+                    val sessionMins = act?.prefs?.pomodoroDuration ?: 25
                     StatsScreen(
                         history = history,
                         todaySessions = sessions,
                         dailyGoal = goal,
                         dayStartHour = dayStart,
+                        sessionMinutes = sessionMins,
                         onExport = { exportStats(history) },
                     )
                 }
@@ -85,7 +85,7 @@ public class StatsFragment : Fragment() {
         }
         try {
             val csv = buildString {
-                append("Date,Minutes,Sessions\n")
+                append("Date,WorkMinutes,Completed\n")
                 history.entries.sortedByDescending { it.key }.forEach { (date, entry) ->
                     append("$date,${entry.work_minutes},${entry.completed}\n")
                 }
@@ -103,9 +103,4 @@ public class StatsFragment : Fragment() {
         }
     }
 
-    private fun logicalToday(dayStartHour: Int): String {
-        val cal = Calendar.getInstance()
-        if (cal.get(Calendar.HOUR_OF_DAY) < dayStartHour) cal.add(Calendar.DAY_OF_YEAR, -1)
-        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
-    }
 }

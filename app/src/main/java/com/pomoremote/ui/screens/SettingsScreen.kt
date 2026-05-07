@@ -158,6 +158,13 @@ private fun BoolPrefRow(prefs: SharedPreferences, item: SettingsItem.BoolPref) {
     var checked by remember(item.key) {
         mutableStateOf(prefs.getBoolean(item.key, item.default))
     }
+    DisposableEffect(item.key) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { sp, k ->
+            if (k == item.key) checked = sp.getBoolean(item.key, item.default)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),

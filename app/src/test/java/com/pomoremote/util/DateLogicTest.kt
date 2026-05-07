@@ -42,7 +42,7 @@ public class DateLogicTest {
     }
 
     @Test
-    public fun currentStreak_todayInactive_falsBackToYesterday() {
+    public fun currentStreak_todayInactive_fallsBackToYesterday() {
         // Today (2026-05-07) inactive, but yesterday and prior are active → 2
         val active = setOf("2026-05-06", "2026-05-05")
         assertEquals(2, DateLogic.currentStreak(active, ms("2026-05-07T10:00:00"), 3, utc))

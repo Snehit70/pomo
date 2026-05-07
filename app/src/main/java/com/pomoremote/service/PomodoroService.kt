@@ -90,15 +90,19 @@ public class PomodoroService : Service(), TimerObserver {
             }
         } else {
             currentState.date = historyCacheRepository.getEffectiveDateString(prefs.dayStartHour)
+            sanitizeState(currentState)
             serviceScope.launch {
                 currentState.completed = historyCacheRepository.getTodayCompletedCount(prefs.dayStartHour)
                 offlineTimer.updateState(currentState)
                 saveCurrentState()
+                updateNotification()
+                broadcastStateUpdate()
             }
-            sanitizeState(currentState)
         }
 
-        offlineTimer.updateState(currentState)
+        if (savedState != null) {
+            offlineTimer.updateState(currentState)
+        }
 
         startForeground(
             NotificationHelper.NOTIFICATION_ID,
