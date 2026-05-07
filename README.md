@@ -130,6 +130,9 @@ payload shapes, and WebSocket behavior.
 
 For a deeper implementation map, see [docs/architecture.md](docs/architecture.md).
 
+For the new thin TypeScript laptop client, see
+[docs/desktop-client.md](docs/desktop-client.md).
+
 ## Validation
 
 Build check:
