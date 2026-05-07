@@ -1,6 +1,8 @@
 package com.pomoremote.service
 
 import android.app.Service
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.content.Context
 import android.content.Intent
 import android.media.Ringtone
@@ -32,6 +34,7 @@ class PomodoroService : Service() {
     var currentState: TimerState = TimerState()
         private set
     private lateinit var phoneServer: PhoneServer
+    private var activePhoneServerPort: Int = PhoneServer.DEFAULT_PORT
     private var currentRingtone: Ringtone? = null
     private val gson = Gson()
 
@@ -62,7 +65,8 @@ class PomodoroService : Service() {
         historyCacheRepository = HistoryCacheRepository(this)
 
         offlineTimer = OfflineTimer(this, prefs, historyCacheRepository, serviceScope)
-        phoneServer = PhoneServer(this, prefs.phoneServerPort)
+        activePhoneServerPort = prefs.phoneServerPort
+        phoneServer = PhoneServer(this, activePhoneServerPort)
 
         // Restore state or initialize default
         val savedState = prefs.loadTimerState()
@@ -348,7 +352,23 @@ class PomodoroService : Service() {
 
     fun syncConfig() {
         updateDailyGoal()
+        restartPhoneServerIfPortChanged()
         broadcastStateUpdate()
+    }
+
+    private fun restartPhoneServerIfPortChanged() {
+        val newPort = prefs.phoneServerPort
+        if (newPort == activePhoneServerPort) return
+
+        Log.d(TAG, "Restarting phone API on port $newPort")
+        phoneServer.stop()
+        activePhoneServerPort = newPort
+        phoneServer = PhoneServer(this, activePhoneServerPort)
+        phoneServer.start()
+    }
+
+    suspend fun stateSnapshot(): TimerState = withContext(Dispatchers.Main) {
+        currentState.copy()
     }
 
     fun getConfigPayload(): ConfigPayload {
@@ -364,25 +384,26 @@ class PomodoroService : Service() {
         )
     }
 
-    suspend fun applyConfigPayload(body: String) = withContext(Dispatchers.Main) {
+    suspend fun applyConfigPayload(body: String): TimerState = withContext(Dispatchers.Main) {
         val config = gson.fromJson(body, ConfigPayload::class.java)
-        prefs.pomodoroDuration = config.durations.work
-        prefs.shortBreakDuration = config.durations.short_break
-        prefs.longBreakDuration = config.durations.long_break
-        prefs.longBreakAfter = config.long_break_after
-        prefs.dailyGoal = config.daily_goal
-        prefs.dayStartHour = config.day_start_hour
+        prefs.pomodoroDuration = config.durations.work.takeIf { it > 0 } ?: prefs.pomodoroDuration
+        prefs.shortBreakDuration = config.durations.short_break.takeIf { it > 0 } ?: prefs.shortBreakDuration
+        prefs.longBreakDuration = config.durations.long_break.takeIf { it > 0 } ?: prefs.longBreakDuration
+        prefs.longBreakAfter = config.long_break_after.takeIf { it > 0 } ?: prefs.longBreakAfter
+        prefs.dailyGoal = config.daily_goal.takeIf { it >= 0 } ?: prefs.dailyGoal
+        prefs.dayStartHour = config.day_start_hour.takeIf { it in 0..23 } ?: prefs.dayStartHour
 
         currentState.goal = prefs.dailyGoal
         if (currentState.status != TimerState.STATUS_RUNNING) {
             currentState.duration = getDurationForPhase(currentState.phase)
             currentState.remaining = currentState.duration
-            sanitizeState(currentState)
-            offlineTimer.updateState(currentState)
         }
+        sanitizeState(currentState)
+        offlineTimer.updateState(currentState)
         saveCurrentState()
         updateNotification()
         broadcastStateUpdate()
+        currentState.copy()
     }
 
     suspend fun getHistoryPayload(): Map<String, HistoryCacheRepository.ServerDayEntry> {
@@ -400,13 +421,42 @@ class PomodoroService : Service() {
     }
 
     private fun getLocalIpAddress(): String {
+        getActiveLanIpAddress()?.let { return it }
+
         return try {
             NetworkInterface.getNetworkInterfaces().toList()
                 .flatMap { it.inetAddresses.toList() }
                 .filterIsInstance<Inet4Address>()
-                .firstOrNull { !it.isLoopbackAddress }?.hostAddress ?: "127.0.0.1"
+                .firstOrNull { !it.isLoopbackAddress && it.isSiteLocalAddress }?.hostAddress
+                ?: NetworkInterface.getNetworkInterfaces().toList()
+                    .flatMap { it.inetAddresses.toList() }
+                    .filterIsInstance<Inet4Address>()
+                    .firstOrNull { !it.isLoopbackAddress }?.hostAddress
+                ?: "127.0.0.1"
         } catch (e: Exception) {
             "127.0.0.1"
+        }
+    }
+
+    private fun getActiveLanIpAddress(): String? {
+        return try {
+            val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = connectivityManager.activeNetwork ?: return null
+            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return null
+            if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+            ) {
+                return null
+            }
+
+            connectivityManager.getLinkProperties(network)
+                ?.linkAddresses
+                ?.map { it.address }
+                ?.filterIsInstance<Inet4Address>()
+                ?.firstOrNull { !it.isLoopbackAddress && it.isSiteLocalAddress }
+                ?.hostAddress
+        } catch (e: Exception) {
+            null
         }
     }
 

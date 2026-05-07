@@ -22,12 +22,15 @@
     <string name="settings_title">Settings</string>
     <string name="category_connection">Connection</string>
     <string name="category_notifications">Notifications</string>
+    <string name="category_info">Info</string>
     
-    <string name="ip_address_title">Laptop IP Address</string>
     <string name="ip_address_summary">Desktop clients connect to the phone URL shown in pairing.</string>
     
-    <string name="port_title">Port</string>
-    <string name="port_summary">Default: 9876</string>
+    <string name="phone_api_port_title">Phone API port</string>
+    <string name="phone_api_port_summary">Port used by desktop clients on this phone</string>
+    <string name="pair_desktop_title">Pair desktop client</string>
+    <string name="pair_desktop_summary">Open after the timer service starts to view URL and token</string>
+    <string name="pair_desktop_unavailable">Start the timer service, then reopen this screen.</string>
     
     <string name="vibrate_title">Vibrate</string>
     <string name="vibrate_summary">Vibrate when timer completes</string>
@@ -48,4 +51,13 @@
     <string name="category_goals">Goals</string>
     <string name="daily_goal_title">Daily Goal</string>
     <string name="daily_goal_summary">Number of focus sessions per day</string>
+    <string name="day_start_hour_title">Day Start Hour</string>
+    <string name="day_start_hour_summary">The hour (0-23) when a new day begins (e.g., 3 for 3 AM)</string>
+    <string name="about_title">About</string>
+    <string name="about_summary">Version info &amp; credits</string>
+    <string name="about_subtitle">A mobile-first Pomodoro timer with optional desktop control.</string>
+    <string name="about_features_title">Features</string>
+    <string name="about_features">• Phone-owned timer state\n• Local session history\n• Paired desktop API\n• Detailed statistics &amp; analytics\n• Home screen widget</string>
+    <string name="about_created_by">Created by Snehit</string>
+    <string name="about_made_with">Made with ❤️ and Kotlin</string>
 </resources>

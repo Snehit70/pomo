@@ -32,9 +32,9 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
         findPreference<androidx.preference.Preference>("pairing_info")?.setOnPreferenceClickListener {
             val service = (activity as? MainActivity)?.service
             val message = service?.pairingPayload
-                ?: "Start the timer service, then reopen this screen."
+                ?: getString(R.string.pair_desktop_unavailable)
             AlertDialog.Builder(requireContext())
-                .setTitle("Pair desktop client")
+                .setTitle(R.string.pair_desktop_title)
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
@@ -57,7 +57,8 @@ class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedP
             (activity as? MainActivity)?.service?.updateDailyGoal()
             (activity as? MainActivity)?.service?.syncConfig()
         } else if (key == "pomodoro_duration" || key == "short_break_duration" ||
-                   key == "long_break_duration" || key == "long_break_after") {
+                   key == "long_break_duration" || key == "long_break_after" ||
+                   key == "phone_server_port") {
             (activity as? MainActivity)?.service?.syncConfig()
         }
     }

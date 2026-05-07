@@ -28,11 +28,10 @@ class UtilPreferenceManager(context: Context) {
     val phoneServerPort: Int
         get() {
             val portStr = prefs.getString("phone_server_port", "9876")
-            return try {
-                portStr?.toInt() ?: 9876
-            } catch (e: NumberFormatException) {
-                9876
-            }
+            return portStr
+                ?.toIntOrNull()
+                ?.takeIf { it in 1..65535 }
+                ?: 9876
         }
 
     val pairingToken: String

@@ -45,7 +45,7 @@ class PhoneServer(
             routing {
                 get("/api/status") {
                     if (!call.isAuthorized()) return@get call.unauthorized()
-                    call.respondJson(service.currentState.copy())
+                    call.respondJson(service.stateSnapshot())
                 }
 
                 post("/api/toggle") {
@@ -66,6 +66,7 @@ class PhoneServer(
                 post("/api/extend") {
                     if (!call.isAuthorized()) return@post call.unauthorized()
                     val minutes = parseMinutes(call.receiveText())
+                        ?: return@post call.respondBadRequest("invalid minutes")
                     call.respondJson(success(service.extendTimerBlocking(minutes)))
                 }
 
@@ -76,8 +77,12 @@ class PhoneServer(
 
                 post("/api/config") {
                     if (!call.isAuthorized()) return@post call.unauthorized()
-                    service.applyConfigPayload(call.receiveText())
-                    call.respondJson(success(service.currentState.copy()))
+                    val state = try {
+                        service.applyConfigPayload(call.receiveText())
+                    } catch (_: Exception) {
+                        return@post call.respondBadRequest("invalid config")
+                    }
+                    call.respondJson(success(state))
                 }
 
                 get("/api/history") {
@@ -135,21 +140,21 @@ class PhoneServer(
         }
     }
 
-    private fun stateMessage(): String = gson.toJson(
+    private suspend fun stateMessage(): String = gson.toJson(
         mapOf(
             "type" to "state",
-            "data" to service.currentState.copy()
+            "data" to service.stateSnapshot()
         )
     )
 
     private fun success(state: Any): Map<String, Any> = mapOf("success" to true, "state" to state)
 
-    private fun parseMinutes(body: String): Int {
+    private fun parseMinutes(body: String): Int? {
         return try {
-            JsonParser.parseString(body).asJsonObject.get("minutes")?.asInt ?: 5
+            JsonParser.parseString(body).asJsonObject.get("minutes")?.asInt
         } catch (_: Exception) {
-            5
-        }.coerceIn(1, 240)
+            null
+        }?.takeIf { it in 1..240 }
     }
 
     private fun parseHelloToken(body: String): String? {
@@ -170,6 +175,14 @@ class PhoneServer(
             gson.toJson(mapOf("success" to false, "error" to "unauthorized")),
             ContentType.Application.Json,
             HttpStatusCode.Unauthorized
+        )
+    }
+
+    private suspend fun io.ktor.server.application.ApplicationCall.respondBadRequest(error: String) {
+        respondText(
+            gson.toJson(mapOf("success" to false, "error" to error)),
+            ContentType.Application.Json,
+            HttpStatusCode.BadRequest
         )
     }
 
