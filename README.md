@@ -148,6 +148,26 @@ Manual checks worth doing on device:
 - `GET /api/status` rejects missing tokens and returns state with a valid token.
 - `/ws` accepts a valid hello token and streams state updates.
 
+## Releases
+
+Releases are automated from `main`.
+
+When a PR is merged, `.github/workflows/version-bump.yml` inspects the commit
+messages in that push, bumps `versionCode` and `versionName` in
+`app/build.gradle.kts`, commits the version bump back to `main`, and creates a
+tag like `v1.5.1`.
+
+The bump type follows Conventional Commits:
+
+- `feat:` creates a minor release.
+- `fix:` or `perf:` creates a patch release.
+- `!` or `BREAKING CHANGE:` creates a major release.
+- Anything else defaults to a patch release, so every merged PR can still ship.
+
+When a `v*` tag is pushed, `.github/workflows/release.yml` builds debug and
+unsigned release APKs, uploads them as workflow artifacts, and publishes a
+GitHub Release with generated release notes.
+
 ## Notes
 
 - Cleartext local-network traffic is allowed by

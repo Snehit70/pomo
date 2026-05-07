@@ -1,0 +1,115 @@
+name: Version Bump
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: version-bump-main
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump Android Version
+    runs-on: ubuntu-latest
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      !startsWith(github.event.head_commit.message, 'chore(release):')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Determine bump type
+        id: bump
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            RANGE="${{ github.sha }}"
+          else
+            RANGE="${{ github.event.before }}..${{ github.sha }}"
+          fi
+
+          git log --format=%B "$RANGE" > /tmp/commit-messages.txt
+
+          if grep -qE '(^[a-zA-Z]+(\([^)]+\))?!:|BREAKING CHANGE:)' /tmp/commit-messages.txt; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif grep -qE '^feat(\([^)]+\))?:' /tmp/commit-messages.txt; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          elif grep -qE '^(fix|perf)(\([^)]+\))?:' /tmp/commit-messages.txt; then
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update Gradle version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_FILE="app/build.gradle.kts"
+          BUMP_TYPE="${{ steps.bump.outputs.type }}"
+
+          CURRENT_CODE="$(grep -oE 'versionCode = [0-9]+' "$BUILD_FILE" | awk '{print $3}')"
+          CURRENT_NAME="$(grep -oE 'versionName = "[^"]+"' "$BUILD_FILE" | sed -E 's/versionName = "([^"]+)"/\1/')"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_NAME"
+          MAJOR="${MAJOR:-0}"
+          MINOR="${MINOR:-0}"
+          PATCH="${PATCH:-0}"
+
+          case "$BUMP_TYPE" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+            *)
+              echo "Unsupported bump type: $BUMP_TYPE" >&2
+              exit 1
+              ;;
+          esac
+
+          NEW_CODE=$((CURRENT_CODE + 1))
+          NEW_NAME="$MAJOR.$MINOR.$PATCH"
+
+          perl -0pi -e "s/versionCode = \\d+/versionCode = $NEW_CODE/" "$BUILD_FILE"
+          perl -0pi -e "s/versionName = \"[^\"]+\"/versionName = \"$NEW_NAME\"/" "$BUILD_FILE"
+
+          echo "new_code=$NEW_CODE" >> "$GITHUB_OUTPUT"
+          echo "new_name=$NEW_NAME" >> "$GITHUB_OUTPUT"
+          echo "Bumped $CURRENT_NAME ($CURRENT_CODE) -> $NEW_NAME ($NEW_CODE)"
+
+      - name: Commit and tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.version.outputs.new_name }}"
+          git add app/build.gradle.kts
+          git commit -m "chore(release): bump version to $VERSION"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin main
+          git push origin "v$VERSION"
