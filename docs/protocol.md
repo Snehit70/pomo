@@ -127,14 +127,14 @@ curl -X POST -H "X-Pomo-Token: $TOKEN" "$PHONE_URL/api/reset"
 
 ### POST /api/extend
 
-Adds minutes to the current timer. The server clamps accepted values to a
-reasonable positive range.
+Adds a positive seconds delta to the currently running timer. Add-time is
+uncapped by design; stopped and paused timers are left unchanged.
 
 ```bash
 curl -X POST \
   -H "X-Pomo-Token: $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"minutes":5}' \
+  -d '{"seconds_delta":300}' \
   "$PHONE_URL/api/extend"
 ```
 

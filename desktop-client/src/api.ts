@@ -64,11 +64,11 @@ export async function postCommand(config: ClientConfig, command: "toggle" | "ski
   return body.state;
 }
 
-export async function extend(config: ClientConfig, minutes: number): Promise<TimerState> {
+export async function extend(config: ClientConfig, secondsDelta: number): Promise<TimerState> {
   const body = parseCommandResponse(
     await request(config, "/api/extend", {
       method: "POST",
-      body: JSON.stringify({ minutes })
+      body: JSON.stringify({ seconds_delta: secondsDelta })
     })
   );
   if (!body.success || body.state === undefined) {

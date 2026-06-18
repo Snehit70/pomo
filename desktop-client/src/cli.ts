@@ -103,7 +103,7 @@ async function extendCommand(minutesArg: string | undefined): Promise<void> {
     throw new Error("extend requires a positive whole number of minutes.");
   }
   const config = await readConfig();
-  const state = await extend(config, minutes);
+  const state = await extend(config, minutes * 60);
   await safeWriteCache(state);
   printState("human", state);
 }
