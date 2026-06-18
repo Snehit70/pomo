@@ -42,7 +42,7 @@ public data class CrewScreenState(
 public fun CrewScreen(
     state: CrewScreenState,
     onCreateCrew: (String) -> Unit,
-    onJoinCrew: (String) -> Unit,
+    onJoinCrew: (String, String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -88,7 +88,7 @@ private fun CrewLoadingState() {
 private fun CrewEmptyState(
     errorMessage: String?,
     onCreateCrew: (String) -> Unit,
-    onJoinCrew: (String) -> Unit,
+    onJoinCrew: (String, String) -> Unit,
 ) {
     var displayName by remember { mutableStateOf("") }
     var joinCode by remember { mutableStateOf("") }
@@ -114,7 +114,7 @@ private fun CrewEmptyState(
                     label = { Text("Join code") },
                     minLines = 2,
                 )
-                PomoButton(onClick = { onJoinCrew(joinCode) }) {
+                PomoButton(onClick = { onJoinCrew(joinCode, displayName) }) {
                     Text("Join Crew")
                 }
                 if (errorMessage != null) {

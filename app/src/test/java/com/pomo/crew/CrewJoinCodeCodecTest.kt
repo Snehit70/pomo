@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.util.Base64
 
 public class CrewJoinCodeCodecTest {
     @Test
@@ -23,6 +24,18 @@ public class CrewJoinCodeCodecTest {
     public fun decode_malformedCodeIsRejected() {
         assertNull(CrewJoinCodeCodec.decode("not-a-crew-code"))
         assertNull(CrewJoinCodeCodec.decode("pomo-crew.not-base64"))
+    }
+
+    @Test
+    public fun decode_emptyRelayListFallsBackToDefaults() {
+        val json = """{"version":1,"crewId":"crew-1","relays":[],"key":"abc123"}"""
+        val code = "pomo-crew." + Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(json.toByteArray(Charsets.UTF_8))
+
+        val decoded = CrewJoinCodeCodec.decode(code)
+
+        assertEquals(CrewDefaults.DEFAULT_RELAYS, decoded?.relays)
     }
 
     @Test

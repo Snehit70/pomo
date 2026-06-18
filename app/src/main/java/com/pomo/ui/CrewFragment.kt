@@ -46,7 +46,7 @@ public class CrewFragment : Fragment() {
                 CrewScreen(
                     state = currentState,
                     onCreateCrew = { displayName -> createCrew(displayName) },
-                    onJoinCrew = { joinCode -> joinCrew(joinCode) },
+                    onJoinCrew = { joinCode, displayName -> joinCrew(joinCode, displayName) },
                 )
             }
         }
@@ -77,10 +77,10 @@ public class CrewFragment : Fragment() {
         }
     }
 
-    private fun joinCrew(joinCode: String) {
+    private fun joinCrew(joinCode: String, displayName: String) {
         viewLifecycleOwner.lifecycleScope.launch {
             screenState.value = screenState.value.copy(isLoading = true)
-            val board = repository.joinCrew(joinCode)
+            val board = repository.joinCrew(joinCode, displayName)
             screenState.value = CrewScreenState(
                 isLoading = false,
                 board = board,

@@ -40,8 +40,8 @@ public object CrewJoinCodeCodec {
             val json = String(Base64.getUrlDecoder().decode(raw), Charsets.UTF_8)
             val decoded = gson.fromJson(json, EncodedJoinPayload::class.java)
             if (decoded.version != VERSION) return null
-            val relays = decoded.relays.orEmpty().filter { it.isNotBlank() }
-            if (decoded.crewId.isBlank() || decoded.key.isBlank() || relays.isEmpty()) return null
+            val relays = decoded.relays.orEmpty().filter { it.isNotBlank() }.ifEmpty { CrewDefaults.DEFAULT_RELAYS }
+            if (decoded.crewId.isBlank() || decoded.key.isBlank()) return null
             CrewJoinPayload(decoded.crewId, relays, decoded.key)
         } catch (_: Exception) {
             null
