@@ -165,6 +165,7 @@ public class PomodoroService : Service(), TimerObserver {
         if (newState.completed != last.completed) return true
         if (newState.date != last.date) return true
         if (newState.start_time != last.start_time) return true
+        if (newState.duration != last.duration) return true
 
         if (newState.status != TimerState.STATUS_RUNNING && newState.remaining != last.remaining) {
             return true
@@ -312,30 +313,24 @@ public class PomodoroService : Service(), TimerObserver {
         serviceScope.launch { resetTimerBlocking() }
     }
 
-    public fun extendTimer(minutes: Int) {
-        serviceScope.launch { extendTimerBlocking(minutes) }
+    public fun extendTimer(secondsDelta: Int) {
+        serviceScope.launch { addTimeBlocking(secondsDelta) }
     }
 
-    public suspend fun toggleTimerBlocking(): TimerState = runTimerCommand {
-        if (currentState.status == TimerState.STATUS_RUNNING) {
-            StateCueEvent.PauseTapped
-        } else {
-            StateCueEvent.StartOrResumeTapped
-        }
-    }.also { Log.i(TAG, "Timer command executed: toggle status=${it.status} remaining=${it.remaining}") }
+    public suspend fun toggleTimerBlocking(): TimerState = executeCommand(TimerCommand.Toggle)
+        .also { Log.i(TAG, "Timer command executed: toggle status=${it.status} remaining=${it.remaining}") }
 
-    public suspend fun skipTimerBlocking(): TimerState = runTimerCommand {
-        StateCueEvent.SkipTapped
-    }.also { Log.i(TAG, "Timer command executed: skip status=${it.status} phase=${it.phase}") }
+    public suspend fun skipTimerBlocking(): TimerState = executeCommand(TimerCommand.Skip)
+        .also { Log.i(TAG, "Timer command executed: skip status=${it.status} phase=${it.phase}") }
 
-    public suspend fun resetTimerBlocking(): TimerState = runTimerCommand {
-        StateCueEvent.ResetTapped
-    }.also { Log.i(TAG, "Timer command executed: reset status=${it.status} remaining=${it.remaining}") }
+    public suspend fun resetTimerBlocking(): TimerState = executeCommand(TimerCommand.Reset)
+        .also { Log.i(TAG, "Timer command executed: reset status=${it.status} remaining=${it.remaining}") }
 
-    public suspend fun extendTimerBlocking(minutes: Int): TimerState = runTimerCommand {
-        offlineTimer.extend(minutes)
-        null
-    }.also { Log.i(TAG, "Timer command executed: extend minutes=$minutes remaining=${it.remaining}") }
+    public suspend fun addTimeBlocking(secondsDelta: Int): TimerState =
+        executeCommand(TimerCommand.AddTime(secondsDelta))
+            .also { Log.i(TAG, "Timer command executed: add_time seconds=$secondsDelta remaining=${it.remaining}") }
+
+    public suspend fun extendTimerBlocking(minutes: Int): TimerState = addTimeBlocking(minutes.coerceAtLeast(1) * 60)
 
     public fun nextCompletionCueVariant(family: CompletionCueFamily): CueVariant = cueEngine.nextVariant(family)
 
@@ -347,22 +342,40 @@ public class PomodoroService : Service(), TimerObserver {
 
     public fun previewManualCue(event: StateCueEvent): CuePreviewOutcome = cueEngine.previewManual(event)
 
-    private suspend fun runTimerCommand(eventForAction: () -> StateCueEvent?): TimerState = commandMutex.withLock {
+    private suspend fun executeCommand(command: TimerCommand): TimerState = commandMutex.withLock {
         withContext(Dispatchers.Main) {
             reconcileDayTransitionIfNeeded(notify = false)
             val before = currentState.copy()
-            val event = eventForAction()
+            val event = when (command) {
+                TimerCommand.Toggle -> if (currentState.status == TimerState.STATUS_RUNNING) {
+                    StateCueEvent.PauseTapped
+                } else {
+                    StateCueEvent.StartOrResumeTapped
+                }
+                TimerCommand.Skip -> StateCueEvent.SkipTapped
+                TimerCommand.Reset -> StateCueEvent.ResetTapped
+                is TimerCommand.AddTime -> null
+            }
             when (event) {
                 StateCueEvent.StartOrResumeTapped, StateCueEvent.PauseTapped -> offlineTimer.toggle()
                 StateCueEvent.SkipTapped -> offlineTimer.skip()
                 StateCueEvent.ResetTapped -> offlineTimer.reset()
-                else -> Unit
+                else -> if (command is TimerCommand.AddTime) {
+                    offlineTimer.extend(command.secondsDelta)
+                }
             }
             if (event != null && didStateChange(before, currentState)) {
                 cueEngine.playManual(event)
             }
             currentState.copy()
         }
+    }
+
+    private sealed class TimerCommand {
+        object Toggle : TimerCommand()
+        object Skip : TimerCommand()
+        object Reset : TimerCommand()
+        data class AddTime(val secondsDelta: Int) : TimerCommand()
     }
 
     private fun didStateChange(before: TimerState, after: TimerState): Boolean {

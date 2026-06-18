@@ -161,34 +161,90 @@ public class OfflineTimerTest {
     }
 
     @Test
-    public fun extend_addsMinutesToDurationAndRemaining() {
+    public fun extend_runningWork_addsSecondsToDurationAndRemaining() {
         val initial = TimerState().apply {
             phase = TimerState.PHASE_WORK
             duration = 1500.0
             remaining = 1000.0
+            status = TimerState.STATUS_RUNNING
         }
         timer.updateState(initial)
 
-        timer.extend(5)
+        timer.extend(300)
 
         assertEquals(1800.0, timer.state.duration, 0.001)
         assertEquals(1300.0, timer.state.remaining, 0.001)
     }
 
     @Test
-    public fun extend_zeroOrNegativeMinutes_clampedToOne() {
+    public fun extend_doesNotChangeCompletedPhaseOrNextPhase() {
+        val initial = TimerState().apply {
+            phase = TimerState.PHASE_WORK
+            duration = 1500.0
+            remaining = 1000.0
+            completed = 3
+            next_phase = TimerState.PHASE_LONG
+            status = TimerState.STATUS_RUNNING
+        }
+        timer.updateState(initial)
+
+        timer.extend(60)
+
+        assertEquals(3, timer.state.completed)
+        assertEquals(TimerState.PHASE_WORK, timer.state.phase)
+        assertEquals(TimerState.PHASE_LONG, timer.state.next_phase)
+    }
+
+    @Test
+    public fun extend_runningBreak_addsSecondsToDurationAndRemaining() {
+        val initial = TimerState().apply {
+            phase = TimerState.PHASE_SHORT
+            duration = 300.0
+            remaining = 120.0
+            next_phase = TimerState.PHASE_WORK
+            status = TimerState.STATUS_RUNNING
+        }
+        timer.updateState(initial)
+
+        timer.extend(90)
+
+        assertEquals(390.0, timer.state.duration, 0.001)
+        assertEquals(210.0, timer.state.remaining, 0.001)
+        assertEquals(TimerState.PHASE_SHORT, timer.state.phase)
+        assertEquals(TimerState.PHASE_WORK, timer.state.next_phase)
+    }
+
+    @Test
+    public fun extend_repeatedCallsAccumulate() {
+        val initial = TimerState().apply {
+            phase = TimerState.PHASE_WORK
+            duration = 1500.0
+            remaining = 900.0
+            status = TimerState.STATUS_RUNNING
+        }
+        timer.updateState(initial)
+
+        timer.extend(60)
+        timer.extend(300)
+
+        assertEquals(1860.0, timer.state.duration, 0.001)
+        assertEquals(1260.0, timer.state.remaining, 0.001)
+    }
+
+    @Test
+    public fun extend_stoppedTimerDoesNotChangeDefaults() {
         val initial = TimerState().apply {
             phase = TimerState.PHASE_WORK
             duration = 1500.0
             remaining = 1500.0
+            status = TimerState.STATUS_STOPPED
         }
         timer.updateState(initial)
 
-        timer.extend(0)
-        assertEquals(1560.0, timer.state.duration, 0.001) // +60s
+        timer.extend(60)
 
-        timer.extend(-5)
-        assertEquals(1620.0, timer.state.duration, 0.001) // +60s
+        assertEquals(1500.0, timer.state.duration, 0.001)
+        assertEquals(1500.0, timer.state.remaining, 0.001)
     }
 
     @Test

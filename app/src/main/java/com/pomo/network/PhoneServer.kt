@@ -67,9 +67,9 @@ public class PhoneServer(
 
                 post("/api/extend") {
                     if (!call.isAuthorized()) return@post call.rejectUnauthorized()
-                    val minutes = parseMinutes(call.receiveText())
-                        ?: return@post call.respondBadRequest("invalid minutes")
-                    call.respondJson(success(service.extendTimerBlocking(minutes)))
+                    val secondsDelta = parseAddTimeSeconds(call.receiveText())
+                        ?: return@post call.respondBadRequest("invalid add-time delta")
+                    call.respondJson(success(service.addTimeBlocking(secondsDelta)))
                 }
 
                 get("/api/config") {
@@ -157,12 +157,19 @@ public class PhoneServer(
 
     private fun success(state: Any): Map<String, Any> = mapOf("success" to true, "state" to state)
 
-    private fun parseMinutes(body: String): Int? {
-        return try {
-            JsonParser.parseString(body).asJsonObject.get("minutes")?.asInt
+    private fun parseAddTimeSeconds(body: String): Int? {
+        val seconds = try {
+            val obj = JsonParser.parseString(body).asJsonObject
+            when {
+                obj.has("seconds_delta") -> obj.get("seconds_delta")?.asInt
+                obj.has("seconds") -> obj.get("seconds")?.asInt
+                obj.has("minutes") -> obj.get("minutes")?.asInt?.let { it * 60 }
+                else -> null
+            }
         } catch (_: Exception) {
             null
-        }?.takeIf { it in 1..240 }
+        }
+        return seconds?.takeIf { it > 0 }
     }
 
     private fun parseHelloToken(body: String): String? {

@@ -178,16 +178,15 @@ public class OfflineTimer(
         observer.onTimerUpdate(state)
     }
 
-    public fun extend(minutes: Int) {
+    public fun extend(secondsDelta: Int) {
         if (completionJob?.isActive == true) return
-        val seconds = (minutes.coerceAtLeast(1) * 60).toDouble()
+        if (TimerState.STATUS_RUNNING != state.status) return
+        val seconds = secondsDelta.coerceAtLeast(1).toDouble()
         state.duration += seconds
         state.remaining += seconds
         state.last_action_time = System.currentTimeMillis() / 1000
 
-        if (TimerState.STATUS_RUNNING == state.status) {
-            startLocalTimer()
-        }
+        startLocalTimer()
 
         observer.onTimerUpdate(state)
     }
