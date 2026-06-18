@@ -3,12 +3,14 @@ package com.pomo.crew
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.pomo.util.UtilPreferenceManager
 
 public class LocalCrewRelayStore(context: Context) {
     private val prefs = context.getSharedPreferences("crew_relay_echo", Context.MODE_PRIVATE)
     private val gson = Gson()
+    private val transport = CrewRelayTransport(UtilPreferenceManager(context).crewNostrPrivateKey)
 
-    public fun publish(
+    public suspend fun publish(
         crewId: String,
         identityPublicKey: String,
         payload: String,
@@ -21,13 +23,17 @@ public class LocalCrewRelayStore(context: Context) {
             payload = payload,
         )
         prefs.edit().putString(SNAPSHOTS_KEY, gson.toJson(current)).apply()
+        transport.publish(crewId, payload, relays)
     }
 
-    public fun pull(crewId: String, crewKey: String): List<CrewSnapshot> {
-        return loadAll()
+    public suspend fun pull(crewId: String, crewKey: String, relays: List<String>): List<CrewSnapshot> {
+        val remoteSnapshots = transport.pull(crewId, relays)
+            .mapNotNull { CrewSnapshotCodec.decodeEncrypted(it, crewKey) }
+        val localSnapshots = loadAll()
             .filterKeys { it.startsWith("$crewId:") }
             .values
             .mapNotNull { CrewSnapshotCodec.decodeEncrypted(it.payload, crewKey) }
+        return remoteSnapshots + localSnapshots
     }
 
     private fun loadAll(): Map<String, StoredSnapshot> {

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
 import com.google.gson.Gson
 import com.pomo.crew.CrewIdentityKeys
+import com.pomo.crew.CrewNostrKeys
 import com.pomo.timer.TimerState
 import com.pomo.ui.theme.ThemeMode
 import com.pomo.ui.theme.themeMode
@@ -84,6 +85,15 @@ public class UtilPreferenceManager(context: Context) {
             return generateCrewIdentity().publicKey
         }
 
+    public val crewNostrPrivateKey: String
+        get() {
+            val existing = pairingPrefs.getString(CREW_NOSTR_PRIVATE_KEY, null)
+            if (!existing.isNullOrBlank()) return existing
+            val key = CrewNostrKeys.generatePrivateKeyHex()
+            pairingPrefs.edit().putString(CREW_NOSTR_PRIVATE_KEY, key).apply()
+            return key
+        }
+
     public val isPhoneServerEnabled: Boolean
         get() = prefs.getBoolean("phone_server_enabled", true)
 
@@ -152,6 +162,7 @@ public class UtilPreferenceManager(context: Context) {
         private const val PAIRING_TOKEN_KEY: String = "pairing_token"
         private const val CREW_IDENTITY_PRIVATE_KEY: String = "crew_identity_private_key"
         private const val CREW_IDENTITY_PUBLIC_KEY: String = "crew_identity_public_key"
+        private const val CREW_NOSTR_PRIVATE_KEY: String = "crew_nostr_private_key"
 
         private fun generateToken(): String {
             val bytes = ByteArray(24)

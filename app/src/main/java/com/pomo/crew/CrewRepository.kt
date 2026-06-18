@@ -21,7 +21,7 @@ public class CrewRepository(context: Context) {
         publishSelfSnapshot(membership)
         val rows = CrewLeaderboardAggregator.rank(
             crewId = membership.crewId,
-            snapshots = relayStore.pull(membership.crewId, membership.key),
+            snapshots = relayStore.pull(membership.crewId, membership.key, membership.relays),
             selfIdentityPublicKey = identity().publicKey,
         )
         return CrewBoard(
