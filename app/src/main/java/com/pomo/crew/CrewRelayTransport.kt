@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.net.URI
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -30,9 +31,9 @@ public class CrewRelayTransport(
         relays: List<String>,
     ): Boolean = withContext(Dispatchers.IO) {
         val event = signedEvent(crewId, payload)
-        relays.filterValidRelayUrls().any { relay ->
-            publishToRelay(relay, event)
-        }
+        relays.filterValidRelayUrls()
+            .map { relay -> publishToRelay(relay, event) }
+            .any { it }
     }
 
     public suspend fun pull(crewId: String, relays: List<String>): List<String> = withContext(Dispatchers.IO) {
@@ -41,7 +42,7 @@ public class CrewRelayTransport(
             .distinct()
     }
 
-    private fun publishToRelay(relay: String, event: JsonObject): Boolean {
+    private fun publishToRelay(relay: String, event: JsonObject): Boolean = try {
         val latch = CountDownLatch(1)
         var accepted = false
         val listener = object : WebSocketListener() {
@@ -65,10 +66,12 @@ public class CrewRelayTransport(
         val socket = client.newWebSocket(Request.Builder().url(relay).build(), listener)
         latch.await(RELAY_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         socket.cancel()
-        return accepted
+        accepted
+    } catch (_: Exception) {
+        false
     }
 
-    private fun pullFromRelay(relay: String, crewId: String): List<String> {
+    private fun pullFromRelay(relay: String, crewId: String): List<String> = try {
         val latch = CountDownLatch(1)
         val payloads = mutableListOf<String>()
         val subscriptionId = "pomo-${UUID.randomUUID()}"
@@ -107,7 +110,9 @@ public class CrewRelayTransport(
         val socket = client.newWebSocket(Request.Builder().url(relay).build(), listener)
         latch.await(RELAY_TIMEOUT_MS, TimeUnit.MILLISECONDS)
         socket.cancel()
-        return payloads
+        payloads
+    } catch (_: Exception) {
+        emptyList()
     }
 
     private fun signedEvent(crewId: String, payload: String): JsonObject {
@@ -165,11 +170,19 @@ public class CrewRelayTransport(
         }
     }
 
-    private fun List<String>.filterValidRelayUrls(): List<String> =
-        filter { it.startsWith("wss://") }.distinct()
+    public companion object {
+        public fun filterValidRelayUrls(relays: List<String>): List<String> =
+            relays.filter { relay ->
+                runCatching {
+                    val uri = URI(relay)
+                    uri.scheme == "wss" && !uri.host.isNullOrBlank()
+                }.getOrDefault(false)
+            }.distinct()
 
-    private companion object {
         private const val RELAY_TIMEOUT_MS: Long = 5_000L
         private const val PULL_LIMIT: Int = 100
     }
+
+    private fun List<String>.filterValidRelayUrls(): List<String> =
+        filterValidRelayUrls(this)
 }
