@@ -27,6 +27,7 @@ public class CrewRepository(context: Context) {
             crewId = membership.crewId,
             snapshots = relayStore.pull(membership.crewId, membership.key, membership.relays),
             selfIdentityPublicKey = identity().publicKey,
+            mode = CrewRankingMode.Today,
         )
         return CrewBoard(
             crewId = membership.crewId,
@@ -117,6 +118,7 @@ public class CrewRepository(context: Context) {
     }
 
     public suspend fun updateDisplayName(displayName: String): CrewBoard? {
+        if (displayName.isBlank()) return currentBoard()
         val memberships = crewStore.updateDisplayName(displayName)
         memberships.forEach { publishSelfSnapshot(it) }
         return currentBoard()
