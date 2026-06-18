@@ -28,8 +28,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pomo.crew.CrewBoard
 import com.pomo.crew.CrewBoardRow
+import com.pomo.crew.CrewRankingMode
 import com.pomo.ui.components.EmptyState
 import com.pomo.ui.components.PomoButton
+import com.pomo.ui.components.SegmentedToggle
+import com.pomo.ui.components.SegmentedToggleOption
 import com.pomo.ui.theme.PomoTokens
 
 public data class CrewScreenState(
@@ -131,6 +134,8 @@ private fun CrewEmptyState(
 
 @Composable
 private fun CrewBoardContent(board: CrewBoard) {
+    var rankingMode by remember { mutableStateOf(CrewRankingMode.AllTime) }
+    val rows = board.rows.rankedFor(rankingMode)
     Text(
         text = "Join code",
         style = MaterialTheme.typography.labelSmall,
@@ -151,34 +156,74 @@ private fun CrewBoardContent(board: CrewBoard) {
         color = MaterialTheme.colorScheme.onSurface,
     )
     Spacer(Modifier.height(12.dp))
+    SegmentedToggle(
+        options = listOf(
+            SegmentedToggleOption(CrewRankingMode.AllTime.name, "All-time"),
+            SegmentedToggleOption(CrewRankingMode.Today.name, "Today"),
+        ),
+        selectedValue = rankingMode.name,
+        onSelectedValueChange = { rankingMode = CrewRankingMode.valueOf(it) },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(12.dp))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        board.rows.forEach { row ->
-            CrewRow(row)
+        rows.forEachIndexed { index, row ->
+            CrewRow(row, displayRank = index + 1)
         }
     }
 }
 
 @Composable
-private fun CrewRow(row: CrewBoardRow) {
-    Row(modifier = Modifier.fillMaxWidth()) {
+private fun CrewRow(row: CrewBoardRow, displayRank: Int) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "#$displayRank",
+                modifier = Modifier.weight(0.18f),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = if (row.isSelf) "${row.displayName} (you)" else row.displayName,
+                modifier = Modifier.weight(0.52f),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "${row.allTimeFocusMinutes}m",
+                modifier = Modifier.weight(0.3f),
+                style = MaterialTheme.typography.titleMedium,
+                color = PomoTokens.colors.accent,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         Text(
-            text = "#${row.rank}",
-            modifier = Modifier.weight(0.18f),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            text = "${row.todayFocusMinutes}m today - ${row.todaySessionCount} sessions - ${row.currentStreak} day streak - ${lastSeen(row.lastActiveEpochSeconds)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = PomoTokens.colors.onSurfaceMuted,
         )
-        Text(
-            text = if (row.isSelf) "${row.displayName} (you)" else row.displayName,
-            modifier = Modifier.weight(0.52f),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = "${row.allTimeFocusMinutes}m",
-            modifier = Modifier.weight(0.3f),
-            style = MaterialTheme.typography.titleMedium,
-            color = PomoTokens.colors.accent,
-            fontWeight = FontWeight.SemiBold,
-        )
+    }
+}
+
+private fun List<CrewBoardRow>.rankedFor(mode: CrewRankingMode): List<CrewBoardRow> =
+    sortedWith(
+        compareByDescending<CrewBoardRow> {
+            when (mode) {
+                CrewRankingMode.AllTime -> it.allTimeFocusMinutes
+                CrewRankingMode.Today -> it.todayFocusMinutes
+            }
+        }
+            .thenBy { it.displayName.lowercase() }
+            .thenBy { it.identityPublicKey },
+    )
+
+private fun lastSeen(lastActiveEpochSeconds: Long): String {
+    val elapsedMinutes = ((System.currentTimeMillis() / 1000L) - lastActiveEpochSeconds)
+        .coerceAtLeast(0L) / 60L
+    return when {
+        elapsedMinutes < 1L -> "last seen just now"
+        elapsedMinutes == 1L -> "last seen 1 min ago"
+        elapsedMinutes < 60L -> "last seen $elapsedMinutes min ago"
+        else -> "last seen ${elapsedMinutes / 60L}h ago"
     }
 }

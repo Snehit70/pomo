@@ -5,6 +5,7 @@ public object CrewLeaderboardAggregator {
         crewId: String,
         snapshots: List<CrewSnapshot>,
         selfIdentityPublicKey: String,
+        mode: CrewRankingMode = CrewRankingMode.AllTime,
     ): List<CrewBoardRow> {
         return snapshots
             .filter { it.crewId == crewId }
@@ -12,7 +13,12 @@ public object CrewLeaderboardAggregator {
             .values
             .mapNotNull { identitySnapshots -> identitySnapshots.maxByOrNull { it.publishedAtEpochSeconds } }
             .sortedWith(
-                compareByDescending<CrewSnapshot> { it.allTimeFocusMinutes }
+                compareByDescending<CrewSnapshot> {
+                    when (mode) {
+                        CrewRankingMode.AllTime -> it.allTimeFocusMinutes
+                        CrewRankingMode.Today -> it.todayFocusMinutes
+                    }
+                }
                     .thenBy { it.displayName.lowercase() }
                     .thenBy { it.identityPublicKey },
             )
@@ -22,6 +28,10 @@ public object CrewLeaderboardAggregator {
                     identityPublicKey = snapshot.identityPublicKey,
                     displayName = snapshot.displayName,
                     allTimeFocusMinutes = snapshot.allTimeFocusMinutes,
+                    todayFocusMinutes = snapshot.todayFocusMinutes,
+                    currentStreak = snapshot.currentStreak,
+                    todaySessionCount = snapshot.todaySessionCount,
+                    lastActiveEpochSeconds = snapshot.lastActiveEpochSeconds,
                     isSelf = snapshot.identityPublicKey == selfIdentityPublicKey,
                 )
             }

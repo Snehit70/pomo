@@ -17,6 +17,10 @@ public data class CrewSnapshot(
     val displayName: String,
     val allTimeFocusMinutes: Int,
     val publishedAtEpochSeconds: Long,
+    val todayFocusMinutes: Int = 0,
+    val currentStreak: Int = 0,
+    val todaySessionCount: Int = 0,
+    val lastActiveEpochSeconds: Long = publishedAtEpochSeconds,
 )
 
 public data class CrewBoardRow(
@@ -24,8 +28,17 @@ public data class CrewBoardRow(
     val identityPublicKey: String,
     val displayName: String,
     val allTimeFocusMinutes: Int,
+    val todayFocusMinutes: Int,
+    val currentStreak: Int,
+    val todaySessionCount: Int,
+    val lastActiveEpochSeconds: Long,
     val isSelf: Boolean,
 )
+
+public enum class CrewRankingMode {
+    AllTime,
+    Today,
+}
 
 public data class CrewBoard(
     val crewId: String,

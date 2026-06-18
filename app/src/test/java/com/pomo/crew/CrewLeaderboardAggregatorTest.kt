@@ -58,12 +58,37 @@ public class CrewLeaderboardAggregatorTest {
         assertEquals(listOf(1, 2, 3), rows.map { it.rank })
     }
 
+    @Test
+    public fun rank_todayModeOrdersByTodayFocusMinutes() {
+        val snapshots = listOf(
+            snapshot("crew-1", "self", "Me", minutes = 500, todayMinutes = 10),
+            snapshot("crew-1", "friend", "Friend", minutes = 50, todayMinutes = 90),
+        )
+
+        val allTimeRows = CrewLeaderboardAggregator.rank(
+            crewId = "crew-1",
+            selfIdentityPublicKey = "self",
+            snapshots = snapshots,
+            mode = CrewRankingMode.AllTime,
+        )
+        val todayRows = CrewLeaderboardAggregator.rank(
+            crewId = "crew-1",
+            selfIdentityPublicKey = "self",
+            snapshots = snapshots,
+            mode = CrewRankingMode.Today,
+        )
+
+        assertEquals(listOf("Me", "Friend"), allTimeRows.map { it.displayName })
+        assertEquals(listOf("Friend", "Me"), todayRows.map { it.displayName })
+    }
+
     private fun snapshot(
         crewId: String,
         identity: String,
         name: String,
         minutes: Int,
         publishedAt: Long = 1,
+        todayMinutes: Int = 0,
     ): CrewSnapshot =
         CrewSnapshot(
             crewId = crewId,
@@ -71,5 +96,9 @@ public class CrewLeaderboardAggregatorTest {
             displayName = name,
             allTimeFocusMinutes = minutes,
             publishedAtEpochSeconds = publishedAt,
+            todayFocusMinutes = todayMinutes,
+            currentStreak = 1,
+            todaySessionCount = 1,
+            lastActiveEpochSeconds = publishedAt,
         )
 }

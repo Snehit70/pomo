@@ -3,6 +3,7 @@ package com.pomo.crew
 import android.content.Context
 import com.pomo.db.HistoryCacheRepository
 import com.pomo.util.UtilPreferenceManager
+import com.pomo.util.DateLogic
 
 public class CrewRepository(context: Context) {
     private val appContext = context.applicationContext
@@ -66,13 +67,24 @@ public class CrewRepository(context: Context) {
     private suspend fun publishSelfSnapshot(membership: CrewMembership) {
         val identity = identity()
         val history = historyRepository.getHistoryPayload()
+        val today = historyRepository.getEffectiveDateString()
+        val activeDates = history
+            .filter { it.value.completed > 0 }
+            .keys
+            .toSet()
         val focusMinutes = history.values.sumOf { it.work_minutes }
+        val todayEntry = history[today]
+        val nowSeconds = System.currentTimeMillis() / 1000L
         val snapshot = CrewSnapshot(
             crewId = membership.crewId,
             identityPublicKey = identity.publicKey,
             displayName = membership.displayName,
             allTimeFocusMinutes = focusMinutes,
-            publishedAtEpochSeconds = System.currentTimeMillis() / 1000L,
+            publishedAtEpochSeconds = nowSeconds,
+            todayFocusMinutes = todayEntry?.work_minutes ?: 0,
+            currentStreak = DateLogic.currentStreak(activeDates, System.currentTimeMillis()),
+            todaySessionCount = todayEntry?.completed ?: 0,
+            lastActiveEpochSeconds = nowSeconds,
         )
         relayStore.publish(
             crewId = membership.crewId,
