@@ -9,7 +9,10 @@ import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -40,6 +43,36 @@ public class CrewRelayTransport(
         relays.filterValidRelayUrls()
             .flatMap { relay -> pullFromRelay(relay, crewId) }
             .distinct()
+    }
+
+    public fun observe(crewId: String, relays: List<String>): Flow<String> = callbackFlow {
+        val subscriptionId = "pomo-${UUID.randomUUID()}"
+        val sockets = relays.filterValidRelayUrls().mapNotNull { relay ->
+            runCatching {
+                client.newWebSocket(
+                    Request.Builder().url(relay).build(),
+                    object : WebSocketListener() {
+                        override fun onOpen(webSocket: WebSocket, response: Response) {
+                            webSocket.send(gson.toJson(listOf("REQ", subscriptionId, crewFilter(crewId))))
+                        }
+
+                        override fun onMessage(webSocket: WebSocket, text: String) {
+                            val message = parseArray(text) ?: return
+                            if (message.firstString() != "EVENT") return
+                            message.eventPayloadForCrew(crewId)?.let { trySend(it) }
+                        }
+                    },
+                )
+            }.getOrNull()
+        }
+
+        awaitClose {
+            sockets.forEach { socket ->
+                socket.send(gson.toJson(listOf("CLOSE", subscriptionId)))
+                socket.close(1000, null)
+                socket.cancel()
+            }
+        }
     }
 
     private fun publishToRelay(relay: String, event: JsonObject): Boolean = try {
@@ -77,24 +110,13 @@ public class CrewRelayTransport(
         val subscriptionId = "pomo-${UUID.randomUUID()}"
         val listener = object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                val filter = mapOf(
-                    "kinds" to listOf(CrewDefaults.SNAPSHOT_EVENT_KIND),
-                    "#d" to listOf(crewId),
-                    "limit" to PULL_LIMIT,
-                )
-                webSocket.send(gson.toJson(listOf("REQ", subscriptionId, filter)))
+                webSocket.send(gson.toJson(listOf("REQ", subscriptionId, crewFilter(crewId, limit = PULL_LIMIT))))
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val message = parseArray(text) ?: return
                 when (message.firstString()) {
-                    "EVENT" -> message.getOrNull(2)
-                        ?.asJsonObject
-                        ?.takeIf { it.get("kind")?.asInt == CrewDefaults.SNAPSHOT_EVENT_KIND }
-                        ?.takeIf { event -> event.tags().any { it.firstOrNull() == "d" && it.getOrNull(1) == crewId } }
-                        ?.get("content")
-                        ?.asString
-                        ?.let { payloads.add(it) }
+                    "EVENT" -> message.eventPayloadForCrew(crewId)?.let { payloads.add(it) }
                     "EOSE" -> {
                         webSocket.send(gson.toJson(listOf("CLOSE", subscriptionId)))
                         webSocket.close(1000, null)
@@ -159,9 +181,27 @@ public class CrewRelayTransport(
         null
     }
 
+    private fun crewFilter(crewId: String, limit: Int? = null): Map<String, Any> {
+        val filter = mutableMapOf<String, Any>(
+            "kinds" to listOf(CrewDefaults.SNAPSHOT_EVENT_KIND),
+            "#d" to listOf(crewId),
+        )
+        if (limit != null) {
+            filter["limit"] = limit
+        }
+        return filter
+    }
+
     private fun JsonArray.firstString(): String? = getOrNull(0)?.asString
 
     private fun JsonArray.getOrNull(index: Int) = if (index in 0 until size()) get(index) else null
+
+    private fun JsonArray.eventPayloadForCrew(crewId: String): String? = getOrNull(2)
+        ?.asJsonObject
+        ?.takeIf { it.get("kind")?.asInt == CrewDefaults.SNAPSHOT_EVENT_KIND }
+        ?.takeIf { event -> event.tags().any { it.firstOrNull() == "d" && it.getOrNull(1) == crewId } }
+        ?.get("content")
+        ?.asString
 
     private fun JsonObject.tags(): List<List<String>> {
         val tags = getAsJsonArray("tags") ?: return emptyList()

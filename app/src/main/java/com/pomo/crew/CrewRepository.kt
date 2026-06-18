@@ -4,6 +4,9 @@ import android.content.Context
 import com.pomo.db.HistoryCacheRepository
 import com.pomo.util.UtilPreferenceManager
 import com.pomo.util.DateLogic
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.mapNotNull
 
 public class CrewRepository(context: Context) {
     private val appContext = context.applicationContext
@@ -19,7 +22,6 @@ public class CrewRepository(context: Context) {
 
     public suspend fun currentBoard(): CrewBoard? {
         val membership = crewStore.loadMembership() ?: return null
-        publishSelfSnapshot(membership)
         val rows = CrewLeaderboardAggregator.rank(
             crewId = membership.crewId,
             snapshots = relayStore.pull(membership.crewId, membership.key, membership.relays),
@@ -30,6 +32,18 @@ public class CrewRepository(context: Context) {
             joinCode = membership.joinCode,
             rows = rows,
         )
+    }
+
+    public suspend fun publishCurrentSnapshot(): Boolean {
+        val membership = crewStore.loadMembership() ?: return false
+        publishSelfSnapshot(membership)
+        return true
+    }
+
+    public fun observeCurrentBoard(): Flow<CrewBoard> {
+        val membership = crewStore.loadMembership() ?: return emptyFlow()
+        return relayStore.observe(membership.crewId, membership.key, membership.relays)
+            .mapNotNull { currentBoard() }
     }
 
     public suspend fun createSoloCrew(displayName: String): CrewBoard {

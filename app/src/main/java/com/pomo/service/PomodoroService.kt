@@ -16,6 +16,7 @@ import com.pomo.cues.CuePreviewOutcome
 import com.pomo.cues.CueVariant
 import com.pomo.cues.StateCueEngine
 import com.pomo.cues.StateCueEvent
+import com.pomo.crew.CrewRepository
 import com.pomo.db.HistoryCacheRepository
 import com.pomo.network.PhoneServer
 import com.pomo.timer.OfflineTimer
@@ -45,6 +46,7 @@ public class PomodoroService : Service(), TimerObserver {
     private lateinit var phoneServer: PhoneServer
     private var activePhoneServerPort: Int = PhoneServer.DEFAULT_PORT
     private lateinit var cueEngine: StateCueEngine
+    private lateinit var crewRepository: CrewRepository
     private val gson = Gson()
 
     private var lastSavedState: TimerState? = null
@@ -85,6 +87,7 @@ public class PomodoroService : Service(), TimerObserver {
         super.onCreate()
         prefs = UtilPreferenceManager(this)
         cueEngine = StateCueEngine(this, prefs)
+        crewRepository = CrewRepository(this)
         currentState.goal = prefs.dailyGoal
         notificationHelper = NotificationHelper(this)
         historyCacheRepository = HistoryCacheRepository(this)
@@ -267,6 +270,7 @@ public class PomodoroService : Service(), TimerObserver {
             saveCurrentState()
             updateNotification()
             broadcastStateUpdate()
+            publishCrewSnapshot("restored day transition")
         }
     }
 
@@ -286,6 +290,7 @@ public class PomodoroService : Service(), TimerObserver {
         updateNotification()
         broadcastStateUpdate()
         StateCueEvent.forCompletedPhase(completedPhase)?.let { cueEngine.playCompletion(it) }
+        publishCrewSnapshot("timer block complete")
     }
 
     private fun broadcastStateUpdate() {
@@ -366,6 +371,9 @@ public class PomodoroService : Service(), TimerObserver {
             }
             if (event != null && didStateChange(before, currentState)) {
                 cueEngine.playManual(event)
+                if (event == StateCueEvent.StartOrResumeTapped || event == StateCueEvent.PauseTapped) {
+                    publishCrewSnapshot("timer ${event.name}")
+                }
             }
             currentState.copy()
         }
@@ -413,6 +421,17 @@ public class PomodoroService : Service(), TimerObserver {
         if (notify) {
             updateNotification()
             broadcastStateUpdate()
+        }
+        publishCrewSnapshot("day rollover")
+    }
+
+    private fun publishCrewSnapshot(reason: String) {
+        serviceScope.launch(Dispatchers.IO) {
+            runCatching {
+                crewRepository.publishCurrentSnapshot()
+            }.onFailure { error ->
+                Log.w(TAG, "Failed to publish Crew snapshot after $reason", error)
+            }
         }
     }
 

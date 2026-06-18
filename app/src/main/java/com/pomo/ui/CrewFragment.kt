@@ -17,12 +17,14 @@ import com.pomo.ui.screens.CrewScreen
 import com.pomo.ui.screens.CrewScreenState
 import com.pomo.ui.theme.PomoTheme
 import com.pomo.ui.theme.ThemeMode
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 public class CrewFragment : Fragment() {
     private val screenState = MutableStateFlow(CrewScreenState(isLoading = true))
     private lateinit var repository: CrewRepository
+    private var liveBoardJob: Job? = null
 
     private val mainActivity: MainActivity?
         get() = activity as? MainActivity
@@ -55,6 +57,13 @@ public class CrewFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         refreshBoard()
+        startLiveBoard()
+    }
+
+    override fun onPause() {
+        liveBoardJob?.cancel()
+        liveBoardJob = null
+        super.onPause()
     }
 
     private fun refreshBoard() {
@@ -74,6 +83,7 @@ public class CrewFragment : Fragment() {
                 isLoading = false,
                 board = repository.createSoloCrew(displayName),
             )
+            startLiveBoard()
         }
     }
 
@@ -86,6 +96,21 @@ public class CrewFragment : Fragment() {
                 board = board,
                 errorMessage = if (board == null) "Invalid join code" else null,
             )
+            if (board != null) {
+                startLiveBoard()
+            }
+        }
+    }
+
+    private fun startLiveBoard() {
+        liveBoardJob?.cancel()
+        liveBoardJob = viewLifecycleOwner.lifecycleScope.launch {
+            repository.observeCurrentBoard().collect { board ->
+                screenState.value = CrewScreenState(
+                    isLoading = false,
+                    board = board,
+                )
+            }
         }
     }
 }

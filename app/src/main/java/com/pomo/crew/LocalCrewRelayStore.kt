@@ -4,6 +4,8 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.pomo.util.UtilPreferenceManager
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.mapNotNull
 
 public class LocalCrewRelayStore(context: Context) {
     private val prefs = context.getSharedPreferences("crew_relay_echo", Context.MODE_PRIVATE)
@@ -35,6 +37,10 @@ public class LocalCrewRelayStore(context: Context) {
             .mapNotNull { CrewSnapshotCodec.decodeEncrypted(it.payload, crewKey) }
         return remoteSnapshots + localSnapshots
     }
+
+    public fun observe(crewId: String, crewKey: String, relays: List<String>): Flow<CrewSnapshot> =
+        transport.observe(crewId, relays)
+            .mapNotNull { CrewSnapshotCodec.decodeEncrypted(it, crewKey) }
 
     private fun loadAll(): Map<String, StoredSnapshot> {
         val json = prefs.getString(SNAPSHOTS_KEY, null) ?: return emptyMap()
