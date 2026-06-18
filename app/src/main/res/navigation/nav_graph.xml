@@ -25,6 +25,11 @@
         android:label="History" />
 
     <fragment
+        android:id="@+id/navigation_crew"
+        android:name="com.pomo.ui.CrewFragment"
+        android:label="Crew" />
+
+    <fragment
         android:id="@+id/navigation_about"
         android:name="com.pomo.ui.AboutFragment"
         android:label="About" />

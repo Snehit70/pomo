@@ -75,6 +75,18 @@ public class UtilPreferenceManagerTest {
     }
 
     @Test
+    public fun crewIdentity_isGeneratedAndStable() {
+        val firstPrivate = prefs.crewIdentityPrivateKey
+        val firstPublic = prefs.crewIdentityPublicKey
+
+        assertNotNull(firstPrivate)
+        assertTrue("private key should be non-trivial length", firstPrivate.length >= 32)
+        assertNotNull(firstPublic)
+        assertEquals(firstPrivate, prefs.crewIdentityPrivateKey)
+        assertEquals(firstPublic, prefs.crewIdentityPublicKey)
+    }
+
+    @Test
     public fun pairingToken_differsAcrossInstances() {
         val a = prefs.pairingToken
         // Clear and create again — fresh token expected

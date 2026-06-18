@@ -7,6 +7,7 @@ import com.google.gson.Gson
 import com.pomo.timer.TimerState
 import com.pomo.ui.theme.ThemeMode
 import com.pomo.ui.theme.themeMode
+import java.security.MessageDigest
 import java.security.SecureRandom
 
 public class UtilPreferenceManager(context: Context) {
@@ -61,6 +62,18 @@ public class UtilPreferenceManager(context: Context) {
         prefs.edit().remove(PAIRING_TOKEN_KEY).apply()
         return token
     }
+
+    public val crewIdentityPrivateKey: String
+        get() {
+            val existing = pairingPrefs.getString(CREW_IDENTITY_PRIVATE_KEY, null)
+            if (!existing.isNullOrBlank()) return existing
+            val key = generateToken()
+            pairingPrefs.edit().putString(CREW_IDENTITY_PRIVATE_KEY, key).apply()
+            return key
+        }
+
+    public val crewIdentityPublicKey: String
+        get() = sha256Hex(crewIdentityPrivateKey)
 
     public val isPhoneServerEnabled: Boolean
         get() = prefs.getBoolean("phone_server_enabled", true)
@@ -128,10 +141,16 @@ public class UtilPreferenceManager(context: Context) {
     public companion object {
         private const val PAIRING_PREFS_NAME: String = "pairing_prefs"
         private const val PAIRING_TOKEN_KEY: String = "pairing_token"
+        private const val CREW_IDENTITY_PRIVATE_KEY: String = "crew_identity_private_key"
 
         private fun generateToken(): String {
             val bytes = ByteArray(24)
             SecureRandom().nextBytes(bytes)
+            return bytes.joinToString("") { "%02x".format(it) }
+        }
+
+        private fun sha256Hex(value: String): String {
+            val bytes = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
             return bytes.joinToString("") { "%02x".format(it) }
         }
 
