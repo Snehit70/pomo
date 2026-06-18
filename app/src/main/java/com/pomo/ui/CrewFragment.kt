@@ -12,16 +12,16 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.transition.MaterialFadeThrough
 import com.pomo.MainActivity
-import com.pomo.crew.CrewBoard
 import com.pomo.crew.CrewRepository
 import com.pomo.ui.screens.CrewScreen
+import com.pomo.ui.screens.CrewScreenState
 import com.pomo.ui.theme.PomoTheme
 import com.pomo.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 public class CrewFragment : Fragment() {
-    private val board = MutableStateFlow<CrewBoard?>(null)
+    private val screenState = MutableStateFlow(CrewScreenState(isLoading = true))
     private lateinit var repository: CrewRepository
 
     private val mainActivity: MainActivity?
@@ -42,9 +42,9 @@ public class CrewFragment : Fragment() {
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
         setContent {
             PomoTheme(mode = mainActivity?.prefs?.themeMode ?: ThemeMode.System) {
-                val currentBoard by board.collectAsState()
+                val currentState by screenState.collectAsState()
                 CrewScreen(
-                    board = currentBoard,
+                    state = currentState,
                     onCreateCrew = { displayName -> createCrew(displayName) },
                 )
             }
@@ -58,13 +58,21 @@ public class CrewFragment : Fragment() {
 
     private fun refreshBoard() {
         viewLifecycleOwner.lifecycleScope.launch {
-            board.value = repository.currentBoard()
+            screenState.value = screenState.value.copy(isLoading = true)
+            screenState.value = CrewScreenState(
+                isLoading = false,
+                board = repository.currentBoard(),
+            )
         }
     }
 
     private fun createCrew(displayName: String) {
         viewLifecycleOwner.lifecycleScope.launch {
-            board.value = repository.createSoloCrew(displayName)
+            screenState.value = screenState.value.copy(isLoading = true)
+            screenState.value = CrewScreenState(
+                isLoading = false,
+                board = repository.createSoloCrew(displayName),
+            )
         }
     }
 }

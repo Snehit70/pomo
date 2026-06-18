@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -31,9 +32,14 @@ import com.pomo.ui.components.EmptyState
 import com.pomo.ui.components.PomoButton
 import com.pomo.ui.theme.PomoTokens
 
+public data class CrewScreenState(
+    val isLoading: Boolean = false,
+    val board: CrewBoard? = null,
+)
+
 @Composable
 public fun CrewScreen(
-    board: CrewBoard?,
+    state: CrewScreenState,
     onCreateCrew: (String) -> Unit,
 ) {
     Column(
@@ -51,12 +57,25 @@ public fun CrewScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        if (board == null) {
-            CrewEmptyState(onCreateCrew)
-        } else {
-            CrewBoardContent(board)
+        when {
+            state.isLoading -> CrewLoadingState()
+            state.board == null -> CrewEmptyState(onCreateCrew)
+            else -> CrewBoardContent(state.board)
         }
     }
+}
+
+@Composable
+private fun CrewLoadingState() {
+    EmptyState(
+        headline = "Loading Crew",
+        body = "Checking whether this phone already belongs to a Crew.",
+        icon = Icons.Outlined.Groups,
+        modifier = Modifier.fillMaxWidth(),
+        action = {
+            CircularProgressIndicator()
+        },
+    )
 }
 
 @Composable
