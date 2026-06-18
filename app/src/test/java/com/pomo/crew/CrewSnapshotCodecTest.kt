@@ -60,6 +60,22 @@ public class CrewSnapshotCodecTest {
     }
 
     @Test
+    public fun decodeEncrypted_nullEnvelopeFieldsAreRejected() {
+        val payload = """
+            {
+              "version": 1,
+              "crewId": null,
+              "identityPublicKey": null,
+              "nonce": null,
+              "ciphertext": null,
+              "signature": null
+            }
+        """.trimIndent()
+
+        assertNull(CrewSnapshotCodec.decodeEncrypted(payload, "crew-secret"))
+    }
+
+    @Test
     public fun decodeEnvelope_keepsRelayPayloadOpaque() {
         val payload = CrewSnapshotCodec.encodeEncrypted(snapshot, "crew-secret", identity)
         val envelope = CrewSnapshotCodec.decodeEnvelope(payload)

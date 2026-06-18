@@ -53,13 +53,21 @@ public object CrewSnapshotCodec {
     }
 
     public fun decodeEncrypted(payload: String, crewKey: String): CrewSnapshot? {
-        val envelope = decodeEnvelope(payload) ?: return null
-        if (envelope.version != VERSION) return null
-        if (envelope.crewId.isBlank() || envelope.identityPublicKey.isBlank()) return null
-        if (!CrewIdentityKeys.verify(signatureMessage(envelope.copy(signature = "")), envelope.signature, envelope.identityPublicKey)) {
-            return null
-        }
         return try {
+            val envelope = decodeEnvelope(payload) ?: return null
+            if (envelope.version != VERSION) return null
+            if (
+                envelope.crewId.isBlank() ||
+                envelope.identityPublicKey.isBlank() ||
+                envelope.nonce.isBlank() ||
+                envelope.ciphertext.isBlank() ||
+                envelope.signature.isBlank()
+            ) {
+                return null
+            }
+            if (!CrewIdentityKeys.verify(signatureMessage(envelope.copy(signature = "")), envelope.signature, envelope.identityPublicKey)) {
+                return null
+            }
             val plaintext = decrypt(
                 ciphertext = decode(envelope.ciphertext),
                 crewKey = crewKey,
