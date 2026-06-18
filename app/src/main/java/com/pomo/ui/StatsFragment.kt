@@ -1,6 +1,9 @@
 package com.pomo.ui
 
+import android.content.ClipData
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -73,6 +76,7 @@ public class StatsFragment : Fragment() {
                     StatsScreen(
                         snapshot = snapshot,
                         onExport = { exportStats(days) },
+                        onShare = { shareStatsScreenshot() },
                     )
                 }
             }
@@ -109,6 +113,38 @@ public class StatsFragment : Fragment() {
             startActivity(Intent.createChooser(intent, "Export Stats CSV"))
         } catch (e: Exception) {
             Toast.makeText(ctx, "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun shareStatsScreenshot() {
+        val ctx = context ?: return
+        val root = activity?.window?.decorView?.rootView
+        if (root == null || root.width <= 0 || root.height <= 0) {
+            Toast.makeText(ctx, "Stats screen is not ready to share", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            root.draw(canvas)
+
+            val file = File(ctx.cacheDir, "pomo_stats_share.png")
+            file.outputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            bitmap.recycle()
+
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                clipData = ClipData.newUri(ctx.contentResolver, "Pomo stats screenshot", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, "Share Stats"))
+        } catch (e: Exception) {
+            Toast.makeText(ctx, "Share failed: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

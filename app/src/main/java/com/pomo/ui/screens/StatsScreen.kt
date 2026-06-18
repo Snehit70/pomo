@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -76,6 +77,7 @@ import java.util.Locale
 public fun StatsScreen(
     snapshot: StatsSnapshot,
     onExport: () -> Unit,
+    onShare: () -> Unit,
 ) {
     val scroll = rememberScrollState()
 
@@ -93,6 +95,13 @@ public fun StatsScreen(
                 style = MaterialTheme.typography.displayMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
+            IconButton(onClick = onShare) {
+                Icon(
+                    Icons.Outlined.Share,
+                    contentDescription = "Share statistics screenshot",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             IconButton(onClick = onExport) {
                 Icon(
                     Icons.Outlined.Download,
