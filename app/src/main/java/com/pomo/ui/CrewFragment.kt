@@ -46,6 +46,7 @@ public class CrewFragment : Fragment() {
                 CrewScreen(
                     state = currentState,
                     onCreateCrew = { displayName -> createCrew(displayName) },
+                    onJoinCrew = { joinCode -> joinCrew(joinCode) },
                 )
             }
         }
@@ -72,6 +73,18 @@ public class CrewFragment : Fragment() {
             screenState.value = CrewScreenState(
                 isLoading = false,
                 board = repository.createSoloCrew(displayName),
+            )
+        }
+    }
+
+    private fun joinCrew(joinCode: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            screenState.value = screenState.value.copy(isLoading = true)
+            val board = repository.joinCrew(joinCode)
+            screenState.value = CrewScreenState(
+                isLoading = false,
+                board = board,
+                errorMessage = if (board == null) "Invalid join code" else null,
             )
         }
     }

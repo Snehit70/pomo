@@ -8,6 +8,9 @@ public object CrewLeaderboardAggregator {
     ): List<CrewBoardRow> {
         return snapshots
             .filter { it.crewId == crewId }
+            .groupBy { it.identityPublicKey }
+            .values
+            .mapNotNull { identitySnapshots -> identitySnapshots.maxByOrNull { it.publishedAtEpochSeconds } }
             .sortedWith(
                 compareByDescending<CrewSnapshot> { it.allTimeFocusMinutes }
                     .thenBy { it.displayName.lowercase() }

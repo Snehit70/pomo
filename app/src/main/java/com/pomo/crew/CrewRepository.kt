@@ -47,6 +47,20 @@ public class CrewRepository(context: Context) {
         return currentBoard() ?: CrewBoard(payload.crewId, joinCode, emptyList())
     }
 
+    public suspend fun joinCrew(joinCode: String): CrewBoard? {
+        val payload = CrewJoinCodeCodec.decode(joinCode.trim()) ?: return null
+        val membership = CrewMembership(
+            crewId = payload.crewId,
+            joinCode = CrewJoinCodeCodec.encode(payload),
+            relays = payload.relays,
+            key = payload.key,
+            displayName = crewStore.loadMembership()?.displayName ?: "Me",
+        )
+        crewStore.saveMembership(membership)
+        publishSelfSnapshot(membership)
+        return currentBoard()
+    }
+
     private suspend fun publishSelfSnapshot(membership: CrewMembership) {
         val identity = identity()
         val history = historyRepository.getHistoryPayload()

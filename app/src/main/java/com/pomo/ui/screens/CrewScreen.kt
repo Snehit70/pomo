@@ -35,12 +35,14 @@ import com.pomo.ui.theme.PomoTokens
 public data class CrewScreenState(
     val isLoading: Boolean = false,
     val board: CrewBoard? = null,
+    val errorMessage: String? = null,
 )
 
 @Composable
 public fun CrewScreen(
     state: CrewScreenState,
     onCreateCrew: (String) -> Unit,
+    onJoinCrew: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -59,7 +61,11 @@ public fun CrewScreen(
 
         when {
             state.isLoading -> CrewLoadingState()
-            state.board == null -> CrewEmptyState(onCreateCrew)
+            state.board == null -> CrewEmptyState(
+                errorMessage = state.errorMessage,
+                onCreateCrew = onCreateCrew,
+                onJoinCrew = onJoinCrew,
+            )
             else -> CrewBoardContent(state.board)
         }
     }
@@ -79,11 +85,16 @@ private fun CrewLoadingState() {
 }
 
 @Composable
-private fun CrewEmptyState(onCreateCrew: (String) -> Unit) {
+private fun CrewEmptyState(
+    errorMessage: String?,
+    onCreateCrew: (String) -> Unit,
+    onJoinCrew: (String) -> Unit,
+) {
     var displayName by remember { mutableStateOf("") }
+    var joinCode by remember { mutableStateOf("") }
     EmptyState(
         headline = "No Crew yet",
-        body = "Create a Crew to publish your focus minutes and see yourself ranked.",
+        body = "Create a Crew or paste a join code from a friend.",
         icon = Icons.Outlined.Groups,
         modifier = Modifier.fillMaxWidth(),
         action = {
@@ -96,6 +107,22 @@ private fun CrewEmptyState(onCreateCrew: (String) -> Unit) {
                 )
                 PomoButton(onClick = { onCreateCrew(displayName) }) {
                     Text("Create Crew")
+                }
+                OutlinedTextField(
+                    value = joinCode,
+                    onValueChange = { joinCode = it },
+                    label = { Text("Join code") },
+                    minLines = 2,
+                )
+                PomoButton(onClick = { onJoinCrew(joinCode) }) {
+                    Text("Join Crew")
+                }
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         },
