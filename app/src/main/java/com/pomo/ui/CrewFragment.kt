@@ -49,6 +49,9 @@ public class CrewFragment : Fragment() {
                     state = currentState,
                     onCreateCrew = { displayName -> createCrew(displayName) },
                     onJoinCrew = { joinCode, displayName -> joinCrew(joinCode, displayName) },
+                    onSwitchCrew = { crewId -> switchCrew(crewId) },
+                    onLeaveCrew = { crewId -> leaveCrew(crewId) },
+                    onDisplayNameChange = { displayName -> updateDisplayName(displayName) },
                 )
             }
         }
@@ -99,6 +102,39 @@ public class CrewFragment : Fragment() {
             if (board != null) {
                 startLiveBoard()
             }
+        }
+    }
+
+    private fun switchCrew(crewId: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            screenState.value = screenState.value.copy(isLoading = true)
+            screenState.value = CrewScreenState(
+                isLoading = false,
+                board = repository.switchCrew(crewId),
+            )
+            startLiveBoard()
+        }
+    }
+
+    private fun leaveCrew(crewId: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            screenState.value = screenState.value.copy(isLoading = true)
+            screenState.value = CrewScreenState(
+                isLoading = false,
+                board = repository.leaveCrew(crewId),
+            )
+            startLiveBoard()
+        }
+    }
+
+    private fun updateDisplayName(displayName: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            screenState.value = screenState.value.copy(isLoading = true)
+            screenState.value = CrewScreenState(
+                isLoading = false,
+                board = repository.updateDisplayName(displayName),
+            )
+            startLiveBoard()
         }
     }
 

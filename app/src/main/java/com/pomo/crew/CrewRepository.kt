@@ -22,6 +22,7 @@ public class CrewRepository(context: Context) {
 
     public suspend fun currentBoard(): CrewBoard? {
         val membership = crewStore.loadMembership() ?: return null
+        val memberships = crewStore.loadMemberships()
         val rows = CrewLeaderboardAggregator.rank(
             crewId = membership.crewId,
             snapshots = relayStore.pull(membership.crewId, membership.key, membership.relays),
@@ -31,12 +32,15 @@ public class CrewRepository(context: Context) {
             crewId = membership.crewId,
             joinCode = membership.joinCode,
             rows = rows,
+            memberships = memberships.summaries(activeCrewId = membership.crewId),
+            displayName = membership.displayName,
         )
     }
 
     public suspend fun publishCurrentSnapshot(): Boolean {
-        val membership = crewStore.loadMembership() ?: return false
-        publishSelfSnapshot(membership)
+        val memberships = crewStore.loadMemberships()
+        if (memberships.isEmpty()) return false
+        memberships.forEach { membership -> publishSelfSnapshot(membership) }
         return true
     }
 
@@ -47,7 +51,7 @@ public class CrewRepository(context: Context) {
     }
 
     public suspend fun createSoloCrew(displayName: String): CrewBoard {
-        val name = displayName.trim().ifBlank { "Me" }
+        val name = displayName.trim().ifBlank { crewStore.loadMembership()?.displayName ?: "Me" }
         val payload = CrewJoinCodeCodec.newPayload()
         val joinCode = CrewJoinCodeCodec.encode(payload)
         val membership = CrewMembership(
@@ -58,13 +62,31 @@ public class CrewRepository(context: Context) {
             displayName = name,
         )
         crewStore.saveMembership(membership)
+        if (displayName.isNotBlank()) {
+            crewStore.updateDisplayName(name).forEach { updatedMembership ->
+                publishSelfSnapshot(updatedMembership)
+            }
+            return currentBoard() ?: CrewBoard(
+                crewId = payload.crewId,
+                joinCode = joinCode,
+                rows = emptyList(),
+                memberships = listOf(CrewMembershipSummary(payload.crewId, name, isActive = true)),
+                displayName = name,
+            )
+        }
         publishSelfSnapshot(membership)
-        return currentBoard() ?: CrewBoard(payload.crewId, joinCode, emptyList())
+        return currentBoard() ?: CrewBoard(
+            crewId = payload.crewId,
+            joinCode = joinCode,
+            rows = emptyList(),
+            memberships = listOf(CrewMembershipSummary(payload.crewId, name, isActive = true)),
+            displayName = name,
+        )
     }
 
     public suspend fun joinCrew(joinCode: String, displayName: String): CrewBoard? {
         val payload = CrewJoinCodeCodec.decode(joinCode.trim()) ?: return null
-        val existingName = crewStore.loadMembership()?.displayName
+        val existingName = crewStore.loadMemberships().firstOrNull()?.displayName
         val name = displayName.trim().ifBlank { existingName ?: "Me" }
         val membership = CrewMembership(
             crewId = payload.crewId,
@@ -74,7 +96,29 @@ public class CrewRepository(context: Context) {
             displayName = name,
         )
         crewStore.saveMembership(membership)
+        if (displayName.isNotBlank()) {
+            crewStore.updateDisplayName(name).forEach { updatedMembership ->
+                publishSelfSnapshot(updatedMembership)
+            }
+            return currentBoard()
+        }
         publishSelfSnapshot(membership)
+        return currentBoard()
+    }
+
+    public suspend fun switchCrew(crewId: String): CrewBoard? {
+        if (!crewStore.selectCrew(crewId)) return currentBoard()
+        return currentBoard()
+    }
+
+    public suspend fun leaveCrew(crewId: String): CrewBoard? {
+        crewStore.leaveCrew(crewId) ?: return currentBoard()
+        return currentBoard()
+    }
+
+    public suspend fun updateDisplayName(displayName: String): CrewBoard? {
+        val memberships = crewStore.updateDisplayName(displayName)
+        memberships.forEach { publishSelfSnapshot(it) }
         return currentBoard()
     }
 
@@ -107,4 +151,13 @@ public class CrewRepository(context: Context) {
             relays = membership.relays,
         )
     }
+
+    private fun List<CrewMembership>.summaries(activeCrewId: String): List<CrewMembershipSummary> =
+        sortedBy { it.crewId }.map { membership ->
+            CrewMembershipSummary(
+                crewId = membership.crewId,
+                displayName = membership.displayName,
+                isActive = membership.crewId == activeCrewId,
+            )
+        }
 }

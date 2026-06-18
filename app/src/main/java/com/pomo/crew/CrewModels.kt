@@ -33,6 +33,8 @@ public data class CrewBoardRow(
     val todaySessionCount: Int,
     val lastActiveEpochSeconds: Long,
     val isSelf: Boolean,
+    val isStale: Boolean = false,
+    val isDroppedFromAllTime: Boolean = false,
 )
 
 public enum class CrewRankingMode {
@@ -44,6 +46,8 @@ public data class CrewBoard(
     val crewId: String,
     val joinCode: String,
     val rows: List<CrewBoardRow>,
+    val memberships: List<CrewMembershipSummary> = emptyList(),
+    val displayName: String = "",
 )
 
 public data class CrewMembership(
@@ -52,4 +56,10 @@ public data class CrewMembership(
     val relays: List<String>,
     val key: String,
     val displayName: String,
+)
+
+public data class CrewMembershipSummary(
+    val crewId: String,
+    val displayName: String,
+    val isActive: Boolean,
 )

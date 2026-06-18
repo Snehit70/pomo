@@ -23,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,6 +32,7 @@ import com.pomo.crew.CrewBoardRow
 import com.pomo.crew.CrewRankingMode
 import com.pomo.ui.components.EmptyState
 import com.pomo.ui.components.PomoButton
+import com.pomo.ui.components.PomoButtonVariant
 import com.pomo.ui.components.SegmentedToggle
 import com.pomo.ui.components.SegmentedToggleOption
 import com.pomo.ui.theme.PomoTokens
@@ -46,6 +48,9 @@ public fun CrewScreen(
     state: CrewScreenState,
     onCreateCrew: (String) -> Unit,
     onJoinCrew: (String, String) -> Unit,
+    onSwitchCrew: (String) -> Unit,
+    onLeaveCrew: (String) -> Unit,
+    onDisplayNameChange: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -69,7 +74,14 @@ public fun CrewScreen(
                 onCreateCrew = onCreateCrew,
                 onJoinCrew = onJoinCrew,
             )
-            else -> CrewBoardContent(state.board)
+            else -> CrewBoardContent(
+                board = state.board,
+                onCreateCrew = onCreateCrew,
+                onJoinCrew = onJoinCrew,
+                onSwitchCrew = onSwitchCrew,
+                onLeaveCrew = onLeaveCrew,
+                onDisplayNameChange = onDisplayNameChange,
+            )
         }
     }
 }
@@ -133,9 +145,35 @@ private fun CrewEmptyState(
 }
 
 @Composable
-private fun CrewBoardContent(board: CrewBoard) {
+private fun CrewBoardContent(
+    board: CrewBoard,
+    onCreateCrew: (String) -> Unit,
+    onJoinCrew: (String, String) -> Unit,
+    onSwitchCrew: (String) -> Unit,
+    onLeaveCrew: (String) -> Unit,
+    onDisplayNameChange: (String) -> Unit,
+) {
     var rankingMode by remember { mutableStateOf(CrewRankingMode.AllTime) }
     val rows = board.rows.rankedFor(rankingMode)
+    if (board.memberships.size > 1) {
+        Text(
+            text = "Crew switcher",
+            style = MaterialTheme.typography.labelSmall,
+            color = PomoTokens.colors.onSurfaceMuted,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(8.dp))
+        SegmentedToggle(
+            options = board.memberships.map { membership ->
+                SegmentedToggleOption(membership.crewId, membership.crewId.take(6))
+            },
+            selectedValue = board.crewId,
+            onSelectedValueChange = onSwitchCrew,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(20.dp))
+    }
+
     Text(
         text = "Join code",
         style = MaterialTheme.typography.labelSmall,
@@ -148,6 +186,14 @@ private fun CrewBoardContent(board: CrewBoard) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
+    )
+    Spacer(Modifier.height(24.dp))
+    CrewManagementPanel(
+        board = board,
+        onCreateCrew = onCreateCrew,
+        onJoinCrew = onJoinCrew,
+        onLeaveCrew = onLeaveCrew,
+        onDisplayNameChange = onDisplayNameChange,
     )
     Spacer(Modifier.height(24.dp))
     Text(
@@ -174,8 +220,71 @@ private fun CrewBoardContent(board: CrewBoard) {
 }
 
 @Composable
+private fun CrewManagementPanel(
+    board: CrewBoard,
+    onCreateCrew: (String) -> Unit,
+    onJoinCrew: (String, String) -> Unit,
+    onLeaveCrew: (String) -> Unit,
+    onDisplayNameChange: (String) -> Unit,
+) {
+    var displayName by remember(board.displayName) { mutableStateOf(board.displayName) }
+    var joinCode by remember { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = "Manage",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        OutlinedTextField(
+            value = displayName,
+            onValueChange = { displayName = it },
+            label = { Text("Display name for all Crews") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PomoButton(
+                onClick = { onDisplayNameChange(displayName) },
+                variant = PomoButtonVariant.Tonal,
+            ) {
+                Text("Save name")
+            }
+            PomoButton(
+                onClick = { onLeaveCrew(board.crewId) },
+                variant = PomoButtonVariant.Ghost,
+            ) {
+                Text("Leave Crew")
+            }
+        }
+        OutlinedTextField(
+            value = joinCode,
+            onValueChange = { joinCode = it },
+            label = { Text("Join another Crew") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PomoButton(onClick = { onJoinCrew(joinCode, displayName) }) {
+                Text("Join")
+            }
+            PomoButton(
+                onClick = { onCreateCrew(displayName) },
+                variant = PomoButtonVariant.Tonal,
+            ) {
+                Text("Create another")
+            }
+        }
+    }
+}
+
+@Composable
 private fun CrewRow(row: CrewBoardRow, displayRank: Int) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    val rowAlpha = if (row.isStale) 0.52f else 1f
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(rowAlpha),
+    ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = "#$displayRank",
@@ -198,7 +307,7 @@ private fun CrewRow(row: CrewBoardRow, displayRank: Int) {
             )
         }
         Text(
-            text = "${row.todayFocusMinutes}m today - ${row.todaySessionCount} sessions - ${row.currentStreak} day streak - ${lastSeen(row.lastActiveEpochSeconds)}",
+            text = "${row.todayFocusMinutes}m today - ${row.todaySessionCount} sessions - ${row.currentStreak} day streak - ${lastSeen(row.lastActiveEpochSeconds)}${if (row.isStale) " - stale" else ""}",
             style = MaterialTheme.typography.bodySmall,
             color = PomoTokens.colors.onSurfaceMuted,
         )
@@ -206,7 +315,8 @@ private fun CrewRow(row: CrewBoardRow, displayRank: Int) {
 }
 
 private fun List<CrewBoardRow>.rankedFor(mode: CrewRankingMode): List<CrewBoardRow> =
-    sortedWith(
+    filter { row -> mode != CrewRankingMode.AllTime || !row.isDroppedFromAllTime }
+        .sortedWith(
         compareByDescending<CrewBoardRow> {
             when (mode) {
                 CrewRankingMode.AllTime -> it.allTimeFocusMinutes

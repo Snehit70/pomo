@@ -6,12 +6,16 @@ public object CrewLeaderboardAggregator {
         snapshots: List<CrewSnapshot>,
         selfIdentityPublicKey: String,
         mode: CrewRankingMode = CrewRankingMode.AllTime,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L,
     ): List<CrewBoardRow> {
         return snapshots
             .filter { it.crewId == crewId }
             .groupBy { it.identityPublicKey }
             .values
             .mapNotNull { identitySnapshots -> identitySnapshots.maxByOrNull { it.publishedAtEpochSeconds } }
+            .filterNot { snapshot ->
+                mode == CrewRankingMode.AllTime && snapshot.isDroppedFromAllTime(nowEpochSeconds)
+            }
             .sortedWith(
                 compareByDescending<CrewSnapshot> {
                     when (mode) {
@@ -33,7 +37,18 @@ public object CrewLeaderboardAggregator {
                     todaySessionCount = snapshot.todaySessionCount,
                     lastActiveEpochSeconds = snapshot.lastActiveEpochSeconds,
                     isSelf = snapshot.identityPublicKey == selfIdentityPublicKey,
+                    isStale = snapshot.isStale(nowEpochSeconds),
+                    isDroppedFromAllTime = snapshot.isDroppedFromAllTime(nowEpochSeconds),
                 )
             }
     }
+
+    private fun CrewSnapshot.isStale(nowEpochSeconds: Long): Boolean =
+        nowEpochSeconds - lastActiveEpochSeconds >= STALE_AFTER_SECONDS
+
+    private fun CrewSnapshot.isDroppedFromAllTime(nowEpochSeconds: Long): Boolean =
+        nowEpochSeconds - lastActiveEpochSeconds >= DROP_FROM_ALL_TIME_AFTER_SECONDS
+
+    private const val STALE_AFTER_SECONDS: Long = 7L * 24L * 60L * 60L
+    private const val DROP_FROM_ALL_TIME_AFTER_SECONDS: Long = 30L * 24L * 60L * 60L
 }
