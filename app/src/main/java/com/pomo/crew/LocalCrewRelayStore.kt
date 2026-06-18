@@ -8,21 +8,26 @@ public class LocalCrewRelayStore(context: Context) {
     private val prefs = context.getSharedPreferences("crew_relay_echo", Context.MODE_PRIVATE)
     private val gson = Gson()
 
-    public fun publish(snapshot: CrewSnapshot, relays: List<String>) {
+    public fun publish(
+        crewId: String,
+        identityPublicKey: String,
+        payload: String,
+        relays: List<String>,
+    ) {
         val current = loadAll().toMutableMap()
-        val key = eventKey(snapshot.crewId, snapshot.identityPublicKey)
+        val key = eventKey(crewId, identityPublicKey)
         current[key] = StoredSnapshot(
             relays = relays,
-            payload = CrewSnapshotCodec.encodePlaintext(snapshot),
+            payload = payload,
         )
         prefs.edit().putString(SNAPSHOTS_KEY, gson.toJson(current)).apply()
     }
 
-    public fun pull(crewId: String): List<CrewSnapshot> {
+    public fun pull(crewId: String, crewKey: String): List<CrewSnapshot> {
         return loadAll()
             .filterKeys { it.startsWith("$crewId:") }
             .values
-            .mapNotNull { CrewSnapshotCodec.decodePlaintext(it.payload) }
+            .mapNotNull { CrewSnapshotCodec.decodeEncrypted(it.payload, crewKey) }
     }
 
     private fun loadAll(): Map<String, StoredSnapshot> {

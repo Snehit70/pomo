@@ -21,7 +21,7 @@ public class CrewRepository(context: Context) {
         publishSelfSnapshot(membership)
         val rows = CrewLeaderboardAggregator.rank(
             crewId = membership.crewId,
-            snapshots = relayStore.pull(membership.crewId),
+            snapshots = relayStore.pull(membership.crewId, membership.key),
             selfIdentityPublicKey = identity().publicKey,
         )
         return CrewBoard(
@@ -51,15 +51,18 @@ public class CrewRepository(context: Context) {
         val identity = identity()
         val history = historyRepository.getHistoryPayload()
         val focusMinutes = history.values.sumOf { it.work_minutes }
+        val snapshot = CrewSnapshot(
+            crewId = membership.crewId,
+            identityPublicKey = identity.publicKey,
+            displayName = membership.displayName,
+            allTimeFocusMinutes = focusMinutes,
+            publishedAtEpochSeconds = System.currentTimeMillis() / 1000L,
+        )
         relayStore.publish(
-            CrewSnapshot(
-                crewId = membership.crewId,
-                identityPublicKey = identity.publicKey,
-                displayName = membership.displayName,
-                allTimeFocusMinutes = focusMinutes,
-                publishedAtEpochSeconds = System.currentTimeMillis() / 1000L,
-            ),
-            membership.relays,
+            crewId = membership.crewId,
+            identityPublicKey = identity.publicKey,
+            payload = CrewSnapshotCodec.encodeEncrypted(snapshot, membership.key, identity),
+            relays = membership.relays,
         )
     }
 }

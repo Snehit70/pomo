@@ -4,10 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
 import com.google.gson.Gson
+import com.pomo.crew.CrewIdentityKeys
 import com.pomo.timer.TimerState
 import com.pomo.ui.theme.ThemeMode
 import com.pomo.ui.theme.themeMode
-import java.security.MessageDigest
 import java.security.SecureRandom
 
 public class UtilPreferenceManager(context: Context) {
@@ -66,14 +66,23 @@ public class UtilPreferenceManager(context: Context) {
     public val crewIdentityPrivateKey: String
         get() {
             val existing = pairingPrefs.getString(CREW_IDENTITY_PRIVATE_KEY, null)
-            if (!existing.isNullOrBlank()) return existing
-            val key = generateToken()
-            pairingPrefs.edit().putString(CREW_IDENTITY_PRIVATE_KEY, key).apply()
-            return key
+            if (!existing.isNullOrBlank() && CrewIdentityKeys.isValidPrivateKey(existing)) return existing
+            return generateCrewIdentity().privateKey
         }
 
     public val crewIdentityPublicKey: String
-        get() = sha256Hex(crewIdentityPrivateKey)
+        get() {
+            val existingPrivate = pairingPrefs.getString(CREW_IDENTITY_PRIVATE_KEY, null)
+            val existingPublic = pairingPrefs.getString(CREW_IDENTITY_PUBLIC_KEY, null)
+            if (
+                !existingPrivate.isNullOrBlank() &&
+                CrewIdentityKeys.isValidPrivateKey(existingPrivate) &&
+                !existingPublic.isNullOrBlank()
+            ) {
+                return existingPublic
+            }
+            return generateCrewIdentity().publicKey
+        }
 
     public val isPhoneServerEnabled: Boolean
         get() = prefs.getBoolean("phone_server_enabled", true)
@@ -142,15 +151,11 @@ public class UtilPreferenceManager(context: Context) {
         private const val PAIRING_PREFS_NAME: String = "pairing_prefs"
         private const val PAIRING_TOKEN_KEY: String = "pairing_token"
         private const val CREW_IDENTITY_PRIVATE_KEY: String = "crew_identity_private_key"
+        private const val CREW_IDENTITY_PUBLIC_KEY: String = "crew_identity_public_key"
 
         private fun generateToken(): String {
             val bytes = ByteArray(24)
             SecureRandom().nextBytes(bytes)
-            return bytes.joinToString("") { "%02x".format(it) }
-        }
-
-        private fun sha256Hex(value: String): String {
-            val bytes = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
             return bytes.joinToString("") { "%02x".format(it) }
         }
 
@@ -167,5 +172,14 @@ public class UtilPreferenceManager(context: Context) {
                     parsed
             }
         }
+    }
+
+    private fun generateCrewIdentity(): com.pomo.crew.CrewIdentity {
+        val identity = CrewIdentityKeys.generate()
+        pairingPrefs.edit()
+            .putString(CREW_IDENTITY_PRIVATE_KEY, identity.privateKey)
+            .putString(CREW_IDENTITY_PUBLIC_KEY, identity.publicKey)
+            .apply()
+        return identity
     }
 }
