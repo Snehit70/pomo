@@ -77,6 +77,11 @@ public class TimerFragment : Fragment() {
                         mainActivity?.resetTimer()
                             ?: Log.w(TAG, "Reset tap ignored because MainActivity is unavailable")
                     },
+                    onAddTime = { secondsDelta ->
+                        Log.i(TAG, "TimerScreen add-time tap delivered to fragment: seconds=$secondsDelta")
+                        mainActivity?.addTime(secondsDelta)
+                            ?: Log.w(TAG, "Add-time tap ignored because MainActivity is unavailable")
+                    },
                     onStatsClick = {
                         Log.i(TAG, "TimerScreen stats tap delivered to fragment")
                         runCatching { findNavController().navigate(R.id.navigation_stats) }

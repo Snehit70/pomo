@@ -102,6 +102,10 @@ public class MainActivity : AppCompatActivity() {
         dispatchTimerCommand("reset") { resetTimerBlocking() }
     }
 
+    public fun addTime(secondsDelta: Int) {
+        dispatchTimerCommand("add_time") { addTimeBlocking(secondsDelta) }
+    }
+
     private fun dispatchTimerCommand(name: String, command: suspend PomodoroService.() -> com.pomo.timer.TimerState) {
         val boundService = service
         Log.i(TAG, "Timer command requested: $name. isBound=$isBound serviceReady=${boundService != null}")

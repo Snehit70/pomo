@@ -43,7 +43,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -76,6 +79,7 @@ public fun TimerScreen(
     onToggle: () -> Unit,
     onSkip: () -> Unit,
     onReset: () -> Unit,
+    onAddTime: (Int) -> Unit,
     onStatsClick: () -> Unit,
 ) {
     val colors = PomoTokens.colors
@@ -134,7 +138,14 @@ public fun TimerScreen(
 
         StatsStrip(stats, sessionsOverride = state?.completed, onClick = onStatsClick)
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(12.dp))
+
+        if (isRunning) {
+            AddTimeStepper(onAddTime = onAddTime)
+            Spacer(Modifier.height(16.dp))
+        } else {
+            Spacer(Modifier.height(20.dp))
+        }
 
         ControlsRow(
             isRunning = isRunning,
@@ -145,6 +156,66 @@ public fun TimerScreen(
         )
 
         Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun AddTimeStepper(onAddTime: (Int) -> Unit) {
+    val colors = PomoTokens.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "EXTEND",
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.onSurfaceMuted,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AddTimeButton(label = "+1", description = "Add 1 minute") {
+                onAddTime(60)
+            }
+            AddTimeButton(label = "+5", description = "Add 5 minutes") {
+                onAddTime(300)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddTimeButton(
+    label: String,
+    description: String,
+    onClick: () -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    val colors = PomoTokens.colors
+    Box(
+        modifier = Modifier
+            .semantics {
+                contentDescription = description
+                role = Role.Button
+            }
+            .clip(RoundedCornerShape(999.dp))
+            .background(colors.accent.copy(alpha = 0.14f))
+            .clickable {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = colors.accent,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
