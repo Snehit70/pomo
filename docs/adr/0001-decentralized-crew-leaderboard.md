@@ -95,3 +95,53 @@ Rationale:
   Snapshot codec, and leaderboard aggregator stay JVM-testable.
 - A broad SDK can be revisited if later Crew features need more NIPs, relay
   management, or compatibility behavior than this subset.
+
+## Decision Note 0001-B: Snapshot Crypto Reconciliation
+
+Supersedes the cryptographic specifics of 0001-A. Documents the scheme actually
+shipped on `main` as of 2026-06-19. Tracking: issue #33.
+
+0001-A specified NIP-44 v2 with an asymmetric Crew keypair derived from the join
+code. The shipped implementation diverges, and this note makes the shipped
+behavior the source of truth. We chose to document reality rather than rewrite
+shipped crypto: the current scheme is confidential for the honor-system model,
+and a NIP-44 migration would be breaking (it invalidates every already-published
+[[Snapshot]]) and security-sensitive enough to deserve its own review.
+
+### Snapshot Encryption (As Shipped)
+
+- The join code `key` is a 256-bit random secret used as a **shared symmetric
+  passphrase**, not a Crew private key. There is no derived Crew public key and
+  no ECDH.
+- Snapshot content is encrypted with **AES-256-GCM** (`AES/GCM/NoPadding`). The
+  AES key is `SHA-256(key)` over the passphrase's UTF-8 bytes, with a fresh
+  12-byte random nonce per Snapshot and a 128-bit authentication tag. The nonce
+  and ciphertext+tag are stored base64url (unpadded) in the envelope.
+- The membership property is unchanged from 0001-A: anyone holding the join code
+  can decrypt every member's Snapshot. Relays still see only ciphertext and
+  event metadata.
+
+### Identity (As Shipped)
+
+Two per-device keys operate at different layers:
+
+- **Transport author:** a **secp256k1** key (`CrewNostrKeys`) signs the outer
+  Nostr event (`kind 39050`) with a standard Schnorr signature, as Nostr
+  requires.
+- **Snapshot author / ranked identity:** an **RSA-2048 `SHA256withRSA`** key
+  (`CrewIdentityKeys`) signs the inner Snapshot envelope, and its public key is
+  the `identityPublicKey` the leaderboard de-dupes and ranks on. A reader rejects
+  any envelope whose signature does not verify against the embedded
+  `identityPublicKey`.
+
+Both keys live in non-backed-up `pairing_prefs`; reinstall yields new identities,
+as 0001-A already accepted.
+
+### Consequences And Future Work
+
+- This scheme provides confidentiality plus per-Snapshot integrity (via the RSA
+  envelope signature), but not NIP-44's sender-authenticated ECDH. Stating that
+  plainly here is the point of this note.
+- A future migration to NIP-44 v2 with a single secp256k1 identity (collapsing
+  the RSA key into the Nostr key) remains open. It is breaking and tracked
+  separately under issue #33.
