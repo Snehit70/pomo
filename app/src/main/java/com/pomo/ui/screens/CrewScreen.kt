@@ -1,30 +1,45 @@
 package com.pomo.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pomo.crew.CrewBoard
@@ -33,9 +48,11 @@ import com.pomo.crew.CrewRankingMode
 import com.pomo.ui.components.EmptyState
 import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
+import com.pomo.ui.components.SectionHeader
 import com.pomo.ui.components.SegmentedToggle
 import com.pomo.ui.components.SegmentedToggleOption
 import com.pomo.ui.theme.PomoTokens
+import kotlinx.coroutines.delay
 
 public data class CrewScreenState(
     val isLoading: Boolean = false,
@@ -156,12 +173,7 @@ private fun CrewBoardContent(
     var rankingMode by remember { mutableStateOf(CrewRankingMode.AllTime) }
     val rows = board.rows.rankedFor(rankingMode)
     if (board.memberships.size > 1) {
-        Text(
-            text = "Crew switcher",
-            style = MaterialTheme.typography.labelSmall,
-            color = PomoTokens.colors.onSurfaceMuted,
-            fontWeight = FontWeight.SemiBold,
-        )
+        SectionHeader("Crew switcher")
         Spacer(Modifier.height(8.dp))
         SegmentedToggle(
             options = board.memberships.map { membership ->
@@ -174,19 +186,8 @@ private fun CrewBoardContent(
         Spacer(Modifier.height(20.dp))
     }
 
-    Text(
-        text = "Join code",
-        style = MaterialTheme.typography.labelSmall,
-        color = PomoTokens.colors.onSurfaceMuted,
-        fontWeight = FontWeight.SemiBold,
-    )
-    Text(
-        text = board.joinCode,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-    )
+    JoinCodeCard(joinCode = board.joinCode)
+
     Spacer(Modifier.height(24.dp))
     CrewManagementPanel(
         board = board,
@@ -195,7 +196,7 @@ private fun CrewBoardContent(
         onLeaveCrew = onLeaveCrew,
         onDisplayNameChange = onDisplayNameChange,
     )
-    Spacer(Modifier.height(24.dp))
+    Spacer(Modifier.height(28.dp))
     Text(
         text = "Leaderboard",
         style = MaterialTheme.typography.titleLarge,
@@ -212,10 +213,66 @@ private fun CrewBoardContent(
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(12.dp))
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEachIndexed { index, row ->
-            CrewRow(row, displayRank = index + 1)
+            CrewRow(row, displayRank = index + 1, mode = rankingMode)
         }
+    }
+}
+
+@Composable
+private fun JoinCodeCard(joinCode: String) {
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(PomoTokens.colors.surfaceElevated)
+            .border(1.dp, PomoTokens.colors.outline, RoundedCornerShape(14.dp))
+            .padding(16.dp),
+    ) {
+        SectionHeader("Join code")
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = joinCode,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.width(12.dp))
+            PomoButton(
+                onClick = {
+                    clipboard.setText(AnnotatedString(joinCode))
+                    copied = true
+                },
+                variant = PomoButtonVariant.Tonal,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Icon(
+                    imageVector = if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(if (copied) "Copied" else "Copy")
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Share this code so friends can join your Crew.",
+            style = MaterialTheme.typography.bodySmall,
+            color = PomoTokens.colors.onSurfaceMuted,
+        )
     }
 }
 
@@ -278,40 +335,78 @@ private fun CrewManagementPanel(
 }
 
 @Composable
-private fun CrewRow(row: CrewBoardRow, displayRank: Int) {
+private fun CrewRow(row: CrewBoardRow, displayRank: Int, mode: CrewRankingMode) {
     val rowAlpha = if (row.isStale) 0.52f else 1f
+    val headlineMinutes = when (mode) {
+        CrewRankingMode.AllTime -> row.allTimeFocusMinutes
+        CrewRankingMode.Today -> row.todayFocusMinutes
+    }
+    val containerColor = if (row.isSelf) {
+        PomoTokens.colors.accent.copy(alpha = 0.10f)
+    } else {
+        PomoTokens.colors.surface
+    }
+    val borderColor = if (row.isSelf) {
+        PomoTokens.colors.accent.copy(alpha = 0.55f)
+    } else {
+        PomoTokens.colors.outline
+    }
+    val rankColor = if (displayRank == 1) PomoTokens.colors.accent else PomoTokens.colors.onSurfaceMuted
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(rowAlpha),
+            .clip(RoundedCornerShape(12.dp))
+            .background(containerColor)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .alpha(rowAlpha)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 text = "#$displayRank",
-                modifier = Modifier.weight(0.18f),
+                modifier = Modifier.weight(0.16f),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = rankColor,
+                fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = if (row.isSelf) "${row.displayName} (you)" else row.displayName,
-                modifier = Modifier.weight(0.52f),
+                modifier = Modifier.weight(0.54f),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "${row.allTimeFocusMinutes}m",
-                modifier = Modifier.weight(0.3f),
+                text = "${headlineMinutes}m",
+                modifier = Modifier.weight(0.30f),
                 style = MaterialTheme.typography.titleMedium,
                 color = PomoTokens.colors.accent,
                 fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.End,
             )
         }
+        Spacer(Modifier.height(6.dp))
         Text(
-            text = "${row.todayFocusMinutes}m today - ${row.todaySessionCount} sessions - ${row.currentStreak} day streak - ${lastSeen(row.lastActiveEpochSeconds)}${if (row.isStale) " - stale" else ""}",
+            text = crewRowMeta(row),
             style = MaterialTheme.typography.bodySmall,
             color = PomoTokens.colors.onSurfaceMuted,
         )
     }
+}
+
+private fun crewRowMeta(row: CrewBoardRow): String {
+    val parts = buildList {
+        add("${row.todayFocusMinutes}m today")
+        add("${row.todaySessionCount} sessions")
+        add("${row.currentStreak} day streak")
+        add(lastSeen(row.lastActiveEpochSeconds))
+        if (row.isStale) add("stale")
+    }
+    return parts.joinToString("  ·  ")
 }
 
 private fun List<CrewBoardRow>.rankedFor(mode: CrewRankingMode): List<CrewBoardRow> =
