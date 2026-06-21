@@ -168,8 +168,11 @@ public object StatsAggregator {
         )
         // Prefer starting at the first active day so new users don't see empty
         // padding on the left; the window grows toward the 12-week cap over time.
+        // Eligibility is workMinutes (not completed) so the pre-midnight segment of
+        // a split block anchors the window; otherwise its focus minutes drop off the
+        // left edge of the heatmap and the KPI strip.
         val activityStart = dayByDate.values
-            .filter { it.completed > 0 }
+            .filter { it.workMinutes > 0 }
             .minByOrNull { it.date }
             ?.date
             ?.let { df.parse(it) }
