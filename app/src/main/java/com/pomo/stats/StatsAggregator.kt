@@ -89,6 +89,12 @@ public object StatsAggregator {
         )
     }
 
+    /** Build the 24-hour focus rhythm for a single day's sessions (work blocks only). */
+    public fun hourRhythmForDay(
+        sessions: List<SessionEntity>,
+        tz: TimeZone = TimeZone.getDefault(),
+    ): HourRhythm = computeHourRhythm(sessions.filter { it.type == WORK_TYPE }, tz)
+
     private fun computeHourRhythm(
         workSessions: List<SessionEntity>,
         tz: TimeZone,

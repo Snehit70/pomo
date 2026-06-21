@@ -12,6 +12,8 @@ import androidx.preference.PreferenceManager
 import androidx.fragment.app.Fragment
 import com.pomo.db.DayStatsEntity
 import com.pomo.db.HistoryCacheRepository
+import com.pomo.stats.HourRhythm
+import com.pomo.stats.StatsAggregator
 import com.pomo.ui.screens.HistoryScreen
 import com.pomo.ui.theme.PomoTheme
 import com.pomo.ui.theme.themeMode
@@ -29,12 +31,15 @@ public class HistoryFragment : Fragment() {
         val repo = HistoryCacheRepository(requireContext())
         val itemsFlow: Flow<List<HistoryItem>> = repo.observeDayStats()
             .map { entities -> entities.toHistoryItems() }
+        val loadRhythm: suspend (String) -> HourRhythm = { date ->
+            StatsAggregator.hourRhythmForDay(repo.getSessionsForDate(date))
+        }
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 PomoTheme(mode = PreferenceManager.getDefaultSharedPreferences(requireContext()).themeMode()) {
                     val items by itemsFlow.collectAsState(initial = emptyList())
-                    HistoryScreen(items)
+                    HistoryScreen(items, loadRhythm = loadRhythm)
                 }
             }
         }
