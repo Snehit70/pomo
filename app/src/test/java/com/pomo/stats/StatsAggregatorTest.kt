@@ -155,7 +155,9 @@ public class StatsAggregatorTest {
         )
         assertEquals(3, snap.habit.currentStreak)
         assertEquals(3, snap.habit.bestStreak)
-        assertEquals(12, snap.habit.weeks)
+        // Window now starts at first activity (2026-05-14 → Sunday 2026-05-10) and grows to
+        // a 12-week cap, so 2026-05-10..18 spans 2 week-columns rather than a fixed 12.
+        assertEquals(2, snap.habit.weeks)
         assertTrue(snap.habit.cells.isNotEmpty())
     }
 

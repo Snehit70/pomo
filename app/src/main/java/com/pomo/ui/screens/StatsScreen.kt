@@ -49,8 +49,10 @@ import com.patrykandpatrick.vico.compose.chart.Chart
 import com.patrykandpatrick.vico.compose.chart.line.lineChart
 import com.patrykandpatrick.vico.compose.chart.line.lineSpec
 import com.patrykandpatrick.vico.compose.component.shape.shader.verticalGradient
+import com.patrykandpatrick.vico.core.axis.AxisItemPlacer
 import com.patrykandpatrick.vico.core.axis.AxisPosition
 import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
+import com.patrykandpatrick.vico.core.chart.values.AxisValuesOverrider
 import com.patrykandpatrick.vico.core.chart.values.ChartValues
 import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
 import com.patrykandpatrick.vico.core.entry.FloatEntry
@@ -72,6 +74,11 @@ import com.pomo.ui.theme.TimerTextStyle
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.log10
+import kotlin.math.pow
+import kotlin.math.roundToInt
 
 @Composable
 public fun StatsScreen(
@@ -183,7 +190,7 @@ private fun LifetimeHeroBlock(lifetime: Lifetime) {
         Spacer(Modifier.height(6.dp))
         val sub = buildString {
             append(lifetime.sessions)
-            append(if (lifetime.sessions == 1) " session" else " sessions")
+            append(if (lifetime.sessions == 1) " block" else " blocks")
             append("  ·  ")
             append(lifetime.daysWithApp)
             append(if (lifetime.daysWithApp == 1) " day with Pomo" else " days with Pomo")
@@ -207,6 +214,9 @@ private fun HabitHeatmap(habit: HabitWindow) {
 
     // Cells are in chronological order, week-by-week from a Sunday-aligned start.
     val weeks = habit.weeks
+    // Intensity is relative to the user's own busiest day in this window, so the gradient
+    // stays meaningful for both light and heavy users instead of saturating to solid.
+    val peakMinutes = habit.cells.maxOfOrNull { it.minutes } ?: 0
     Canvas(
         modifier = Modifier.size(
             width = (cell + gap) * weeks + gap,
@@ -218,7 +228,7 @@ private fun HabitHeatmap(habit: HabitWindow) {
         habit.cells.forEachIndexed { index, c ->
             val w = index / 7
             val d = index % 7
-            val color = colorFor(c.minutes, c.sessions, focus, empty)
+            val color = colorFor(c.minutes, c.sessions, peakMinutes, focus, empty)
             val left = gapPx + w * (cellPx + gapPx)
             val top = gapPx + d * (cellPx + gapPx)
             drawRoundRect(
@@ -233,12 +243,16 @@ private fun HabitHeatmap(habit: HabitWindow) {
     HeatmapLegend(focus = focus, empty = empty)
 }
 
-private fun colorFor(minutes: Int, sessions: Int, focus: Color, empty: Color): Color = when {
-    sessions == 0 -> empty
-    minutes < 30 -> focus.copy(alpha = 0.30f)
-    minutes < 60 -> focus.copy(alpha = 0.55f)
-    minutes < 120 -> focus.copy(alpha = 0.80f)
-    else -> focus
+private fun colorFor(minutes: Int, sessions: Int, peakMinutes: Int, focus: Color, empty: Color): Color {
+    if (sessions == 0) return empty
+    if (peakMinutes <= 0) return focus
+    val frac = minutes.toFloat() / peakMinutes
+    return when {
+        frac <= 0.25f -> focus.copy(alpha = 0.30f)
+        frac <= 0.50f -> focus.copy(alpha = 0.55f)
+        frac <= 0.75f -> focus.copy(alpha = 0.80f)
+        else -> focus
+    }
 }
 
 @Composable
@@ -404,14 +418,12 @@ private fun RecordRow(label: String, value: String) {
 
 private fun formatBestDay(d: BestDay): String {
     val pretty = formatPrettyDate(d.date)
-    val n = d.sessions
-    return "$n session${if (n == 1) "" else "s"}  ·  $pretty"
+    return "${formatMinutes(d.minutes)}  ·  $pretty"
 }
 
 private fun formatBestWeek(w: BestWeek): String {
     val pretty = formatPrettyDate(w.weekStart)
-    val n = w.sessions
-    return "$n session${if (n == 1) "" else "s"}  ·  wk of $pretty"
+    return "${formatMinutes(w.minutes)}  ·  wk of $pretty"
 }
 
 private fun formatPrettyDate(iso: String): String = try {
@@ -510,12 +522,32 @@ private fun PerDayLineChart(trend: ChartTrend) {
         }
     }
 
+    // Entry values are minutes; render the Y axis in whole hours on a "nice" scale so
+    // ticks land on round numbers (0h / 2h / 4h …) instead of fractional minutes.
+    val maxMinutes = points.maxOf { it.value }
+    val stepHours = niceHourStep(maxMinutes / 60f)
+    val steps = ceil((maxMinutes / 60f) / stepHours).toInt().coerceAtLeast(1)
+    val niceMaxMinutes = (steps * stepHours * 60).toFloat()
+    val tickCount = steps + 1
+    val hourFormatter = remember {
+        object : AxisValueFormatter<AxisPosition.Vertical.Start> {
+            override fun formatValue(value: Float, chartValues: ChartValues): CharSequence =
+                "${(value / 60f).roundToInt()}h"
+        }
+    }
+
     if (chartReady) {
         Chart(
             modifier = Modifier.fillMaxWidth().height(160.dp),
-            chart = lineChart(lines = listOf(spec)),
+            chart = lineChart(
+                lines = listOf(spec),
+                axisValuesOverrider = AxisValuesOverrider.fixed(minY = 0f, maxY = niceMaxMinutes),
+            ),
             chartModelProducer = modelProducer,
-            startAxis = rememberStartAxis(),
+            startAxis = rememberStartAxis(
+                valueFormatter = hourFormatter,
+                itemPlacer = AxisItemPlacer.Vertical.default(maxItemCount = tickCount),
+            ),
             bottomAxis = rememberBottomAxis(valueFormatter = labelFormatter),
         )
     } else {
@@ -532,8 +564,22 @@ private fun PerDayLineChart(trend: ChartTrend) {
     }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(rangeDesc, style = MaterialTheme.typography.labelSmall, color = muted)
-        Text("max ${maxVal}m", style = MaterialTheme.typography.labelSmall, color = muted)
+        Text("max ${formatMinutes(maxVal)}", style = MaterialTheme.typography.labelSmall, color = muted)
     }
+}
+
+/** Pick a "nice" 1-2-5 hour step targeting ~5 ticks for the trend Y axis. */
+private fun niceHourStep(maxHours: Float): Int {
+    if (maxHours <= 1f) return 1
+    val raw = maxHours / 5f
+    val mag = 10.0.pow(floor(log10(raw.toDouble()))).toFloat()
+    val niceNorm = when {
+        raw / mag <= 1f -> 1f
+        raw / mag <= 2f -> 2f
+        raw / mag <= 5f -> 5f
+        else -> 10f
+    }
+    return (niceNorm * mag).roundToInt().coerceAtLeast(1)
 }
 
 private fun nowFormatted(): String =
@@ -596,7 +642,7 @@ private fun KpiCell(label: String, kpi: Kpi, modifier: Modifier = Modifier, delt
         hours > 0 -> "${hours}h ${mins}m"
         else -> "${mins}m"
     }
-    val sessionSub = "${kpi.sessions} " + if (kpi.sessions == 1) "session" else "sessions"
+    val sessionSub = "${kpi.sessions} " + if (kpi.sessions == 1) "block" else "blocks"
     Column(modifier = modifier) {
         Text(
             text = label,

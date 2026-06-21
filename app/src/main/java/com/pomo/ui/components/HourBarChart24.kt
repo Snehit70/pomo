@@ -24,7 +24,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pomo.stats.HourRhythm
-import com.pomo.stats.RhythmPattern
 import com.pomo.ui.theme.PomoTokens
 
 /**
@@ -108,16 +107,17 @@ public fun HourBarChart24(
 }
 
 internal fun rhythmCaption(rhythm: HourRhythm): String {
+    // Always name the peak hour when there is one — a visible peak bar should never be
+    // captioned "scattered". The period is derived straight from the peak hour.
     val peak = rhythm.peakHour ?: return "Not enough data yet"
     val hourLabel = formatHour(peak)
-    return when (rhythm.pattern) {
-        RhythmPattern.Morning -> "Peak $hourLabel — morning focus"
-        RhythmPattern.Afternoon -> "Peak $hourLabel — afternoon focus"
-        RhythmPattern.Evening -> "Peak $hourLabel — evening focus"
-        RhythmPattern.Night -> "Peak $hourLabel — late-night focus"
-        RhythmPattern.Scattered -> "Scattered across the day"
-        RhythmPattern.None -> "Not enough data yet"
+    val period = when (peak) {
+        in 5..11 -> "morning focus"
+        in 12..16 -> "afternoon focus"
+        in 17..20 -> "evening focus"
+        else -> "late-night focus"
     }
+    return "Peak $hourLabel — $period"
 }
 
 private fun formatHour(h: Int): String {

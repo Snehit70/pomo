@@ -158,32 +158,45 @@ public object StatsAggregator {
     ): HabitWindow {
         val df = SimpleDateFormat(DATE_PATTERN, Locale.US).apply { timeZone = tz }
         val todayDate = df.parse(today) ?: return HabitWindow(HABIT_WEEKS, emptyList(), 0, 0)
-        val start = Calendar.getInstance(tz).apply {
-            time = todayDate
-            add(Calendar.WEEK_OF_YEAR, -(HABIT_WEEKS - 1))
-            set(Calendar.DAY_OF_WEEK, Calendar.SUNDAY)
-        }
+
+        // Floor: the most recent HABIT_WEEKS weeks, Sunday-aligned.
+        val floorStart = sundayOnOrBefore(
+            Calendar.getInstance(tz).apply {
+                time = todayDate
+                add(Calendar.WEEK_OF_YEAR, -(HABIT_WEEKS - 1))
+            },
+        )
+        // Prefer starting at the first active day so new users don't see empty
+        // padding on the left; the window grows toward the 12-week cap over time.
+        val activityStart = dayByDate.values
+            .filter { it.completed > 0 }
+            .minByOrNull { it.date }
+            ?.date
+            ?.let { df.parse(it) }
+            ?.let { sundayOnOrBefore(Calendar.getInstance(tz).apply { time = it }) }
+        // Later (more recent) of the two = at most 12 weeks, trimmed to real history.
+        val startMillis = maxOf(floorStart.timeInMillis, activityStart?.timeInMillis ?: Long.MIN_VALUE)
+
         val cells = mutableListOf<HeatCell>()
-        val iter = start.clone() as Calendar
-        for (w in 0 until HABIT_WEEKS) {
-            for (d in 0 until 7) {
-                if (iter.time.after(todayDate)) break
-                val key = df.format(iter.time)
-                val entry = dayByDate[key]
-                cells += HeatCell(
-                    date = key,
-                    sessions = entry?.completed ?: 0,
-                    minutes = entry?.workMinutes ?: 0,
-                )
-                iter.add(Calendar.DAY_OF_YEAR, 1)
-            }
+        val iter = Calendar.getInstance(tz).apply { timeInMillis = startMillis }
+        while (!iter.time.after(todayDate)) {
+            val key = df.format(iter.time)
+            val entry = dayByDate[key]
+            cells += HeatCell(
+                date = key,
+                sessions = entry?.completed ?: 0,
+                minutes = entry?.workMinutes ?: 0,
+            )
+            iter.add(Calendar.DAY_OF_YEAR, 1)
         }
+        val weeks = ((cells.size + 6) / 7).coerceAtLeast(1)
+
         val activeDates = dayByDate.values
             .filter { it.completed > 0 }
             .map { it.date }
             .toSet()
         return HabitWindow(
-            weeks = HABIT_WEEKS,
+            weeks = weeks,
             cells = cells,
             currentStreak = DateLogic.currentStreak(activeDates, nowMs, tz),
             bestStreak = DateLogic.bestStreak(activeDates),
@@ -219,8 +232,8 @@ public object StatsAggregator {
     ): Records {
         val bestDay = days
             .filter { it.completed > 0 }
-            .maxByOrNull { it.completed }
-            ?.let { BestDay(date = it.date, sessions = it.completed) }
+            .maxByOrNull { it.workMinutes }
+            ?.let { BestDay(date = it.date, sessions = it.completed, minutes = it.workMinutes) }
 
         // Best week: group sessions by Sunday-anchored week (week start = Sunday).
         val bestWeek = if (days.isEmpty()) null else computeBestWeek(days)
@@ -231,7 +244,10 @@ public object StatsAggregator {
     private fun computeBestWeek(days: List<DayStatsEntity>): BestWeek? {
         val df = SimpleDateFormat(DATE_PATTERN, Locale.US)
         val cal = Calendar.getInstance()
-        val grouped = HashMap<String, Int>()
+        // Per Sunday-anchored week: accumulate both Focus minutes (the ranking metric)
+        // and completed blocks (kept for display).
+        val minutesByWeek = HashMap<String, Int>()
+        val blocksByWeek = HashMap<String, Int>()
         for (d in days) {
             val date = df.parse(d.date) ?: continue
             cal.time = date
@@ -239,11 +255,12 @@ public object StatsAggregator {
             val dow = cal.get(Calendar.DAY_OF_WEEK) // Sun=1
             cal.add(Calendar.DAY_OF_YEAR, -(dow - Calendar.SUNDAY))
             val key = df.format(cal.time)
-            grouped[key] = (grouped[key] ?: 0) + d.completed
+            minutesByWeek[key] = (minutesByWeek[key] ?: 0) + d.workMinutes
+            blocksByWeek[key] = (blocksByWeek[key] ?: 0) + d.completed
         }
-        val (weekStart, sessions) = grouped.maxByOrNull { it.value } ?: return null
-        if (sessions == 0) return null
-        return BestWeek(weekStart = weekStart, sessions = sessions)
+        val (weekStart, minutes) = minutesByWeek.maxByOrNull { it.value } ?: return null
+        if ((blocksByWeek[weekStart] ?: 0) == 0) return null
+        return BestWeek(weekStart = weekStart, sessions = blocksByWeek[weekStart] ?: 0, minutes = minutes)
     }
 
     private fun inclusiveDayCount(fromDate: String, toDate: String, tz: TimeZone): Int {
@@ -319,6 +336,13 @@ public object StatsAggregator {
         val allTimeSeries = TrendSeries(allTimePoints.ifEmpty { listOf(TrendPoint("—", 0f)) })
 
         return ChartTrend(today = todaySeries, week = weekSeries, month = monthSeries, allTime = allTimeSeries)
+    }
+
+    /** Snap a calendar to the Sunday on or before its current date (mutates and returns it). */
+    private fun sundayOnOrBefore(cal: Calendar): Calendar {
+        val dow = cal.get(Calendar.DAY_OF_WEEK) // Sunday = 1
+        cal.add(Calendar.DAY_OF_YEAR, -(dow - Calendar.SUNDAY))
+        return cal
     }
 
     private fun buildEmptyHabitCells(today: String, weeks: Int, tz: TimeZone): List<HeatCell> {

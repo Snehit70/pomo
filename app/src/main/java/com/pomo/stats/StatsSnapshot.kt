@@ -112,5 +112,5 @@ public data class Records(
     val longestStreak: Int,
 )
 
-public data class BestDay(val date: String, val sessions: Int)
-public data class BestWeek(val weekStart: String, val sessions: Int)
+public data class BestDay(val date: String, val sessions: Int, val minutes: Int)
+public data class BestWeek(val weekStart: String, val sessions: Int, val minutes: Int)
