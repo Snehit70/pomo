@@ -28,9 +28,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -77,6 +81,11 @@ internal fun CrewBoardContent(
         .filterValues { it > 1 }
         .keys
     val visibleRows = activeRows.filter { row -> row.matchesSearch(search, duplicateNames) }
+    val tiedRanks = activeRows.mapNotNull { it.rank }
+        .groupingBy { it }
+        .eachCount()
+        .filterValues { it > 1 }
+        .keys
 
     LazyColumn(
         modifier = Modifier
@@ -97,7 +106,7 @@ internal fun CrewBoardContent(
             Spacer(Modifier.height(20.dp))
         }
         item(key = "standing") {
-            YourStanding(activeRows)
+            YourStanding(activeRows, tiedRanks)
             Spacer(Modifier.height(20.dp))
         }
         if (activeRows.size > SEARCH_THRESHOLD) {
@@ -121,6 +130,7 @@ internal fun CrewBoardContent(
             CrewRow(
                 row = row,
                 showFingerprint = row.displayName.trim().lowercase(Locale.ROOT) in duplicateNames,
+                isTied = row.rank in tiedRanks,
                 onClick = { selectedMember = row },
             )
             HorizontalDivider(color = PomoTokens.colors.outline)
@@ -147,7 +157,7 @@ internal fun CrewBoardContent(
             }
             if (showInactive) {
                 items(inactiveRows, key = { "inactive-${it.identityPublicKey}" }) { row ->
-                    CrewRow(row, showFingerprint = false, onClick = { selectedMember = row })
+                    CrewRow(row, showFingerprint = false, isTied = false, onClick = { selectedMember = row })
                     HorizontalDivider(color = PomoTokens.colors.outline)
                 }
             }
@@ -236,25 +246,33 @@ private fun CrewSummary(rows: List<CrewBoardRow>) {
 }
 
 @Composable
-private fun YourStanding(rows: List<CrewBoardRow>) {
+private fun YourStanding(rows: List<CrewBoardRow>, tiedRanks: Set<Int>) {
     val self = rows.firstOrNull { it.isSelf } ?: return
     val context = standingContext(self, rows)
+    val accent = PomoTokens.colors.accent
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(PomoTokens.colors.surface)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(PomoTokens.colors.surfaceElevated)
+            .drawBehind { drawRect(accent, size = Size(3.dp.toPx(), size.height)) }
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
     ) {
         Text("YOUR STANDING", style = MaterialTheme.typography.labelSmall, color = PomoTokens.colors.onSurfaceMuted)
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Text(
-                text = self.rank?.let { "#$it" } ?: "—",
+                text = self.rank?.let { if (it in tiedRanks) "=$it" else "#$it" } ?: "—",
                 style = MaterialTheme.typography.headlineLarge,
-                color = PomoTokens.colors.accent,
+                color = accent,
                 fontFamily = FontFamily.Monospace,
             )
             Spacer(Modifier.width(12.dp))
-            Text(formatMinutes(self.selectedFocusMinutes), style = MaterialTheme.typography.titleLarge)
+            Text(
+                text = formatMinutes(self.selectedFocusMinutes),
+                style = MaterialTheme.typography.titleLarge,
+                color = PomoTokens.colors.onSurface,
+                fontWeight = FontWeight.Bold,
+            )
             Spacer(Modifier.weight(1f))
             Text(context, style = MaterialTheme.typography.labelSmall, color = PomoTokens.colors.onSurfaceMuted)
         }
@@ -262,8 +280,8 @@ private fun YourStanding(rows: List<CrewBoardRow>) {
 }
 
 @Composable
-private fun CrewRow(row: CrewBoardRow, showFingerprint: Boolean, onClick: () -> Unit) {
-    val rankLabel = row.rank?.let { "#$it" } ?: "—"
+private fun CrewRow(row: CrewBoardRow, showFingerprint: Boolean, isTied: Boolean, onClick: () -> Unit) {
+    val rankLabel = row.rank?.let { if (isTied) "=$it" else "#$it" } ?: "—"
     val displayLabel = if (showFingerprint) {
         "${row.displayName} · ${row.identityPublicKey.take(4).uppercase(Locale.ROOT)}"
     } else {
@@ -292,6 +310,7 @@ private fun CrewRow(row: CrewBoardRow, showFingerprint: Boolean, onClick: () -> 
             Text(
                 text = if (row.isSelf) "$displayLabel · YOU" else displayLabel,
                 style = MaterialTheme.typography.titleMedium,
+                color = PomoTokens.colors.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -321,19 +340,25 @@ private fun SevenDayBars(row: CrewBoardRow) {
     val max = values.maxOrNull()?.coerceAtLeast(1) ?: 1
     Row(
         modifier = Modifier
-            .width(34.dp)
+            .width(44.dp)
             .height(24.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
         repeat(7) { index ->
             val value = values.getOrElse(index) { 0 }
             val height = if (value == 0) 2.dp else (4 + 20 * value / max).dp
+            val barColor = when {
+                value == max && value > 0 -> PomoTokens.colors.accent
+                value == 0 -> PomoTokens.colors.onSurfaceFaint
+                else -> PomoTokens.colors.onSurface
+            }
             Box(
                 modifier = Modifier
-                    .width(3.dp)
+                    .width(4.dp)
                     .height(height)
-                    .background(if (value == max && value > 0) PomoTokens.colors.accent else PomoTokens.colors.onSurfaceMuted),
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(barColor),
             )
         }
     }

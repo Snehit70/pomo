@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,28 +78,33 @@ public fun CrewScreen(
             onInitialJoinCodeConsumed()
         }
     }
-    when {
-        state.isLoading && state.board == null -> CrewLoadingState()
-        state.board == null -> CrewEmptyState(
-            archivedMemberships = state.archivedMemberships,
-            errorMessage = state.errorMessage,
-            onCreateCrew = onCreateCrew,
-            onJoinCrew = requestJoin,
-            onImportRecovery = onImportRecovery,
-        )
-        else -> CrewBoardContent(
-            isSyncing = state.isSyncing,
-            board = state.board,
-            onCreateCrew = onCreateCrew,
-            onJoinCrew = requestJoin,
-            onSwitchCrew = onSwitchCrew,
-            onLeaveCrew = onLeaveCrew,
-            onDisplayNameChange = onDisplayNameChange,
-            onRankingModeChange = onRankingModeChange,
-            onMemberHiddenChange = onMemberHiddenChange,
-            onExportRecovery = onExportRecovery,
-            onImportRecovery = onImportRecovery,
-        )
+    // This Compose tree is hosted inside a View layout with no Surface ancestor, so the
+    // ambient LocalContentColor defaults to black. Pin it to onSurface so any Text that
+    // doesn't set its own color stays readable on the dark background.
+    CompositionLocalProvider(LocalContentColor provides PomoTokens.colors.onSurface) {
+        when {
+            state.isLoading && state.board == null -> CrewLoadingState()
+            state.board == null -> CrewEmptyState(
+                archivedMemberships = state.archivedMemberships,
+                errorMessage = state.errorMessage,
+                onCreateCrew = onCreateCrew,
+                onJoinCrew = requestJoin,
+                onImportRecovery = onImportRecovery,
+            )
+            else -> CrewBoardContent(
+                isSyncing = state.isSyncing,
+                board = state.board,
+                onCreateCrew = onCreateCrew,
+                onJoinCrew = requestJoin,
+                onSwitchCrew = onSwitchCrew,
+                onLeaveCrew = onLeaveCrew,
+                onDisplayNameChange = onDisplayNameChange,
+                onRankingModeChange = onRankingModeChange,
+                onMemberHiddenChange = onMemberHiddenChange,
+                onExportRecovery = onExportRecovery,
+                onImportRecovery = onImportRecovery,
+            )
+        }
     }
     pendingJoin?.let { pending ->
         JoinConfirmationSheet(

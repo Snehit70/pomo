@@ -31,6 +31,9 @@ public fun PomoSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface,
+        // Disable M3's tonal-elevation overlay; it blends the red surfaceTint into the
+        // sheet and produces a maroon wash. Sheets read as flat slate instead.
+        tonalElevation = 0.dp,
     ) {
         Row(
             modifier = Modifier

@@ -1,5 +1,6 @@
 package com.pomo.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
@@ -63,8 +64,11 @@ public fun PomoButton(
             enabled = enabled && !loading,
             interactionSource = interactionSource,
             contentPadding = contentPadding,
+            // Solid elevated-slate chip with a signal-red label. A translucent red fill
+            // washed out against dark surfaces; the opaque slate + outline reads clearly.
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
             colors = ButtonDefaults.buttonColors(
-                containerColor = phaseColor.copy(alpha = 0.18f),
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = phaseColor,
                 disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
