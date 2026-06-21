@@ -80,6 +80,31 @@ public class CrewRepository(context: Context) {
         return true
     }
 
+    /**
+     * Publish a catch-up snapshot for any crew whose last successful publish predates the
+     * newest completed work block in local history. Covers blocks written to Room while the
+     * service was dead (so no onTimerComplete publish fired) — including blocks that completed
+     * on a previous day, which a same-day completed-count comparison can't detect.
+     */
+    public suspend fun republishStaleLocalHistory(): Boolean {
+        val memberships = crewStore.loadMemberships()
+        if (memberships.isEmpty()) return false
+        val newestWorkEnd = historyRepository.getHistoryPayload().values
+            .flatMap { it.sessions }
+            .filter { it.type == TimerState.PHASE_WORK && it.completed }
+            .maxOfOrNull { it.start + it.duration }
+            ?: return false
+        var published = false
+        memberships.forEach { membership ->
+            val lastPublish = relayStore.lastPublishSuccessEpochSeconds(membership.crewId)
+            if (lastPublish == null || lastPublish < newestWorkEnd) {
+                publishSelfSnapshot(membership)
+                published = true
+            }
+        }
+        return published
+    }
+
     public suspend fun createSoloCrew(displayName: String, crewName: String = "${displayName.ifBlank { "My" }} Crew"): CrewBoard {
         val name = CrewValidation.normalizeDisplayName(displayName)
             ?: crewStore.loadMembership()?.displayName
