@@ -201,6 +201,10 @@ public class CrewFragment : Fragment() {
         liveBoardJob = viewLifecycleOwner.lifecycleScope.launch {
             launch {
                 screenState.value = screenState.value.copy(isSyncing = true)
+                val republishedLocalHistory = repository.republishStaleLocalHistory()
+                if (republishedLocalHistory) {
+                    publishBoard(repository.currentBoard(rankingMode.value))
+                }
                 repository.republishCurrentCrewIfStale()
                 try {
                     repository.refreshCurrentCrew().collect { }
