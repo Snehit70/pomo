@@ -125,7 +125,7 @@ private fun MonthHeader(label: String, entries: List<HistoryItem>) {
             color = PomoTokens.colors.onSurfaceMuted,
         )
         Text(
-            "${focusMinutes / 60}h · $blocks blocks",
+            "${formatMinutes(focusMinutes)} · $blocks blocks",
             style = MaterialTheme.typography.labelSmall,
             color = PomoTokens.colors.onSurfaceFaint,
         )
