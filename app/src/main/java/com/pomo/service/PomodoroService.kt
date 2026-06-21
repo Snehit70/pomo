@@ -245,7 +245,9 @@ public class PomodoroService : Service(), TimerObserver {
     private suspend fun reconcileStateWithHistory() {
         val today = historyCacheRepository.getEffectiveDateString()
         val completed = historyCacheRepository.getTodayCompletedCount()
+        val previousCompleted = currentState.completed
         var changed = false
+        var dayRolledOver = false
 
         if (currentState.date != today) {
             currentState.status = TimerState.STATUS_STOPPED
@@ -257,6 +259,7 @@ public class PomodoroService : Service(), TimerObserver {
             currentState.date = today
             currentState.last_action_time = System.currentTimeMillis() / 1000
             changed = true
+            dayRolledOver = true
         }
 
         if (currentState.completed != completed) {
@@ -270,6 +273,15 @@ public class PomodoroService : Service(), TimerObserver {
             saveCurrentState()
             updateNotification()
             broadcastStateUpdate()
+        }
+
+        // Work blocks that complete while the service is dead are recorded to history by the
+        // reconcile above but never fired onTimerComplete, so no Crew snapshot was published
+        // for them and the leaderboard lags local history. Push a fresh snapshot to catch up.
+        // Guard on a same-day increase so a day rollover (which resets the count) doesn't
+        // trigger a spurious publish.
+        if (!dayRolledOver && completed > previousCompleted) {
+            publishCrewSnapshot("reconciled completed blocks")
         }
     }
 
