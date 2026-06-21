@@ -228,7 +228,7 @@ private fun HabitHeatmap(habit: HabitWindow) {
         habit.cells.forEachIndexed { index, c ->
             val w = index / 7
             val d = index % 7
-            val color = colorFor(c.minutes, c.sessions, peakMinutes, focus, empty)
+            val color = colorFor(c.minutes, peakMinutes, focus, empty)
             val left = gapPx + w * (cellPx + gapPx)
             val top = gapPx + d * (cellPx + gapPx)
             drawRoundRect(
@@ -243,8 +243,10 @@ private fun HabitHeatmap(habit: HabitWindow) {
     HeatmapLegend(focus = focus, empty = empty)
 }
 
-private fun colorFor(minutes: Int, sessions: Int, peakMinutes: Int, focus: Color, empty: Color): Color {
-    if (sessions == 0) return empty
+private fun colorFor(minutes: Int, peakMinutes: Int, focus: Color, empty: Color): Color {
+    // Key the empty state off focus minutes: a split-block's pre-midnight cell has
+    // minutes > 0 but sessions == 0, yet still represents recorded focus.
+    if (minutes == 0) return empty
     if (peakMinutes <= 0) return focus
     val frac = minutes.toFloat() / peakMinutes
     return when {
