@@ -340,7 +340,7 @@ private fun SevenDayBars(row: CrewBoardRow) {
     val max = values.maxOrNull()?.coerceAtLeast(1) ?: 1
     Row(
         modifier = Modifier
-            .width(44.dp)
+            .width(46.dp)
             .height(24.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.Bottom,
