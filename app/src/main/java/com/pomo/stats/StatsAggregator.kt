@@ -230,8 +230,11 @@ public object StatsAggregator {
         days: List<DayStatsEntity>,
         bestStreak: Int,
     ): Records {
+        // Rank by focus minutes. Use workMinutes (not completed) as the eligibility
+        // filter so the pre-midnight segment of a split block — which carries the
+        // minutes but no completed count — can still win as the best focus day.
         val bestDay = days
-            .filter { it.completed > 0 }
+            .filter { it.workMinutes > 0 }
             .maxByOrNull { it.workMinutes }
             ?.let { BestDay(date = it.date, sessions = it.completed, minutes = it.workMinutes) }
 
@@ -259,7 +262,9 @@ public object StatsAggregator {
             blocksByWeek[key] = (blocksByWeek[key] ?: 0) + d.completed
         }
         val (weekStart, minutes) = minutesByWeek.maxByOrNull { it.value } ?: return null
-        if ((blocksByWeek[weekStart] ?: 0) == 0) return null
+        // Guard on focus minutes, not block count: a week holding the pre-midnight
+        // segment of a split block has minutes but may have zero completed blocks.
+        if (minutes == 0) return null
         return BestWeek(weekStart = weekStart, sessions = blocksByWeek[weekStart] ?: 0, minutes = minutes)
     }
 
