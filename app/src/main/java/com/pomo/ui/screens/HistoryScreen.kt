@@ -170,7 +170,7 @@ private fun DayDetailSheet(
     onDismiss: () -> Unit,
 ) {
     val rhythm by produceState(initialValue = emptyRhythm(), item.date) {
-        value = loadRhythm(item.date)
+        value = runCatching { loadRhythm(item.date) }.getOrElse { emptyRhythm() }
     }
     PomoSheet(title = formatFullDate(item.date), onDismissRequest = onDismiss) {
         Column(

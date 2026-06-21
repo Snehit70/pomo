@@ -93,7 +93,7 @@ public object StatsAggregator {
     public fun hourRhythmForDay(
         sessions: List<SessionEntity>,
         tz: TimeZone = TimeZone.getDefault(),
-    ): HourRhythm = computeHourRhythm(sessions.filter { it.type == WORK_TYPE }, tz)
+    ): HourRhythm = computeHourRhythm(sessions.filter { it.type == WORK_TYPE && it.completed }, tz)
 
     private fun computeHourRhythm(
         workSessions: List<SessionEntity>,
