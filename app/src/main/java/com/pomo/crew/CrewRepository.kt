@@ -154,7 +154,9 @@ public class CrewRepository(context: Context) {
     public suspend fun joinCrew(joinCode: String, displayName: String): CrewBoard? {
         val payload = CrewJoinCodeCodec.decode(joinCode.trim()) ?: return null
         val existingName = crewStore.loadMemberships().firstOrNull()?.displayName
-        val name = CrewValidation.normalizeDisplayName(displayName) ?: existingName ?: "Me"
+        // A member with no name starts empty rather than being christened for them. Both callers
+        // gate their confirm button on a normalized name, so this bail is unreachable today.
+        val name = CrewValidation.normalizeDisplayName(displayName) ?: existingName ?: return null
         val membership = CrewMembership(
             crewId = payload.crewId,
             crewName = payload.crewName,
