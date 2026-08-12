@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pomo sync health and recovery prototype</title>
+  <!-- Three variants of sync health and Data History recovery, switchable via ?variant=A|B|C on one throwaway route. -->
+  <!-- Scene: a focused member glances at a dark timer across a desk, then opens dense diagnostics only when one exact warning needs attention. -->
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: oklch(0.145 0.008 265);
+      --surface: oklch(0.185 0.009 265);
+      --surface-2: oklch(0.225 0.011 265);
+      --surface-3: oklch(0.265 0.012 265);
+      --line: oklch(0.34 0.012 265);
+      --line-strong: oklch(0.45 0.015 265);
+      --text: oklch(0.94 0.012 85);
+      --muted: oklch(0.68 0.015 265);
+      --dim: oklch(0.53 0.014 265);
+      --signal: oklch(0.65 0.205 30);
+      --signal-soft: oklch(0.25 0.055 30);
+      --good: oklch(0.76 0.13 145);
+      --warn: oklch(0.8 0.13 80);
+      --info: oklch(0.76 0.1 240);
+      --focus: oklch(0.85 0.12 85);
+      --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --ease: 180ms cubic-bezier(.22,1,.36,1);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    body { min-height: 100vh; }
+    button, select, input { font: inherit; }
+    button { color: inherit; cursor: pointer; }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .prototype-banner {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 7px 18px; background: var(--signal); color: oklch(0.16 0.04 30);
+      font: 750 11px/1.2 var(--mono); letter-spacing: .09em; text-transform: uppercase;
+    }
+    .prototype-banner span:last-child { opacity: .72; }
+    #app { min-height: calc(100vh - 29px); }
+    .app-shell { min-height: calc(100vh - 29px); display: flex; flex-direction: column; }
+    .topbar {
+      height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 20px;
+      padding: 0 22px; border-bottom: 1px solid var(--line); background: var(--surface);
+    }
+    .brand { display: flex; align-items: baseline; gap: 14px; }
+    .brand strong { font: 800 14px var(--mono); letter-spacing: .16em; }
+    .brand span { color: var(--muted); font: 600 11px var(--mono); letter-spacing: .08em; }
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+    .text-button, .solid-button, .quiet-button, .danger-button {
+      min-height: 34px; border-radius: 7px; padding: 7px 11px; border: 1px solid var(--line);
+      background: var(--surface-2); transition: background var(--ease), border-color var(--ease), transform var(--ease);
+    }
+    .text-button:hover, .quiet-button:hover { background: var(--surface-3); border-color: var(--line-strong); }
+    .solid-button { background: var(--signal); border-color: var(--signal); color: oklch(0.17 0.035 30); font-weight: 750; }
+    .solid-button:hover { transform: translateY(-1px); }
+    .quiet-button { background: transparent; }
+    .danger-button { border-color: var(--signal); background: var(--signal-soft); color: oklch(0.82 0.12 30); }
+    .tiny-button { border: 0; background: transparent; color: var(--muted); padding: 4px; font: 650 11px var(--mono); }
+    .tiny-button:hover { color: var(--text); }
+    .status-trigger {
+      display: inline-flex; align-items: center; gap: 8px; min-height: 34px; border: 1px solid var(--line);
+      border-radius: 999px; padding: 6px 10px; background: var(--surface-2); font: 650 11px var(--mono);
+    }
+    .status-trigger:hover { border-color: var(--line-strong); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.good { background: var(--good); box-shadow: 0 0 0 3px oklch(0.76 0.13 145 / .1); }
+    .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px oklch(0.8 0.13 80 / .1); }
+    .dot.signal { background: var(--signal); box-shadow: 0 0 0 3px oklch(0.65 0.205 30 / .12); }
+    .dot.info { background: var(--info); }
+    .dot.dim { background: var(--dim); }
+    .page { flex: 1; min-height: 0; }
+    .mono { font-family: var(--mono); }
+    .muted { color: var(--muted); }
+    .signal { color: var(--signal); }
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .eyebrow { color: var(--muted); font: 700 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: 28px; line-height: 1.12; letter-spacing: -.025em; }
+    h2 { margin-bottom: 10px; font-size: 17px; }
+    h3 { margin-bottom: 5px; font-size: 13px; }
+    p { color: var(--muted); line-height: 1.55; max-width: 70ch; }
+    .divider { height: 1px; background: var(--line); }
+    .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+    .section-head h2 { margin: 0; }
+    .section-head p { margin: 3px 0 0; font-size: 12px; }
+    .count { color: var(--muted); font: 600 11px var(--mono); }
+    .state-line { display: flex; align-items: center; gap: 8px; }
+    .state-line strong { font-size: 12px; }
+    .state-line span { color: var(--muted); font-size: 11px; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 7px; font: 650 10px var(--mono); color: var(--muted); }
+    .badge.warn { border-color: oklch(0.55 0.1 80); color: var(--warn); }
+    .badge.signal { border-color: oklch(0.48 0.12 30); color: oklch(0.79 0.13 30); }
+    .badge.good { border-color: oklch(0.48 0.08 145); color: var(--good); }
+    .metric-line { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .metric-line:last-child { border-bottom: 0; }
+    .metric-line strong { display: block; font-size: 12px; }
+    .metric-line small { display: block; margin-top: 2px; color: var(--muted); }
+    .metric-line code { color: var(--text); font: 650 11px var(--mono); }
+
+    /* Everyday timer */
+    .timer-page { min-height: calc(100vh - 87px); display: grid; place-items: center; padding: 42px 24px 116px; }
+    .timer-instrument { width: min(680px, 100%); text-align: center; }
+    .phase { margin-bottom: 28px; color: var(--muted); font: 700 11px var(--mono); letter-spacing: .12em; }
+    .time { font: 350 clamp(72px, 13vw, 142px)/.85 var(--mono); letter-spacing: -.085em; }
+    .fraction { color: var(--dim); font-size: .42em; vertical-align: top; letter-spacing: -.04em; }
+    .live { margin: 26px 0 38px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--signal); font: 700 11px var(--mono); letter-spacing: .08em; }
+    .progress { height: 5px; background: var(--surface-3); overflow: hidden; }
+    .progress span { display: block; width: 67%; height: 100%; background: var(--signal); }
+    .timer-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin: 46px 0 36px; }
+    .timer-stat { padding: 8px 16px; border-right: 1px solid var(--line); }
+    .timer-stat:last-child { border-right: 0; }
+    .timer-stat strong { display: block; font: 700 19px var(--mono); }
+    .timer-stat span { color: var(--muted); font: 650 10px var(--mono); letter-spacing: .06em; }
+    .primary-control { width: 74px; height: 74px; border-radius: 50%; border: 0; background: var(--signal); color: var(--text); font-size: 24px; }
+    .everyday-status { margin: 34px auto 0; max-width: 540px; }
+
+    /* Variant A */
+    .signal-strip { display: grid; grid-template-columns: repeat(4, auto); justify-content: center; gap: 0; border: 1px solid var(--line); background: var(--surface); }
+    .signal-cell { min-width: 112px; padding: 10px 13px; border: 0; border-right: 1px solid var(--line); background: transparent; text-align: left; }
+    .signal-cell:last-child { border-right: 0; }
+    .signal-cell label { display: block; color: var(--dim); font: 650 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .signal-cell strong { display: block; margin-top: 3px; font: 700 11px var(--mono); }
+    .console-a { min-height: calc(100vh - 87px); display: grid; grid-template-columns: 240px minmax(0, 1fr); }
+    .rail { border-right: 1px solid var(--line); background: var(--surface); padding: 22px 18px 110px; }
+    .rail-title { margin-bottom: 20px; }
+    .rail-title strong { display: block; font-size: 13px; }
+    .rail-title span { color: var(--muted); font: 10px var(--mono); }
+    .rail-nav { display: grid; gap: 3px; }
+    .rail-nav button { display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: 6px; padding: 9px; background: transparent; text-align: left; color: var(--muted); font-size: 12px; }
+    .rail-nav button.active { background: var(--surface-3); color: var(--text); }
+    .rail-nav button:hover { color: var(--text); }
+    .rail-health { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 16px; }
+    .console-main { padding: 28px clamp(20px, 4vw, 52px) 120px; overflow: auto; }
+    .summary-band { display: grid; grid-template-columns: 1.2fr repeat(3, .7fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 22px 0 30px; }
+    .summary-item { min-height: 86px; padding: 16px; border-right: 1px solid var(--line); }
+    .summary-item:last-child { border-right: 0; }
+    .summary-item label { display: block; color: var(--dim); font: 650 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .summary-item strong { display: block; margin-top: 8px; font: 700 17px var(--mono); }
+    .issue-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .issue-table th { color: var(--dim); font: 650 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+    .issue-table td { padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .issue-table tr:hover td { background: var(--surface); }
+    .issue-table .kind { font-family: var(--mono); }
+    .issue-table .why { color: var(--muted); max-width: 36ch; }
+
+    /* Variant B */
+    .micro-status { display: flex; justify-content: center; gap: 15px; color: var(--muted); font: 650 10px var(--mono); }
+    .micro-status button { border: 0; background: transparent; color: inherit; padding: 6px; }
+    .micro-status button:hover { color: var(--text); }
+    .history-b { max-width: 940px; margin: 0 auto; padding: 28px 28px 130px; }
+    .history-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+    .history-toolbar h1 { margin: 0; }
+    .history-tabs { display: flex; gap: 4px; }
+    .history-tabs button { border: 0; background: transparent; color: var(--muted); padding: 7px 9px; border-radius: 5px; font-size: 11px; }
+    .history-tabs button.active { background: var(--surface-3); color: var(--text); }
+    .health-sentence { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .health-sentence strong { font-size: 14px; }
+    .health-sentence p { margin: 2px 0 0; font-size: 12px; }
+    .timeline { position: relative; padding-left: 30px; margin-top: 26px; }
+    .timeline::before { content: ""; position: absolute; left: 9px; top: 8px; bottom: 12px; width: 1px; background: var(--line-strong); }
+    .day-label { margin: 22px 0 10px -30px; color: var(--dim); font: 700 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .history-event { position: relative; display: grid; grid-template-columns: 108px minmax(0,1fr) auto; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .history-event::before { content: ""; position: absolute; left: -25px; top: 18px; width: 9px; height: 9px; border-radius: 50%; background: var(--surface-3); border: 2px solid var(--line-strong); }
+    .history-event.attention::before { border-color: var(--signal); background: var(--signal-soft); }
+    .history-event.pending::before { border-color: var(--warn); }
+    .event-time { color: var(--dim); font: 10px var(--mono); }
+    .event-main strong { display: block; font-size: 12px; }
+    .event-main span { color: var(--muted); font-size: 11px; }
+    .event-source { color: var(--muted); font: 10px var(--mono); text-align: right; }
+    .event-detail { grid-column: 2 / -1; display: none; padding: 12px; background: var(--surface); border: 1px solid var(--line); }
+    .history-event.open .event-detail { display: block; }
+    .diff-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .diff-mini label { display: block; color: var(--dim); font: 650 9px var(--mono); text-transform: uppercase; }
+    .diff-mini p { margin: 6px 0 0; font-size: 11px; }
+
+    /* Variant C */
+    .nav-status { border: 0; background: transparent; color: var(--muted); font: 650 10px var(--mono); padding: 8px; }
+    .nav-status:hover { color: var(--text); }
+    .workbench { min-height: calc(100vh - 87px); display: grid; grid-template-columns: 230px minmax(340px,.9fr) minmax(420px,1.2fr); }
+    .workbench > section { min-width: 0; padding: 22px; border-right: 1px solid var(--line); overflow: auto; }
+    .workbench > section:last-child { border-right: 0; }
+    .anchor-list { margin-top: 18px; display: grid; gap: 5px; }
+    .anchor { width: 100%; border: 1px solid transparent; border-radius: 6px; background: transparent; text-align: left; padding: 10px; }
+    .anchor:hover { background: var(--surface-2); }
+    .anchor.active { border-color: var(--line-strong); background: var(--surface-2); }
+    .anchor strong { display: block; font-size: 11px; }
+    .anchor span { color: var(--muted); font: 9px var(--mono); }
+    .frontier { margin: 18px 0; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .frontier-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 5px 0; font: 10px var(--mono); }
+    .frontier-row span:first-child { color: var(--muted); }
+    .compare-list { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+    .compare-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: start; background: var(--surface); padding: 11px; }
+    .compare-row input { margin: 2px 0 0; accent-color: var(--signal); }
+    .compare-row strong { display: block; font-size: 11px; }
+    .compare-row p { margin: 2px 0 0; font-size: 10px; }
+    .delta { font: 650 10px var(--mono); }
+    .delta.add { color: var(--good); }
+    .delta.remove { color: var(--signal); }
+    .plan { background: var(--surface); }
+    .plan-status { padding: 12px; border: 1px solid var(--line); margin-bottom: 18px; }
+    .plan-status strong { display: block; font-size: 12px; }
+    .plan-status p { margin: 4px 0 0; font-size: 11px; }
+    .plan-steps { counter-reset: step; display: grid; gap: 0; }
+    .plan-step { counter-increment: step; display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .plan-step::before { content: counter(step, decimal-leading-zero); color: var(--dim); font: 650 10px var(--mono); }
+    .plan-step strong { display: block; font-size: 11px; }
+    .plan-step span { color: var(--muted); font-size: 10px; }
+    .approval { margin-top: 20px; display: grid; gap: 8px; }
+    .approval-note { color: var(--muted); font-size: 10px; line-height: 1.5; }
+
+    /* Shared recovery drawer */
+    .drawer { position: fixed; inset: 29px 0 0 auto; width: min(440px, 100%); z-index: 20; border-left: 1px solid var(--line); background: var(--surface); box-shadow: -24px 0 60px oklch(0.08 0.01 265 / .62); transform: translateX(100%); transition: transform var(--ease); overflow: auto; }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 18px; background: var(--surface); border-bottom: 1px solid var(--line); z-index: 1; }
+    .drawer-head strong { font-size: 13px; }
+    .drawer-body { padding: 20px 20px 110px; }
+    .warning-box { padding: 12px; border: 1px solid oklch(0.48 0.11 30); background: var(--signal-soft); margin-bottom: 18px; }
+    .warning-box strong { display: block; color: oklch(0.83 0.12 30); font-size: 12px; }
+    .warning-box p { margin: 4px 0 0; font-size: 11px; }
+    .restore-item { display: grid; grid-template-columns: 22px 1fr auto; gap: 9px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .restore-item input { margin-top: 2px; accent-color: var(--signal); }
+    .restore-item strong { display: block; font-size: 11px; }
+    .restore-item span { color: var(--muted); font-size: 10px; }
+    .restore-item code { color: var(--good); font: 650 10px var(--mono); }
+
+    /* Prototype switcher */
+    .switcher {
+      position: fixed; z-index: 50; left: 50%; bottom: 18px; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 6px; padding: 7px; border: 1px solid oklch(0.52 0.02 265);
+      border-radius: 999px; background: oklch(0.21 0.013 265); box-shadow: 0 12px 30px oklch(0.07 0.01 265 / .65);
+    }
+    .switcher button { width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; font-size: 17px; }
+    .switcher button:hover { background: var(--surface-3); }
+    .variant-label { min-width: 190px; text-align: center; }
+    .variant-label strong { display: block; font-size: 11px; }
+    .variant-label span { color: var(--muted); font: 9px var(--mono); }
+    .scenario-control { position: fixed; z-index: 45; right: 18px; bottom: 20px; display: flex; align-items: center; gap: 7px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+    .scenario-control label { color: var(--dim); font: 650 9px var(--mono); text-transform: uppercase; }
+    .scenario-control select { border: 0; color: var(--text); background: transparent; font: 650 10px var(--mono); }
+    .toast { position: fixed; z-index: 60; top: 46px; left: 50%; transform: translate(-50%, -12px); opacity: 0; pointer-events: none; padding: 9px 12px; border: 1px solid var(--line-strong); background: var(--surface-2); font: 650 11px var(--mono); transition: opacity var(--ease), transform var(--ease); }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 980px) {
+      .console-a { grid-template-columns: 190px minmax(0,1fr); }
+      .summary-band { grid-template-columns: 1fr 1fr; }
+      .summary-item:nth-child(2) { border-right: 0; }
+      .summary-item:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .workbench { grid-template-columns: 190px 1fr; }
+      .workbench .plan { grid-column: 1 / -1; border-top: 1px solid var(--line); }
+    }
+    @media (max-width: 700px) {
+      .prototype-banner span:last-child { display: none; }
+      .topbar { padding: 0 14px; }
+      .brand span { display: none; }
+      .timer-page { padding-inline: 16px; }
+      .time { font-size: 74px; }
+      .signal-strip { grid-template-columns: 1fr 1fr; }
+      .signal-cell:nth-child(2) { border-right: 0; }
+      .signal-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .console-a { display: block; }
+      .rail { border-right: 0; border-bottom: 1px solid var(--line); padding: 14px; }
+      .rail-nav { grid-template-columns: repeat(3,1fr); }
+      .rail-health { display: none; }
+      .console-main { padding: 22px 14px 140px; }
+      .summary-band { display: block; }
+      .summary-item { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .issue-table th:nth-child(3), .issue-table td:nth-child(3) { display: none; }
+      .history-b { padding: 20px 14px 130px; }
+      .history-toolbar { display: block; }
+      .history-tabs { margin-top: 12px; overflow-x: auto; }
+      .history-event { grid-template-columns: 72px minmax(0,1fr); }
+      .event-source { grid-column: 2; text-align: left; }
+      .event-detail { grid-column: 1 / -1; }
+      .workbench { display: block; }
+      .workbench > section { border-right: 0; border-bottom: 1px solid var(--line); padding: 18px 14px; }
+      .anchor-list { grid-template-columns: 1fr 1fr; }
+      .scenario-control { left: 12px; right: auto; bottom: 72px; }
+      .switcher { bottom: 12px; }
+      .variant-label { min-width: 145px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="prototype-banner"><span>Prototype · sync health and Data History recovery</span><span>Read-only model · no production mutations</span></div>
+  <div id="app"></div>
+  <div class="scenario-control">
+    <label for="scenario">State</label>
+    <select id="scenario">
+      <option value="healthy">Healthy</option>
+      <option value="offline">Offline</option>
+      <option value="stalled">Stalled</option>
+      <option value="quarantine">Quarantine</option>
+      <option value="conflict">Timer conflict</option>
+      <option value="incomplete">Recovery incomplete</option>
+    </select>
+  </div>
+  <div class="switcher" aria-label="Prototype variants">
+    <button id="prev" aria-label="Previous variant">←</button>
+    <div class="variant-label"><strong id="variant-name"></strong><span>USE ← → TO SWITCH</span></div>
+    <button id="next" aria-label="Next variant">→</button>
+  </div>
+  <div id="drawer" class="drawer" aria-hidden="true"></div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script>
+    const variants = [
+      { key: "A", name: "Signal rail", idea: "status dimensions first" },
+      { key: "B", name: "History lens", idea: "provenance first" },
+      { key: "C", name: "Recovery workbench", idea: "comparison first" }
+    ];
+
+    const states = {
+      healthy: {
+        label: "Protected", tone: "good", short: "ALL CURRENT", age: "4s",
+        sentence: "Current on both Replicas. Two Mailboxes independently verified.",
+        saved: "CURRENT", peer: "2 / 2", mailbox: "2 / 2", pending: 0, quarantine: 0,
+        issue: "No action required", detail: "Android and Chrome share frontier 9F3A. Both Mailboxes verified the recoverable object set."
+      },
+      offline: {
+        label: "Offline", tone: "warn", short: "SAVED LOCALLY", age: "18m",
+        sentence: "Chrome is offline. New work is saved locally and protected by two Mailboxes.",
+        saved: "CURRENT", peer: "1 / 2", mailbox: "2 / 2", pending: 3, quarantine: 0,
+        issue: "Chrome last seen 18 minutes ago", detail: "Peer catch-up will resume automatically on the next permitted wake. No data is missing."
+      },
+      stalled: {
+        label: "Attention", tone: "signal", short: "RETRYING", age: "42m",
+        sentence: "Seven Operations are waiting. Direct routes failed; one Mailbox is in backoff.",
+        saved: "CURRENT", peer: "1 / 2", mailbox: "1 / 2", pending: 7, quarantine: 0,
+        issue: "Delivery has not advanced for 42 minutes", detail: "Known data remains saved. Retry now rechecks routes without bypassing validation or backoff history."
+      },
+      quarantine: {
+        label: "Review", tone: "signal", short: "3 WITHHELD", age: "now",
+        sentence: "Known-good data is current. Three suspicious Operations are quarantined for review.",
+        saved: "CURRENT", peer: "2 / 2", mailbox: "2 / 2", pending: 0, quarantine: 3,
+        issue: "Destructive change set requires confirmation", detail: "A Chrome incarnation proposed deleting 46 History blocks. The current projection is unchanged."
+      },
+      conflict: {
+        label: "Settle", tone: "signal", short: "2 TIMER HEADS", age: "now",
+        sentence: "Android and Chrome completed concurrent timer branches. Unrelated data remains usable.",
+        saved: "CURRENT", peer: "2 / 2", mailbox: "2 / 2", pending: 0, quarantine: 2,
+        issue: "Timer settlement required", detail: "Both authentic focus intervals remain visible. Canonical timer and branch History effects are paused."
+      },
+      incomplete: {
+        label: "Incomplete", tone: "warn", short: "2 FEED GAPS", age: "3h",
+        sentence: "Verified History is usable, but two feed segments and one photo blob are unavailable.",
+        saved: "VERIFIED PART", peer: "1 / 2", mailbox: "1 / 2", pending: 12, quarantine: 0,
+        issue: "Recovery incomplete", detail: "Pomo materialized the largest verified state. Destructive and prerequisite-dependent authoring remain unavailable."
+      }
+    };
+
+    const events = [
+      { time: "14:32:08", title: "Work completed", description: "24m 17s · Research · accepted once", source: "ANDROID A7F2", status: "accepted" },
+      { time: "14:32:09", title: "Durable peer acknowledgment", description: "Chrome journaled frontier 9F3A", source: "CHROME C194", status: "accepted" },
+      { time: "14:32:12", title: "Mailbox protection verified", description: "dav.personal · manifest 8BC1", source: "MAILBOX 01", status: "accepted" },
+      { time: "14:32:18", title: "Mailbox protection verified", description: "dav.archive · manifest 8BC1", source: "MAILBOX 02", status: "accepted" },
+      { time: "14:40:03", title: "Profile photo pending", description: "Operation retained; encrypted blob not present yet", source: "CHROME C194", status: "pending" },
+      { time: "14:44:51", title: "Destructive change set quarantined", description: "46 History targets · no projection effect", source: "CHROME C194", status: "attention" }
+    ];
+
+    const anchors = [
+      { name: "Current verified", meta: "FRONTIER 9F3A · NOW" },
+      { name: "Before device admission", meta: "RECOVERY ANCHOR · 08 AUG" },
+      { name: "Before schema migration", meta: "RECOVERY ANCHOR · 02 AUG" },
+      { name: "June archive", meta: "NAMED ANCHOR · 30 JUN" }
+    ];
+
+    let currentVariant = new URLSearchParams(location.search).get("variant") || "A";
+    if (!variants.some(v => v.key === currentVariant)) currentVariant = "A";
+    let scenario = "healthy";
+    let surface = "everyday";
+    let activeRail = "health";
+    let activeHistoryTab = "all";
+    let activeAnchor = 1;
+    let drawerOpen = false;
+
+    const app = document.getElementById("app");
+    const drawer = document.getElementById("drawer");
+    const toast = document.getElementById("toast");
+    const esc = value => String(value).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+
+    function statusTrigger(kind = "pill") {
+      const s = states[scenario];
+      if (kind === "micro") return `<button data-open-console>${esc(s.short)} · ${s.age}</button>`;
+      if (kind === "nav") return `<button class="nav-status" data-open-console><span class="dot ${s.tone}"></span> SYNC ${esc(s.age.toUpperCase())}</button>`;
+      return `<button class="status-trigger" data-open-console><span class="dot ${s.tone}"></span>${esc(s.label.toUpperCase())}<span class="muted">${esc(s.age)}</span></button>`;
+    }
+
+    function topbar(statusKind = "pill") {
+      return `<header class="topbar">
+        <div class="brand"><strong>POMO</strong><span>${surface === "everyday" ? "FOCUS INSTRUMENT" : "DATA CONTROL"}</span></div>
+        <div class="top-actions">${surface === "console" ? `<button class="quiet-button" data-home>Back to timer</button>` : ""}${statusTrigger(statusKind)}</div>
+      </header>`;
+    }
+
+    function timerCore(statusHtml) {
+      return `<main class="page timer-page"><div class="timer-instrument">
+        <div class="phase">FOCUS · RESEARCH</div>
+        <div class="time">18:42<span class="fraction">.3</span></div>
+        <div class="live"><span class="dot signal"></span>LIVE · ANDROID OWNER</div>
+        <div class="progress"><span></span></div>
+        <div class="timer-stats">
+          <div class="timer-stat"><strong>3h 20m</strong><span>TODAY</span></div>
+          <div class="timer-stat"><strong>8</strong><span>SESSIONS</span></div>
+          <div class="timer-stat"><strong class="signal">27</strong><span>STREAK</span></div>
+        </div>
+        <button class="primary-control" aria-label="Pause">Ⅱ</button>
+        <div class="everyday-status">${statusHtml}</div>
+      </div></main>`;
+    }
+
+    function variantA() {
+      const s = states[scenario];
+      if (surface === "everyday") {
+        const strip = `<div class="signal-strip">
+          <button class="signal-cell" data-open-console><label>Local</label><strong>${esc(s.saved)}</strong></button>
+          <button class="signal-cell" data-open-console><label>Peers</label><strong>${esc(s.peer)}</strong></button>
+          <button class="signal-cell" data-open-console><label>Protection</label><strong>${esc(s.mailbox)}</strong></button>
+          <button class="signal-cell" data-open-console><label>Attention</label><strong class="${s.tone}">${s.pending + s.quarantine || "NONE"}</strong></button>
+        </div>`;
+        return `<div class="app-shell">${topbar("pill")}${timerCore(strip)}</div>`;
+      }
+      const issues = issueRows();
+      return `<div class="app-shell">${topbar("pill")}<main class="page console-a">
+        <aside class="rail">
+          <div class="rail-title"><strong>Sync health</strong><span>MEMBER 28A7 · FRONTIER 9F3A</span></div>
+          <nav class="rail-nav">
+            <button class="${activeRail==='health'?'active':''}" data-rail="health">Health <span>${s.tone==='good'?'✓':'!'}</span></button>
+            <button class="${activeRail==='devices'?'active':''}" data-rail="devices">Replicas <span>2</span></button>
+            <button class="${activeRail==='history'?'active':''}" data-rail="history">Data History <span>∞</span></button>
+          </nav>
+          <div class="rail-health">
+            <div class="eyebrow">Current condition</div>
+            <p style="font-size:11px;margin-top:8px">${esc(s.sentence)}</p>
+            <button class="text-button" data-retry>Retry now</button>
+          </div>
+        </aside>
+        <section class="console-main">${activeRail === "history" ? historyTable() : `
+          <div class="eyebrow">Operational summary</div><h1>${esc(s.label)}</h1><p>${esc(s.detail)}</p>
+          <div class="summary-band">
+            <div class="summary-item"><label>Projection</label><strong>${scenario==='incomplete'?'LIMITED':'HEALTHY'}</strong></div>
+            <div class="summary-item"><label>Saved locally</label><strong>${esc(s.saved)}</strong></div>
+            <div class="summary-item"><label>Peer redundant</label><strong>${esc(s.peer)}</strong></div>
+            <div class="summary-item"><label>Protected</label><strong>${esc(s.mailbox)}</strong></div>
+          </div>
+          <div class="section-head"><div><h2>Items requiring attention</h2><p>Known-good projections stay usable.</p></div><button class="text-button" data-recovery>Open recovery console</button></div>
+          <table class="issue-table"><thead><tr><th>Status</th><th>Item</th><th>Why it is withheld</th><th>Next action</th></tr></thead><tbody>${issues}</tbody></table>`}
+        </section>
+      </main></div>`;
+    }
+
+    function issueRows() {
+      const s = states[scenario];
+      const primary = `<tr><td><span class="badge ${s.tone}">${esc(s.label)}</span></td><td><span class="kind">${esc(s.issue)}</span></td><td class="why">${esc(s.detail)}</td><td><button class="tiny-button" data-recovery>INSPECT →</button></td></tr>`;
+      const pending = `<tr><td><span class="badge warn">PENDING</span></td><td><span class="kind">SetProfilePhoto</span></td><td class="why">Encrypted blob prerequisite is unavailable.</td><td><button class="tiny-button">WAITING</button></td></tr>`;
+      return scenario === "healthy" ? `<tr><td><span class="badge good">CLEAR</span></td><td colspan="3" class="muted">No unresolved Operations or durability warnings.</td></tr>` : primary + (s.pending ? pending : "");
+    }
+
+    function historyTable() {
+      return `<div class="section-head"><div><div class="eyebrow">Permanent logical record</div><h1>Data History</h1><p>Every accepted, pending, quarantined, and rejected Operation remains attributable.</p></div><button class="text-button" data-recovery>Compare and recover</button></div>
+        <table class="issue-table"><thead><tr><th>Time</th><th>Operation</th><th>Disposition</th><th>Provenance</th></tr></thead><tbody>${events.map(e => `<tr><td class="mono muted">${e.time}</td><td><strong>${e.title}</strong><br><span class="muted">${e.description}</span></td><td><span class="badge ${e.status==='attention'?'signal':e.status==='pending'?'warn':'good'}">${e.status}</span></td><td class="mono muted">${e.source}</td></tr>`).join("")}</tbody></table>`;
+    }
+
+    function variantB() {
+      const s = states[scenario];
+      if (surface === "everyday") {
+        const micro = `<div class="micro-status"><span class="dot ${s.tone}"></span>${statusTrigger("micro")}<span>PEER ${esc(s.peer)}</span><span>DAV ${esc(s.mailbox)}</span></div>`;
+        return `<div class="app-shell">${topbar("micro")}${timerCore(micro)}</div>`;
+      }
+      return `<div class="app-shell">${topbar("micro")}<main class="page history-b">
+        <div class="history-toolbar"><div><div class="eyebrow">Journal-derived view</div><h1>Data History</h1></div>
+          <nav class="history-tabs">${["all","accepted","pending","quarantine","anchors"].map(tab => `<button class="${activeHistoryTab===tab?'active':''}" data-history-tab="${tab}">${tab.toUpperCase()}</button>`).join("")}</nav>
+        </div>
+        <div class="health-sentence"><div><div class="state-line"><span class="dot ${s.tone}"></span><strong>${esc(s.label)}</strong></div><p>${esc(s.sentence)}</p></div><div><button class="quiet-button" data-retry>Retry now</button> <button class="text-button" data-recovery>Recovery</button></div></div>
+        <div class="timeline"><div class="day-label">Today · causal frontier 9F3A</div>${events.filter(e => activeHistoryTab === "all" || activeHistoryTab === "anchors" || e.status === activeHistoryTab || (activeHistoryTab === "quarantine" && e.status === "attention")).map((e,i) => `<article class="history-event ${e.status} ${i===0?'open':''}" data-event>
+          <div class="event-time">${e.time}<br>POS ${1138-i}</div><div class="event-main"><strong>${e.title}</strong><span>${e.description}</span></div><div class="event-source">${e.source}</div>
+          <div class="event-detail"><div class="diff-mini"><div><label>Operation meaning</label><p>Authenticated immutable fact retained in the Operation journal.</p></div><div><label>Projection effect</label><p>${e.status==='attention'?'Withheld. Known-good state is unchanged.':e.status==='pending'?'None until prerequisites arrive.':'Applied exactly once.'}</p></div></div></div>
+        </article>`).join("")}</div>
+      </main></div>`;
+    }
+
+    function variantC() {
+      const s = states[scenario];
+      if (surface === "everyday") {
+        const nav = `<div class="micro-status">${statusTrigger("nav")}<span>FRONTIER 9F3A</span></div>`;
+        return `<div class="app-shell">${topbar("nav")}${timerCore(nav)}</div>`;
+      }
+      return `<div class="app-shell">${topbar("nav")}<main class="page workbench">
+        <section><div class="eyebrow">Historical frontiers</div><h2>Recovery anchors</h2><p style="font-size:11px">Compare verified state without rewinding the journal.</p><div class="anchor-list">${anchors.map((a,i) => `<button class="anchor ${activeAnchor===i?'active':''}" data-anchor="${i}"><strong>${a.name}</strong><span>${a.meta}</span></button>`).join("")}</div>
+          <div class="frontier"><div class="eyebrow">Selected frontier</div><div class="frontier-row"><span>Android A7F2</span><strong>1842</strong></div><div class="frontier-row"><span>Chrome C194</span><strong>1134</strong></div><div class="frontier-row"><span>Materializer</span><strong>SYNC/1</strong></div></div>
+          <button class="quiet-button" data-home>Exit workbench</button></section>
+        <section><div class="section-head"><div><div class="eyebrow">Current vs ${esc(anchors[activeAnchor].name)}</div><h2>Domain comparison</h2></div><span class="badge ${s.tone}">${esc(s.label)}</span></div>
+          <div class="compare-list">
+            <label class="compare-row"><input type="checkbox" checked><span><strong>History · Research</strong><p>Two Work blocks present at the anchor are absent from the current projection.</p></span><code class="delta add">+ 47m</code></label>
+            <label class="compare-row"><input type="checkbox" checked><span><strong>Tag · Thesis</strong><p>Restore archived Tag ID and authored name without rewriting blocks.</p></span><code class="delta add">+ TAG</code></label>
+            <label class="compare-row"><input type="checkbox"><span><strong>Preference · Daily goal</strong><p>Anchor was 180m. Current member intent is 240m.</p></span><code class="delta remove">KEEP 240</code></label>
+            <label class="compare-row"><input type="checkbox" disabled><span><strong>Active phase</strong><p>Historical Active phases cannot be resurrected.</p></span><code class="delta">BLOCKED</code></label>
+            <label class="compare-row"><input type="checkbox" disabled><span><strong>Device authorization</strong><p>Recovery restore cannot reinstate revoked keys or old authority.</p></span><code class="delta">BLOCKED</code></label>
+          </div>
+        </section>
+        <section class="plan"><div class="eyebrow">Agent-prepared, member-confirmed</div><h2>Forward recovery plan</h2><div class="plan-status"><strong>No current data will be overwritten</strong><p>The plan appends compensating Operations and preserves unrelated work authored after the selected anchor.</p></div>
+          <div class="plan-steps"><div class="plan-step"><div><strong>Create Safety checkpoint</strong><span>Bind current frontier 9F3A before proposing changes.</span></div></div><div class="plan-step"><div><strong>Append two History recoveries</strong><span>New attributable Operations reference the historical blocks.</span></div></div><div class="plan-step"><div><strong>Restore Tag identity</strong><span>Preserve later names and unrelated catalog edits.</span></div></div><div class="plan-step"><div><strong>Re-materialize and compare</strong><span>Show the exact resulting projection before confirmation.</span></div></div></div>
+          <div class="approval"><button class="solid-button" data-prepare>Prepare review package</button><button class="quiet-button" data-recovery>Inspect provenance</button><div class="approval-note">An agent may prepare this plan. The member confirms it. Destructive or agent-proposed changes also require independent Full-device or Recovery-authority confirmation.</div></div>
+        </section>
+      </main></div>`;
+    }
+
+    function renderDrawer() {
+      const s = states[scenario];
+      drawer.className = `drawer ${drawerOpen ? "open" : ""}`;
+      drawer.setAttribute("aria-hidden", String(!drawerOpen));
+      drawer.innerHTML = `<div class="drawer-head"><div><div class="eyebrow">Tucked-away console</div><strong>Compare and recover</strong></div><button class="quiet-button" data-close-drawer>Close</button></div>
+        <div class="drawer-body"><div class="warning-box"><strong>${esc(s.issue)}</strong><p>${esc(s.detail)}</p></div>
+          <div class="section-head"><div><h2>Before device admission</h2><p>Recovery anchor · 08 Aug · verified frontier</p></div><span class="badge">COMPARE</span></div>
+          <div class="restore-item"><input type="checkbox" checked><span><strong>2 Work blocks</strong><span>47 minutes · Research · exact provenance retained</span></span><code>RECOVER</code></div>
+          <div class="restore-item"><input type="checkbox" checked><span><strong>Tag identity</strong><span>Thesis · archived after anchor</span></span><code>RECOVER</code></div>
+          <div class="restore-item"><input type="checkbox"><span><strong>Daily goal</strong><span>Historical 180m · current 240m</span></span><code>KEEP</code></div>
+          <div class="restore-item"><input type="checkbox" disabled><span><strong>Active phase and authorization</strong><span>Historical authority cannot be restored</span></span><code>BLOCKED</code></div>
+          <div style="margin-top:20px"><div class="eyebrow">Prepared effect</div><p style="font-size:11px">Append three compensating Operations after a Safety checkpoint. Preserve current History, current Recovery authority, current Content epoch, and every original Operation.</p></div>
+          <button class="solid-button" data-prepare>Prepare member review</button>
+        </div>`;
+      drawer.querySelector("[data-close-drawer]").onclick = () => { drawerOpen = false; renderDrawer(); };
+      drawer.querySelector("[data-prepare]").onclick = () => showToast("REVIEW PACKAGE PREPARED · NO OPERATIONS AUTHORED");
+    }
+
+    function render() {
+      const renderer = currentVariant === "A" ? variantA : currentVariant === "B" ? variantB : variantC;
+      app.innerHTML = renderer();
+      const meta = variants.find(v => v.key === currentVariant);
+      document.getElementById("variant-name").textContent = `${meta.key} · ${meta.name} · ${meta.idea}`;
+      document.querySelectorAll("[data-open-console]").forEach(el => el.onclick = () => { surface = "console"; render(); });
+      document.querySelectorAll("[data-home]").forEach(el => el.onclick = () => { surface = "everyday"; render(); });
+      document.querySelectorAll("[data-recovery]").forEach(el => el.onclick = () => { drawerOpen = true; renderDrawer(); });
+      document.querySelectorAll("[data-retry]").forEach(el => el.onclick = () => showToast("RETRY SCHEDULED · SAFETY RULES UNCHANGED"));
+      document.querySelectorAll("[data-prepare]").forEach(el => el.onclick = () => showToast("REVIEW PACKAGE PREPARED · NO OPERATIONS AUTHORED"));
+      document.querySelectorAll("[data-rail]").forEach(el => el.onclick = () => { activeRail = el.dataset.rail; render(); });
+      document.querySelectorAll("[data-history-tab]").forEach(el => el.onclick = () => { activeHistoryTab = el.dataset.historyTab; render(); });
+      document.querySelectorAll("[data-anchor]").forEach(el => el.onclick = () => { activeAnchor = Number(el.dataset.anchor); render(); });
+      document.querySelectorAll("[data-event]").forEach(el => el.onclick = () => el.classList.toggle("open"));
+      renderDrawer();
+    }
+
+    function setVariant(indexDelta) {
+      const index = variants.findIndex(v => v.key === currentVariant);
+      currentVariant = variants[(index + indexDelta + variants.length) % variants.length].key;
+      const url = new URL(location.href); url.searchParams.set("variant", currentVariant); history.replaceState({}, "", url);
+      surface = "everyday"; drawerOpen = false; render();
+    }
+
+    function showToast(message) {
+      toast.textContent = message; toast.classList.add("show");
+      clearTimeout(showToast.timer); showToast.timer = setTimeout(() => toast.classList.remove("show"), 2200);
+    }
+
+    document.getElementById("prev").onclick = () => setVariant(-1);
+    document.getElementById("next").onclick = () => setVariant(1);
+    document.getElementById("scenario").onchange = event => { scenario = event.target.value; drawerOpen = false; render(); };
+    document.addEventListener("keydown", event => {
+      if (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable) return;
+      if (event.key === "ArrowLeft") setVariant(-1);
+      if (event.key === "ArrowRight") setVariant(1);
+      if (event.key === "Escape" && drawerOpen) { drawerOpen = false; renderDrawer(); }
+    });
+    render();
+  </script>
+</body>
+</html>
