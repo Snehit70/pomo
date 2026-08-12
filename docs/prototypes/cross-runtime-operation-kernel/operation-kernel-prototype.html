@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pomo Operation kernel — throwaway prototype</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0d1117;--panel:#161b22;--line:#30363d;--text:#f0f3f6;--muted:#9da7b3;--accent:#ff5a5f;--good:#58d68d;--warn:#f0b85a;--bad:#ff7b81}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,sans-serif}main{width:min(1160px,calc(100% - 32px));margin:34px auto 72px}h1,h2,h3,p{margin-top:0}h1{font-size:clamp(30px,5vw,50px);line-height:1.05;max-width:850px}h2{font-size:20px}h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.eyebrow{font-size:12px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.1em}.lede{font-size:17px;color:#c7ced7;max-width:900px}.plain{border-left:3px solid var(--good);background:#102119;padding:13px 15px;margin:20px 0}.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}.status{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}.pill{background:#282e37;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:800}.pill.good{background:#173425;color:#8ee1b1}.pill.warn{background:#382d1b;color:#f5cf8b}.pill.bad{background:#3c1d20;color:#ffafb3}.state{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.datum{background:#10151b;border:1px solid #282f38;border-radius:10px;padding:10px 12px;min-height:72px}.datum span{display:block;color:var(--muted);font-size:12px}.datum strong{display:block;overflow-wrap:anywhere}.wide{grid-column:1/-1}button{border:1px solid #37404b;background:#222933;color:var(--text);border-radius:9px;padding:9px 12px;font:inherit;cursor:pointer;text-align:left}button:hover:not(:disabled){border-color:#697585}button:disabled{opacity:.34;cursor:not-allowed}.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.log{list-style:none;padding:0;margin:0;max-height:340px;overflow:auto}.log li{padding:8px 0;border-bottom:1px solid #29313a;color:#cbd2da}.log li:first-child{color:#fff}.walkthrough{margin-top:16px}.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}.tabs button.active{border-color:var(--accent);color:#ff999d}.walk-head{display:flex;justify-content:space-between;gap:16px}.steps{display:grid;gap:8px}.step{display:flex;gap:10px;align-items:center}.step b{width:25px;height:25px;display:grid;place-items:center;border-radius:50%;background:#2b323c;font-size:12px;flex:none}.step.done b{background:#184c31;color:#9ce6bd}.step.current b{background:var(--accent);color:#180708}.step button{flex:1}.result{margin-top:14px;border:1px solid #324154;background:#111923;border-radius:10px;padding:12px}.mono{font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;color:#bacaff;overflow-wrap:anywhere}@media(max-width:840px){.grid{grid-template-columns:1fr}.state,.actions{grid-template-columns:1fr}.wide{grid-column:auto}}
+  </style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Throwaway logic prototype · no real account or data</p>
+  <h1>Make Android and Chrome reach the same truth without choosing a primary</h1>
+  <p class="lede"><strong>Question:</strong> Can one small Operation-kernel interface make Kotlin and TypeScript agree on identity, order, causal dependencies, forks, Checkpoint recovery, and what an incomplete Replica may safely author?</p>
+  <div class="plain"><strong>What you need to do:</strong> choose a walkthrough tab and press its numbered buttons from top to bottom. You do not need to understand the hashes. The recommended decision is to keep all these safety rules inside one shared kernel interface.</div>
+
+  <section class="grid">
+    <div class="panel">
+      <div class="status"><span id="pill" class="pill"></span><div><strong id="headline"></strong><div id="guidance" style="color:var(--muted)"></div></div></div>
+      <div id="state" class="state"></div>
+    </div>
+    <div class="panel">
+      <h2>Free play</h2>
+      <p style="color:var(--muted)">These buttons let you try the rules outside the guided order.</p>
+      <div id="actions" class="actions"></div>
+    </div>
+    <div class="panel">
+      <h2>What just happened</h2>
+      <ul id="log" class="log"></ul>
+    </div>
+    <div class="panel">
+      <h2>Proposed deep module</h2>
+      <div class="datum"><span>Interface</span><strong><code>author · ingest · summarize · restore</code></strong></div>
+      <p style="color:var(--muted);margin:12px 0 0">Canonical encoding, validation order, deduplication, Feed continuity, causal waiting, fork quarantine, and Checkpoint staging stay inside. Transport and projections cannot reimplement them.</p>
+    </div>
+  </section>
+
+  <section class="panel walkthrough">
+    <h2>Guided walkthroughs</h2>
+    <div id="tabs" class="tabs"></div>
+    <div class="walk-head"><div><h3 id="scenarioTitle"></h3><p id="scenarioDescription" style="max-width:780px;color:#c7ced7"></p></div><button id="restart">Restart</button></div>
+    <div id="steps" class="steps"></div>
+    <div id="result" class="result"></div>
+  </section>
+</main>
+<script>
+/* Pure state model: no DOM access. */
+const KernelDemo=(()=>{
+  const initial=()=>({stage:"ready",kotlin:null,typescript:null,match:null,androidHead:0,chromeHead:0,pending:0,gap:null,causalWait:null,duplicates:0,forkAt:null,quarantined:0,checkpoint:"none",replica:"incomplete",lastAuthoring:"none",log:["Scenario ready."],error:null});
+  const next=(s,message,patch={})=>({...s,...patch,error:null,log:[message,...s.log].slice(0,30)});
+  const block=(s,message)=>({...s,error:message,log:[`Blocked: ${message}`,...s.log].slice(0,30)});
+  function reduce(s,a){switch(a.type){
+    case "RUN_KOTLIN":return next(s,"Kotlin emitted the canonical fixture.",{kotlin:"CBOR 8b015820… · ID 8ce60e58…",stage:"comparing runtimes"});
+    case "RUN_TYPESCRIPT":return next(s,"TypeScript emitted the canonical fixture.",{typescript:"CBOR 8b015820… · ID 8ce60e58…",stage:"comparing runtimes"});
+    case "COMPARE":if(!s.kotlin||!s.typescript)return block(s,"Run both platforms first.");return next(s,"All 15 output lines matched byte-for-byte.",{match:true,stage:"runtime parity proven"});
+    case "A3":return next(s,"A3 arrived before A1 and A2. It is retained as Pending; nothing is projected.",{pending:s.pending+1,gap:"Android Feed position 1",stage:"waiting for gap"});
+    case "A1":return next(s,"A1 filled the first position, but A3 still cannot jump over A2.",{androidHead:1,gap:"Android Feed position 2",stage:"partial feed"});
+    case "A1_DUP":if(s.androidHead<1)return block(s,"A1 has not arrived yet.");return next(s,"The repeated A1 Operation ID was recognized as a harmless duplicate.",{duplicates:s.duplicates+1});
+    case "A2":if(s.androidHead<1)return block(s,"A1 is required first.");if(s.chromeHead>=1)return next(s,"A2 was contiguous and its Chrome B1 dependency was already accepted.",{androidHead:2,gap:null,stage:"causally ready"});return next(s,"A2 is next in Android's Feed but depends on unseen Chrome B1, so it remains Pending causal.",{pending:s.pending+1,gap:null,causalWait:"Chrome B1",stage:"waiting for causal dependency"});
+    case "B1":if(!s.causalWait)return next(s,"Chrome B1 was accepted.",{chromeHead:1});return next(s,"Chrome B1 satisfied the dependency; A2 and already-held A3 advanced deterministically.",{chromeHead:1,androidHead:3,pending:0,causalWait:null,gap:null,stage:"converged"});
+    case "FORK":if(s.androidHead<2)return block(s,"Accept A2 before presenting a competing A2.");return next(s,"A different Operation claimed Android Feed position 2. Both tails were quarantined and the uncontested prefix stayed usable.",{androidHead:1,forkAt:"Android position 2",quarantined:2,stage:"fork quarantined"});
+    case "CHECKPOINT":return next(s,"A multi-feed Checkpoint advertised Android through A2 and Chrome through B1, with every covered Operation ID.",{checkpoint:"loaded · not trusted",stage:"checkpoint staging"});
+    case "VERIFY":if(s.checkpoint==="none")return block(s,"Load a Checkpoint first.");return next(s,"Hashes, covered positions, Feed heads, and frontier matched the linked Journal-pack indexes.",{checkpoint:"verified · staged",androidHead:2,chromeHead:1,stage:"checkpoint verified"});
+    case "AFTER":if(s.checkpoint!=="verified · staged")return block(s,"Verify the Checkpoint before replaying later Operations.");return next(s,"A3 passed through normal ingestion after the staged frontier.",{androidHead:3,stage:"ready to activate"});
+    case "ACTIVATE":if(s.androidHead<3||s.checkpoint!=="verified · staged")return block(s,"A complete verified staged frontier is required.");return next(s,"The rebuilt Replica activated atomically; the prior local projection was never partially overwritten.",{checkpoint:"activated",replica:"full",stage:"rehydrated"});
+    case "BAD_CHECKPOINT":return next(s,"A tampered Checkpoint was rejected before it could replace usable state.",{checkpoint:"rejected",stage:"known-good state retained"});
+    case "APPEND":return next(s,"The incomplete Replica had Authorization plus the exact Active-phase chain, so it could append that completed work.",{lastAuthoring:"History append authorized"});
+    case "DELETE":if(s.replica!=="full")return next(s,"History deletion was blocked: full History and independent confirmation were missing.",{lastAuthoring:"History deletion blocked",stage:"safe authoring limit"});return next(s,"The Full Replica satisfied the modeled deletion prerequisites.",{lastAuthoring:"History deletion authorized"});
+    case "PROFILE":if(s.replica!=="full")return next(s,"Profile change was blocked because the Profile frontier was incomplete.",{lastAuthoring:"Profile change blocked",stage:"safe authoring limit"});return next(s,"The Full Replica had the Profile frontier.",{lastAuthoring:"Profile change authorized"});
+    case "READY":return next(s,"Catch-up completed and DeviceReady made the Replica Full.",{replica:"full",stage:"device ready"});
+    default:return block(s,"Unknown action.");}}
+  return{initial,reduce};
+})();
+
+const labels={RUN_KOTLIN:"Generate Kotlin fixture",RUN_TYPESCRIPT:"Generate TypeScript fixture",COMPARE:"Compare complete outputs",A3:"Deliver Android A3 first",A1:"Deliver Android A1",A1_DUP:"Deliver duplicate A1",A2:"Deliver Android A2",B1:"Deliver Chrome B1 dependency",FORK:"Deliver competing Android A2",CHECKPOINT:"Load multi-feed Checkpoint",VERIFY:"Verify Checkpoint and pack indexes",AFTER:"Replay Android A3",ACTIVATE:"Atomically activate rebuilt Replica",BAD_CHECKPOINT:"Try tampered Checkpoint",APPEND:"Try completed-work append",DELETE:"Try History deletion",PROFILE:"Try Profile change",READY:"Finish catch-up and DeviceReady"};
+const scenarios=[
+ {title:"Same meaning on both platforms",description:"The exact same unsigned Operation must become the exact same canonical bytes and Operation ID on Android and Chrome.",steps:["RUN_KOTLIN","RUN_TYPESCRIPT","COMPARE"],result:"Accept if byte identity is a mandatory gate: either every output matches, or synchronization is disabled rather than guessing."},
+ {title:"Reordered, duplicate, and causal delivery",description:"A3 arrives early, A1 repeats, and A2 depends on Chrome B1. Pending data remains durable but invisible until every prerequisite exists.",steps:["A3","A1","A1_DUP","A2","B1"],result:"Accept if transport order must never choose product state. Gaps and cross-device causal waits are distinct, then drain automatically."},
+ {title:"One Device Feed forks",description:"After valid A1, Chrome B1, and A2, a different Operation claims the same A2 position. Arrival time must not select a winner.",steps:["A1","B1","A2","FORK"],result:"Accept if both divergent tails are quarantined, Android's uncontested A1 stays usable, and Chrome's unaffected Feed continues."},
+ {title:"Rebuild from a Checkpoint",description:"A missing Replica restores a verified multi-feed frontier, replays later Operations through normal ingestion, and activates only when complete.",steps:["CHECKPOINT","VERIFY","AFTER","ACTIVATE"],result:"Accept if a Checkpoint must include indexed Operation identities for every covered Feed—not merely a claimed latest head."},
+ {title:"Incomplete Replica tries to write",description:"Authorization alone does not grant every authoring capability. Each Operation family declares the exact causal and domain prerequisites it needs.",steps:["APPEND","DELETE","PROFILE","READY","DELETE"],result:"Accept if narrowly supported additive work may continue, while state-dependent and destructive changes remain blocked until their prerequisites are proven."},
+ {title:"Tampered Checkpoint",description:"A bad Checkpoint must fail before staging or activation, leaving known-good local state untouched.",steps:["BAD_CHECKPOINT"],result:"Accept if recovery acceleration never outranks verification and never turns corruption into deletion."}
+];
+const actionOrder=Object.keys(labels);let active=0,step=0,state=KernelDemo.initial();const $=id=>document.getElementById(id);
+function dispatch(type){state=KernelDemo.reduce(state,{type});render();}
+function start(index){active=index;step=0;state=KernelDemo.initial();render();}
+function guided(type){const before=state.log[0];dispatch(type);if(state.log[0]!==before&&!state.log[0].startsWith("Blocked:"))step++;render();}
+function render(){
+ const tone=state.stage.includes("fork")||state.stage.includes("retained")?"bad":state.stage.includes("waiting")||state.stage.includes("partial")||state.stage.includes("limit")?"warn":state.match||state.stage.includes("converged")||state.stage.includes("rehydrated")||state.stage.includes("ready")?"good":"";
+ $("pill").textContent=state.stage;$("pill").className=`pill ${tone}`;$("headline").textContent=state.error?"Action safely refused":state.stage==="ready"?"Choose a walkthrough":"Kernel state changed";$("guidance").textContent=state.error||"Only accepted Operations affect ordinary projections.";
+ $("state").innerHTML=`<div class="datum"><span>Kotlin fixture</span><strong>${state.kotlin||"Not generated"}</strong></div><div class="datum"><span>TypeScript fixture</span><strong>${state.typescript||"Not generated"}</strong></div><div class="datum"><span>Android Feed head</span><strong>${state.androidHead}</strong></div><div class="datum"><span>Chrome Feed head</span><strong>${state.chromeHead}</strong></div><div class="datum"><span>Pending</span><strong>${state.pending}</strong><small>${state.gap||state.causalWait||"No unresolved prerequisite"}</small></div><div class="datum"><span>Fork / quarantine</span><strong>${state.forkAt||"None"}</strong><small>${state.quarantined} quarantined</small></div><div class="datum"><span>Checkpoint</span><strong>${state.checkpoint}</strong></div><div class="datum"><span>Replica readiness</span><strong>${state.replica}</strong></div><div class="datum wide"><span>Last authoring decision</span><strong>${state.lastAuthoring}</strong></div><div class="datum wide"><span>Cross-runtime result</span><strong>${state.match===true?"15 of 15 lines identical":state.match===false?"Mismatch — stop":"Not compared"}</strong></div>`;
+ $("log").innerHTML=state.log.map(x=>`<li>${x.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}</li>`).join("");
+ $("tabs").innerHTML=scenarios.map((s,i)=>`<button data-tab="${i}" class="${i===active?"active":""}">${s.title}</button>`).join("");const scenario=scenarios[active];$("scenarioTitle").textContent=scenario.title;$("scenarioDescription").textContent=scenario.description;
+ $("steps").innerHTML=scenario.steps.map((type,i)=>`<div class="step ${i<step?"done":i===step?"current":""}"><b>${i+1}</b><button data-step="${type}" ${i!==step?"disabled":""}>${labels[type]}</button></div>`).join("");$("result").innerHTML=`<strong>Recommended decision</strong><br>${scenario.result}${step===scenario.steps.length?"<br><br><span style='color:var(--good)'>Walkthrough complete.</span>":""}`;
+}
+$("actions").innerHTML=actionOrder.map(type=>`<button data-action="${type}">${labels[type]}</button>`).join("");$("actions").addEventListener("click",e=>{if(e.target.dataset.action)dispatch(e.target.dataset.action)});$("tabs").addEventListener("click",e=>{if(e.target.dataset.tab!==undefined)start(Number(e.target.dataset.tab))});$("steps").addEventListener("click",e=>{if(e.target.dataset.step)guided(e.target.dataset.step)});$("restart").addEventListener("click",()=>start(active));render();
+</script>
+</body>
+</html>
