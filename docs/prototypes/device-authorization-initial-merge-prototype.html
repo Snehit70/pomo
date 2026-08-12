@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pomo admission and initial merge — throwaway prototype</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0e1116; --panel:#171b22; --line:#2a303a; --muted:#9ba5b3; --text:#eef1f5; --red:#ff5a5f; --green:#62d49a; --amber:#f4bf66; --blue:#78a9ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 Inter, ui-sans-serif, system-ui, sans-serif; }
+    main { width:min(1180px, calc(100% - 32px)); margin:36px auto 80px; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:clamp(28px,4vw,48px); line-height:1.05; max-width:800px; }
+    h2 { font-size:20px; }
+    h3 { font-size:14px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+    .eyebrow { color:var(--red); font-weight:700; text-transform:uppercase; letter-spacing:.1em; font-size:12px; }
+    .lede { max-width:850px; color:#c5ccd5; font-size:17px; }
+    .notice { border-left:3px solid var(--amber); padding:12px 14px; background:#201d17; color:#e5d7bb; margin:22px 0; }
+    .grid { display:grid; grid-template-columns:1.05fr .95fr; gap:16px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; }
+    .status { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+    .pill { display:inline-flex; border-radius:999px; padding:4px 9px; font-size:12px; font-weight:700; background:#262c35; color:#dbe1e8; }
+    .pill.ok { background:#173225; color:#96e5bc; }
+    .pill.warn { background:#352a18; color:#f5cd86; }
+    .pill.bad { background:#3c1e20; color:#ffaaaa; }
+    .state-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .datum { background:#11151b; border:1px solid #242a33; border-radius:10px; padding:10px 12px; min-height:70px; }
+    .datum span { display:block; color:var(--muted); font-size:12px; margin-bottom:4px; }
+    .datum strong { display:block; overflow-wrap:anywhere; }
+    .wide { grid-column:1/-1; }
+    .meter { height:8px; background:#292f39; border-radius:999px; overflow:hidden; margin-top:8px; }
+    .meter i { display:block; height:100%; background:var(--red); }
+    button { border:1px solid #343b46; background:#202630; color:var(--text); border-radius:9px; padding:9px 12px; cursor:pointer; font:inherit; text-align:left; }
+    button:hover:not(:disabled) { border-color:#626e7d; background:#272e39; }
+    button.primary { background:var(--red); border-color:var(--red); color:#160808; font-weight:800; }
+    button.safe { border-color:#32684e; color:#a1e8c1; }
+    button.danger { border-color:#70383b; color:#ffb0b3; }
+    button:disabled { opacity:.35; cursor:not-allowed; }
+    .actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .log { list-style:none; padding:0; margin:0; max-height:340px; overflow:auto; }
+    .log li { border-bottom:1px solid #272d36; padding:8px 0; color:#cbd2da; }
+    .log li:first-child { color:#fff; }
+    .tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+    .tabs button.active { border-color:var(--red); color:#ff8b8f; }
+    .walkthrough { margin-top:18px; }
+    .walkthrough-head { display:flex; justify-content:space-between; gap:14px; align-items:start; }
+    .steps { display:grid; gap:8px; margin-top:14px; }
+    .step { display:flex; gap:12px; align-items:center; }
+    .step b { width:24px; height:24px; display:grid; place-items:center; border-radius:50%; background:#282e37; flex:none; font-size:12px; }
+    .step.done b { background:#184b32; color:#9ce4bd; }
+    .step.current b { background:var(--red); color:#160808; }
+    .step button { flex:1; }
+    .result { margin-top:14px; padding:12px; border:1px solid #334052; border-radius:10px; background:#121820; }
+    code { color:#b8c9ff; }
+    @media(max-width:850px){ .grid{grid-template-columns:1fr}.state-grid{grid-template-columns:1fr}.wide{grid-column:auto}.actions{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Throwaway logic prototype · no real keys or data</p>
+  <h1>Authorize a device without gambling with either copy of Pomo</h1>
+  <p class="lede"><strong>Question:</strong> Does a resumable admission transaction make adding an Android or Chrome Replica understandable and safely reversible when the new installation is empty, contains legacy work, belongs to another Member Identity, or disconnects halfway through?</p>
+  <div class="notice">This simulates product state, not cryptography or network performance. “Cancel” never erases local data. Once authorization is committed, cancellation becomes explicit device revocation.</div>
+
+  <section class="grid">
+    <div class="panel">
+      <div class="status"><span id="stagePill" class="pill"></span><div><strong id="headline"></strong><div id="guidance" style="color:var(--muted)"></div></div></div>
+      <div id="stateGrid" class="state-grid"></div>
+    </div>
+    <div class="panel">
+      <h2>Free play</h2>
+      <p style="color:var(--muted)">Try actions out of order. Illegal actions explain what prerequisite is missing.</p>
+      <div id="actions" class="actions"></div>
+    </div>
+    <div class="panel">
+      <h2>What just happened</h2>
+      <ul id="log" class="log"></ul>
+    </div>
+    <div class="panel">
+      <h2>Durable facts</h2>
+      <ul id="facts" class="log"></ul>
+    </div>
+  </section>
+
+  <section class="panel walkthrough">
+    <h2>Guided walkthroughs</h2>
+    <div id="tabs" class="tabs"></div>
+    <div class="walkthrough-head">
+      <div><h3 id="scenarioTitle"></h3><p id="scenarioDescription" style="max-width:760px;color:#c7ced7"></p></div>
+      <button id="restartScenario">Restart scenario</button>
+    </div>
+    <div id="steps" class="steps"></div>
+    <div id="result" class="result"></div>
+  </section>
+</main>
+
+<script>
+/* Pure prototype module: no DOM access. */
+const AdmissionModel = (() => {
+  const deviceNames = { source: "Pixel 8", target: "Work Chrome" };
+  const presets = {
+    empty: { identity:"none", blocks:0, crews:0, conflicts:0, description:"Fresh installation" },
+    legacy: { identity:"none", blocks:38, crews:1, conflicts:2, description:"Legacy local Pomo data" },
+    same: { identity:"same-member", blocks:12, crews:0, conflicts:1, description:"Partial copy of this Member" },
+    other: { identity:"different-member", blocks:71, crews:2, conflicts:0, description:"Another Member Identity" }
+  };
+  const initial = (preset="empty", recoveryVerified=true) => ({
+    stage:"idle", connected:true, interruptedFrom:null,
+    source:{ name:deviceNames.source, member:"POMO · 7K4Q-M2VT", recoveryVerified, anchor:false },
+    target:{ name:deviceNames.target, keys:false, verifiedSource:false, local:{...presets[preset]}, backup:false, activated:false },
+    sourceVerifiedTarget:false, invitation:false, inventory:false, planApproved:false,
+    authorizationCommitted:false, baseline:0, importsStaged:false, conflictsResolved:false, activationReady:false,
+    facts:[], log:[`Scenario loaded: ${presets[preset].description}.`], lastError:null
+  });
+  const add = (s, message, patch={}) => ({...s, ...patch, lastError:null, log:[message,...s.log].slice(0,40)});
+  const fail = (s, message) => ({...s, lastError:message, log:[`Blocked: ${message}`,...s.log].slice(0,40)});
+  const fact = (s, label) => s.facts.includes(label) ? s.facts : [...s.facts,label];
+  function reduce(s,a){
+    if(a.type==="RESET") return initial(a.preset,a.recoveryVerified);
+    if(a.type==="INTERRUPT") {
+      if(!s.connected) return fail(s,"The devices are already disconnected.");
+      return add(s,"Connection lost. Every durable fact and both local datasets remain intact.",{connected:false,interruptedFrom:s.stage,stage:"interrupted"});
+    }
+    if(a.type==="RESUME") {
+      if(s.connected) return fail(s,"There is no interrupted connection to resume.");
+      return add(s,"Connection restored. The ceremony resumes from durable progress, not from zero.",{connected:true,stage:s.interruptedFrom||"idle",interruptedFrom:null});
+    }
+    if(!s.connected) return fail(s,"Reconnect before continuing. Offline state is preserved.");
+    switch(a.type){
+      case "START":
+        if(s.stage!=="idle") return fail(s,"A ceremony is already in progress.");
+        return add(s,"Pixel 8 opened a short-lived admission invitation.",{invitation:true,stage:"invited"});
+      case "GENERATE_KEYS":
+        if(!s.invitation) return fail(s,"Open an admission invitation first.");
+        return add(s,"Work Chrome generated its own non-transferable Device Identity.",{target:{...s.target,keys:true},stage:"verify"});
+      case "VERIFY_SOURCE":
+        if(!s.target.keys) return fail(s,"The new installation must present its Device certificate first.");
+        return add(s,"Work Chrome confirmed the Member fingerprint and Pixel 8 name.",{target:{...s.target,verifiedSource:true}});
+      case "VERIFY_TARGET":
+        if(!s.target.keys) return fail(s,"The new Device certificate does not exist yet.");
+        return add(s,"Pixel 8 confirmed the Work Chrome name and exact Device fingerprint.",{sourceVerifiedTarget:true});
+      case "INVENTORY":
+        if(!s.target.verifiedSource||!s.sourceVerifiedTarget) return fail(s,"Both displays must verify the other side first.");
+        if(s.target.local.identity==="different-member") return add(s,"A different Member Identity was found. Pomo stopped before authorization or merge.",{inventory:true,stage:"identity-blocked"});
+        return add(s,`Inventory found ${s.target.local.blocks} local blocks, ${s.target.local.crews} Crew capability set(s), and ${s.target.local.conflicts} possible conflict(s).`,{inventory:true,stage:"safety"});
+      case "CREATE_RECOVERY":
+        if(!s.inventory) return fail(s,"Inventory local state before changing recovery readiness.");
+        return add(s,"A new Recovery file was created, re-opened, and verified.",{source:{...s.source,recoveryVerified:true}});
+      case "EXPORT_LOCAL":
+        if(!s.inventory) return fail(s,"Inventory local data first.");
+        if(s.target.local.blocks===0&&s.target.local.crews===0) return fail(s,"This fresh installation has no local data to safeguard.");
+        return add(s,"Work Chrome exported a legacy safety copy. The merge may proceed without erasing its only copy.",{target:{...s.target,backup:true}});
+      case "CREATE_ANCHOR":
+        if(!s.inventory) return fail(s,"Inventory must establish the merge boundary first.");
+        return add(s,"Pixel 8 created a pre-admission Recovery anchor.",{source:{...s.source,anchor:true},facts:fact(s,"Recovery anchor · before Work Chrome")});
+      case "APPROVE_PLAN": {
+        if(s.stage==="identity-blocked") return fail(s,"Two Member Identities cannot be merged. Export one and choose which identity this installation will keep.");
+        if(!s.inventory||!s.source.recoveryVerified||!s.source.anchor) return fail(s,"Verified Recovery, inventory, and a pre-admission anchor are required.");
+        if((s.target.local.blocks>0||s.target.local.crews>0)&&!s.target.backup) return fail(s,"Safeguard the new installation's existing local data first.");
+        return add(s,"Both devices approved the exact plan: authorize, catch up, stage imports, review conflicts, then activate.",{planApproved:true,stage:"ready-to-authorize"});
+      }
+      case "AUTHORIZE":
+        if(!s.planApproved) return fail(s,"Approve the admission and merge plan first.");
+        return add(s,"Pixel 8 durably authorized the exact Work Chrome Device certificate. From now on, cancel means revoke.",{authorizationCommitted:true,stage:"authorized",facts:fact(s,"AuthorizeDevice · Work Chrome")});
+      case "TRANSFER": {
+        if(!s.authorizationCommitted) return fail(s,"Authorization must bind the recipient before private history can transfer.");
+        const next=Math.min(100,s.baseline+25);
+        return add(s,next===100?"Work Chrome verified a complete baseline and historical Content epochs.":`Verified baseline advanced to ${next}%.`,{baseline:next,stage:next===100?"merge":"catch-up"});
+      }
+      case "STAGE_IMPORT":
+        if(s.baseline<100) return fail(s,"Catch up the trusted baseline before proposing local imports.");
+        if(s.target.local.blocks===0&&s.target.local.crews===0) return add(s,"No local legacy data needs import. Activation checks may continue.",{importsStaged:true,conflictsResolved:true,stage:"activation-check"});
+        return add(s,"Legacy rows became explicit ImportHistoryBlock proposals; cached totals and Crew projections were excluded.",{importsStaged:true,stage:s.target.local.conflicts?"merge-conflict":"activation-check",facts:fact(s,`Import proposal · ${s.target.local.blocks} local blocks`)});
+      case "RESOLVE_CONFLICTS":
+        if(!s.importsStaged) return fail(s,"Stage local import proposals first.");
+        if(s.target.local.conflicts===0) return fail(s,"This scenario has no initial-merge conflicts.");
+        return add(s,"The member preserved both conflicting candidates for later settlement; neither local copy won silently.",{conflictsResolved:true,stage:"activation-check",facts:fact(s,`Initial-merge conflicts · ${s.target.local.conflicts} preserved`)});
+      case "ACTIVATE":
+        if(!s.authorizationCommitted||s.baseline<100||!s.importsStaged||!s.conflictsResolved) return fail(s,"Authorization, full baseline, staged imports, and conflict handling must all be durable first.");
+        return add(s,"Work Chrome atomically activated its Replica, acknowledged the frontier, and discarded the short-lived ceremony secret.",{target:{...s.target,activated:true},activationReady:true,stage:"complete",facts:fact(s,"DeviceReady · Work Chrome")});
+      case "CANCEL":
+        if(s.authorizationCommitted) return fail(s,"This Device is already authorized. Use explicit revocation; cancellation cannot erase authority history.");
+        return add(s,"Admission cancelled. The invitation expired; both installations kept all local data.",{stage:"cancelled",invitation:false});
+      case "REVOKE":
+        if(!s.authorizationCommitted) return fail(s,"There is no authorized Device to revoke.");
+        return add(s,"Work Chrome was explicitly revoked and a fresh Content epoch was prepared for remaining devices. Its local data was not remotely erased.",{stage:"revoked",facts:fact(s,"RevokeDevice · Work Chrome")});
+      default:return fail(s,"Unknown action.");
+    }
+  }
+  function status(s){
+    const map={idle:["Ready","Choose how the target starts."],invited:["Invitation open","The invitation grants no lasting authority."],verify:["Verify both displays","Names help; fingerprints authenticate the exact keys."],safety:["Prepare safe merge","Nothing has been authorized or overwritten."],"identity-blocked":["Identity decision required","Different Member Identities never merge automatically."],"ready-to-authorize":["Ready to authorize","The plan and reversible boundaries are explicit."],authorized:["Authorized · incomplete","Resume or revoke; do not call this finished."],"catch-up":["Catching up","Only verified durable progress counts."],merge:["Baseline complete","Convert target-local data into explicit import proposals."],"merge-conflict":["Merge review required","Both candidates remain preserved."],"activation-check":["Ready for atomic activation","No partial projection is live yet."],complete:["Device ready","Both Replicas can now synchronize as peers."],interrupted:["Disconnected","Durable progress and local data are preserved."],cancelled:["Cancelled safely","No authority or local data was lost."],revoked:["Revoked","Future access ended; remote erasure is not claimed."]};
+    return map[s.stage]||[s.stage,"Review the state below."];
+  }
+  return {initial,reduce,status,presets};
+})();
+
+const actions=[
+  ["START","Open admission invitation"],["GENERATE_KEYS","Generate target Device keys"],["VERIFY_SOURCE","Target verifies Member/source"],["VERIFY_TARGET","Source verifies target"],
+  ["INVENTORY","Inventory target-local data"],["CREATE_RECOVERY","Create & verify Recovery file"],["EXPORT_LOCAL","Export target safety copy"],["CREATE_ANCHOR","Create source Recovery anchor"],
+  ["APPROVE_PLAN","Approve admission plan"],["AUTHORIZE","Commit device authorization"],["TRANSFER","Transfer next verified 25%"],["STAGE_IMPORT","Stage explicit legacy imports"],
+  ["RESOLVE_CONFLICTS","Preserve merge conflicts"],["ACTIVATE","Atomically activate Replica"],["INTERRUPT","Simulate connection loss"],["RESUME","Resume from durable progress"],
+  ["CANCEL","Cancel before authorization"],["REVOKE","Revoke after authorization"]
+];
+
+const scenarios=[
+  {id:"fresh",title:"Fresh Chrome joins cleanly",preset:"empty",recovery:true,description:"The target has no Pomo data. Watch authorization remain distinct from completion: it becomes a usable Replica only after verified catch-up and atomic activation.",steps:["START","GENERATE_KEYS","VERIFY_SOURCE","VERIFY_TARGET","INVENTORY","CREATE_ANCHOR","APPROVE_PLAN","AUTHORIZE","TRANSFER","TRANSFER","TRANSFER","TRANSFER","STAGE_IMPORT","ACTIVATE"],result:"Expected: Work Chrome is a Full device only after DeviceReady; no fake merge, backup, or identity replacement occurs."},
+  {id:"legacy",title:"Chrome already has useful work",preset:"legacy",recovery:true,description:"The target has 38 legacy blocks and two ambiguous timestamp collisions. Watch local data get safeguarded, converted to explicit imports, and preserved through conflict review.",steps:["START","GENERATE_KEYS","VERIFY_SOURCE","VERIFY_TARGET","INVENTORY","EXPORT_LOCAL","CREATE_ANCHOR","APPROVE_PLAN","AUTHORIZE","TRANSFER","TRANSFER","TRANSFER","TRANSFER","STAGE_IMPORT","RESOLVE_CONFLICTS","ACTIVATE"],result:"Expected: baseline and imports are separate; cached totals do not travel; neither candidate silently wins; the target activates without losing its legacy copy."},
+  {id:"interrupt",title:"Disconnect after authorization",preset:"same",recovery:true,description:"The source commits authorization, then the connection dies mid-catch-up. This is the awkward window: the Device is authorized but incomplete, and must resume or be revoked—not pair again under a new identity.",steps:["START","GENERATE_KEYS","VERIFY_SOURCE","VERIFY_TARGET","INVENTORY","EXPORT_LOCAL","CREATE_ANCHOR","APPROVE_PLAN","AUTHORIZE","TRANSFER","INTERRUPT","RESUME","TRANSFER","TRANSFER","TRANSFER","STAGE_IMPORT","RESOLVE_CONFLICTS","ACTIVATE"],result:"Expected: progress resumes at 25%; the authorization fact remains singular; no partial projection activates during the interruption."},
+  {id:"identity",title:"Target belongs to another Member",preset:"other",recovery:true,description:"Automatic merge must stop. The only safe next move is to export and consciously choose which Member Identity the installation will keep; Pomo never splices identities.",steps:["START","GENERATE_KEYS","VERIFY_SOURCE","VERIFY_TARGET","INVENTORY","EXPORT_LOCAL","CREATE_ANCHOR",{type:"APPROVE_PLAN",expectBlocked:true,label:"Attempt approval (must remain blocked)"}],result:"Expected: Approve remains blocked. No AuthorizeDevice, identity replacement, deletion, or merge occurs."},
+  {id:"recovery",title:"Recovery file is missing",preset:"empty",recovery:false,description:"Multi-device sync requires verified recovery first. The ceremony may inspect and verify devices, but authorization cannot proceed until the Recovery file is created and successfully reopened.",steps:["START","GENERATE_KEYS","VERIFY_SOURCE","VERIFY_TARGET","INVENTORY","CREATE_ANCHOR",{type:"APPROVE_PLAN",expectBlocked:true,label:"Attempt approval (must be blocked)"},"CREATE_RECOVERY","APPROVE_PLAN","AUTHORIZE"],result:"Expected: the first approval attempt is blocked; after Recovery verification, the same ceremony can continue without regenerating target keys."}
+];
+
+let activeScenario=0, stepIndex=0, state=AdmissionModel.initial(scenarios[0].preset,scenarios[0].recovery);
+const $=id=>document.getElementById(id);
+function dispatch(type){ state=AdmissionModel.reduce(state,{type}); render(); }
+function stageClass(stage){ return ["complete","cancelled"].includes(stage)?"ok":["identity-blocked","revoked"].includes(stage)?"bad":["interrupted","merge-conflict","authorized"].includes(stage)?"warn":""; }
+function render(){
+  const [headline,guidance]=AdmissionModel.status(state); $("stagePill").textContent=state.stage; $("stagePill").className=`pill ${stageClass(state.stage)}`; $("headline").textContent=headline; $("guidance").textContent=state.lastError||guidance;
+  const local=state.target.local;
+  $("stateGrid").innerHTML=`
+    <div class="datum"><span>Existing device</span><strong>${state.source.name}</strong><small>${state.source.member}</small></div>
+    <div class="datum"><span>New installation</span><strong>${state.target.name}</strong><small>${local.description}</small></div>
+    <div class="datum"><span>Mutual verification</span><strong>${state.target.verifiedSource&&state.sourceVerifiedTarget?"Both confirmed":"Incomplete"}</strong></div>
+    <div class="datum"><span>Recovery readiness</span><strong>${state.source.recoveryVerified?"Verified":"Required before authorization"}</strong></div>
+    <div class="datum"><span>Target-local data</span><strong>${local.blocks} blocks · ${local.crews} Crews</strong><small>${local.identity}</small></div>
+    <div class="datum"><span>Safety boundary</span><strong>${state.source.anchor?"Source anchor ready":"No source anchor"}</strong><small>${state.target.backup?"Target safety copy ready":local.blocks||local.crews?"Target copy required":"Fresh target"}</small></div>
+    <div class="datum"><span>Authority</span><strong>${state.authorizationCommitted?"Authorized":"Not authorized"}</strong><small>${state.target.activated?"DeviceReady acknowledged":"Not ready"}</small></div>
+    <div class="datum"><span>Initial merge</span><strong>${state.importsStaged?"Imports staged":"Not staged"}</strong><small>${local.conflicts} candidate conflict(s) · ${state.conflictsResolved?"handled":"unresolved"}</small></div>
+    <div class="datum wide"><span>Verified baseline</span><strong>${state.baseline}%</strong><div class="meter"><i style="width:${state.baseline}%"></i></div></div>`;
+  $("log").innerHTML=state.log.map(x=>`<li>${escapeHtml(x)}</li>`).join("");
+  $("facts").innerHTML=(state.facts.length?state.facts:["No durable protocol facts yet."]).map(x=>`<li>${escapeHtml(x)}</li>`).join("");
+  renderScenario();
+}
+function escapeHtml(x){ return x.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+$("actions").innerHTML=actions.map(([id,label])=>`<button data-action="${id}" class="${id==="AUTHORIZE"||id==="ACTIVATE"?"primary":id==="REVOKE"?"danger":""}">${label}</button>`).join("");
+$("actions").addEventListener("click",e=>{ const type=e.target.dataset.action;if(type)dispatch(type); });
+function startScenario(i){ activeScenario=i;stepIndex=0;const s=scenarios[i];state=AdmissionModel.initial(s.preset,s.recovery);render(); }
+function guidedAction(step){
+  const entry=typeof step==="string"?{type:step}:step;
+  const before=state.log[0];dispatch(entry.type);
+  const changed=state.log[0]&&state.log[0]!==before;
+  const blocked=state.log[0]?.startsWith("Blocked:");
+  if(changed&&((entry.expectBlocked&&blocked)||(!entry.expectBlocked&&!blocked)))stepIndex++;
+  render();
+}
+function renderScenario(){
+  $("tabs").innerHTML=scenarios.map((s,i)=>`<button class="${i===activeScenario?"active":""}" data-scenario="${i}">${s.title}</button>`).join("");
+  const s=scenarios[activeScenario];$("scenarioTitle").textContent=s.title;$("scenarioDescription").textContent=s.description;
+  $("steps").innerHTML=s.steps.map((step,i)=>{const entry=typeof step==="string"?{type:step}:step;const label=entry.label||actions.find(a=>a[0]===entry.type)[1];return `<div class="step ${i<stepIndex?"done":i===stepIndex?"current":""}"><b>${i+1}</b><button data-step="${i}" ${i!==stepIndex?"disabled":""}>${label}</button></div>`}).join("");
+  $("result").innerHTML=`<strong>What this should prove</strong><br>${s.result}${stepIndex===s.steps.length?"<br><br><span style='color:var(--green)'>Walkthrough complete.</span>":""}`;
+}
+$("tabs").addEventListener("click",e=>{if(e.target.dataset.scenario!==undefined)startScenario(Number(e.target.dataset.scenario));});
+$("steps").addEventListener("click",e=>{if(e.target.dataset.step!==undefined)guidedAction(scenarios[activeScenario].steps[Number(e.target.dataset.step)]);});
+$("restartScenario").addEventListener("click",()=>startScenario(activeScenario));
+render();
+</script>
+</body>
+</html>
