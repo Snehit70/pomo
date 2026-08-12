@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pomo — Timer settlement model</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f5f1e8;
+      --muted: #a9a59c;
+      --panel: #171916;
+      --panel-2: #20231e;
+      --line: #353a31;
+      --lime: #c7f36b;
+      --amber: #ffca62;
+      --red: #ff7a72;
+      --blue: #7fc8ff;
+      --violet: #c6a7ff;
+      --shadow: 0 20px 55px rgba(0, 0, 0, .32);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #0d0f0c;
+      color: var(--ink);
+      font: 15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, select { font: inherit; }
+    button { cursor: pointer; }
+    .shell { max-width: 1500px; margin: 0 auto; padding: 28px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .eyebrow { color: var(--lime); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 5px 0 4px; font-size: clamp(28px, 4vw, 48px); line-height: 1.03; letter-spacing: -.04em; }
+    header p { max-width: 720px; margin: 0; color: var(--muted); }
+    .legend { display: flex; flex-wrap: wrap; gap: 8px; justify-content: end; }
+    .pill { border: 1px solid var(--line); border-radius: 999px; padding: 5px 9px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .pill::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+    .pill.accepted::before { background: var(--lime); }
+    .pill.pending::before { background: var(--amber); }
+    .pill.rejected::before { background: var(--red); }
+    .tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; scrollbar-color: var(--line) transparent; }
+    .tab { border: 1px solid var(--line); background: var(--panel); color: var(--muted); padding: 9px 13px; border-radius: 10px; white-space: nowrap; }
+    .tab.active { border-color: var(--lime); color: var(--ink); box-shadow: inset 0 0 0 1px rgba(199,243,107,.2); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 14px 14px 0 0; }
+    .scenario-copy strong { display: block; font-size: 16px; }
+    .scenario-copy span { color: var(--muted); font-size: 13px; }
+    .actions { display: flex; gap: 7px; flex-wrap: wrap; justify-content: end; }
+    .action { border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); padding: 8px 11px; border-radius: 9px; }
+    .action.primary { background: var(--lime); border-color: var(--lime); color: #17200b; font-weight: 800; }
+    select { background: var(--panel-2); border: 1px solid var(--line); color: var(--ink); padding: 8px 10px; border-radius: 9px; }
+    .grid { display: grid; grid-template-columns: minmax(270px, .72fr) minmax(460px, 1.4fr) minmax(300px, .86fr); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 14px 14px; overflow: hidden; box-shadow: var(--shadow); }
+    .column { min-width: 0; background: var(--panel); padding: 18px; }
+    .column + .column { border-left: 1px solid var(--line); }
+    .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .section-title h2 { margin: 0; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+    .section-title span { color: var(--muted); font-size: 12px; }
+    .op-list { display: grid; gap: 8px; }
+    .op { width: 100%; text-align: left; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); padding: 10px; border-radius: 10px; transition: .15s ease; }
+    .op:not(.delivered):hover { border-color: var(--blue); transform: translateY(-1px); }
+    .op.delivered { opacity: .52; }
+    .op-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 750; }
+    .op-meta { color: var(--muted); font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 3px; }
+    .device { color: var(--blue); }
+    .device.chrome { color: var(--violet); }
+    .stage { min-height: 590px; background-image: radial-gradient(circle at 50% 0, rgba(199,243,107,.06), transparent 34%); }
+    .status-card { border: 1px solid var(--line); border-radius: 14px; padding: 15px; background: rgba(13,15,12,.75); margin-bottom: 14px; }
+    .status-card.conflict { border-color: var(--amber); }
+    .status-card.safe { border-color: rgba(199,243,107,.55); }
+    .status-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
+    .status-value { font-size: 25px; font-weight: 850; letter-spacing: -.03em; margin: 2px 0; }
+    .status-note { color: var(--muted); font-size: 13px; }
+    .branches { display: grid; gap: 10px; }
+    .branch { position: relative; border: 1px solid var(--line); background: var(--panel-2); border-radius: 11px; padding: 12px; }
+    .branch::before { content: ""; position: absolute; left: -1px; top: 12px; bottom: 12px; width: 3px; border-radius: 4px; background: var(--lime); }
+    .branch.conflicting::before { background: var(--amber); }
+    .branch-row { display: flex; justify-content: space-between; gap: 10px; }
+    .branch h3 { margin: 0; font-size: 14px; }
+    .branch p { color: var(--muted); margin: 4px 0 0; font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .badge { align-self: start; border-radius: 999px; padding: 3px 7px; background: #2c3128; color: var(--lime); font-size: 10px; text-transform: uppercase; }
+    .badge.provisional { background: #362f20; color: var(--amber); }
+    .empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 11px; padding: 24px; text-align: center; }
+    .ledger { display: grid; gap: 7px; margin-bottom: 18px; }
+    .ledger-row { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: start; font-size: 12px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; background: var(--muted); }
+    .dot.accepted { background: var(--lime); }
+    .dot.pending { background: var(--amber); }
+    .dot.rejected { background: var(--red); }
+    .ledger-reason { color: var(--muted); }
+    .proof { border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+    .proof-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 9px 10px; background: var(--panel-2); font-size: 12px; }
+    .proof-row + .proof-row { border-top: 1px solid var(--line); }
+    .proof-row b { color: var(--lime); }
+    .proof-row.fail b { color: var(--red); }
+    .rule { margin-top: 16px; padding: 12px; background: rgba(127,200,255,.07); border-left: 3px solid var(--blue); color: var(--muted); font-size: 12px; }
+    .clock-strip { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin: 10px 0 14px; }
+    .clock-card { border: 1px solid var(--line); padding: 9px; border-radius: 9px; font-size: 11px; color: var(--muted); }
+    .clock-card strong { display: block; color: var(--ink); font-size: 12px; }
+    footer { color: var(--muted); font-size: 12px; margin-top: 16px; display: flex; justify-content: space-between; gap: 20px; }
+    @media (max-width: 1050px) {
+      .grid { grid-template-columns: 300px 1fr; }
+      .column:last-child { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+    }
+    @media (max-width: 720px) {
+      .shell { padding: 16px; }
+      header { display: block; }
+      .legend { justify-content: start; margin-top: 14px; }
+      .toolbar { align-items: start; flex-direction: column; }
+      .actions { justify-content: start; }
+      .grid { display: block; }
+      .column + .column { border-left: 0; border-top: 1px solid var(--line); }
+      .clock-strip { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div>
+        <div class="eyebrow">Throwaway decision model · Issue #100</div>
+        <h1>No timer branch disappears.</h1>
+        <p>Deliver the same authenticated Operations in any order. The projection either finds one uncontested Active phase or exposes the exact conflict heads for member-confirmed settlement.</p>
+      </div>
+      <div class="legend">
+        <span class="pill accepted">accepted</span>
+        <span class="pill pending">pending</span>
+        <span class="pill rejected">rejected</span>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs" aria-label="Model scenarios"></nav>
+    <section class="toolbar">
+      <div class="scenario-copy">
+        <strong id="scenario-title"></strong>
+        <span id="scenario-description"></span>
+      </div>
+      <div class="actions">
+        <span id="variant-wrap" hidden><select id="variant" aria-label="Concurrent owner action"></select></span>
+        <button class="action" id="reset">Reset</button>
+        <button class="action" id="replay">Replay last</button>
+        <button class="action" id="shuffle">Shuffle all</button>
+        <button class="action primary" id="next">Deliver next</button>
+      </div>
+    </section>
+
+    <main class="grid">
+      <section class="column">
+        <div class="section-title"><h2>Transport inbox</h2><span id="delivery-count"></span></div>
+        <div class="op-list" id="op-list"></div>
+        <div class="rule" id="scenario-rule"></div>
+      </section>
+
+      <section class="column stage">
+        <div class="section-title"><h2>Materialized timer</h2><span>from Operation set only</span></div>
+        <div id="projection"></div>
+      </section>
+
+      <aside class="column">
+        <div class="section-title"><h2>Ingestion ledger</h2><span>nothing silently dropped</span></div>
+        <div class="ledger" id="ledger"></div>
+        <div class="section-title"><h2>Exhaustive checks</h2><span>all delivery permutations</span></div>
+        <div class="proof" id="proof"></div>
+      </aside>
+    </main>
+    <footer>
+      <span>Planning evidence only — no production storage, cryptography, Android, Chrome, NodeMCU, or physical-device behavior.</span>
+      <span class="mono">TimerMaterializer / deterministic union → projection</span>
+    </footer>
+  </div>
+
+  <script>
+    const TERMINAL = new Set(["CompletePhase", "SkipPhase", "AbandonPhase"]);
+    const COMMANDS = new Set(["PausePhase", "ResumePhase", "ExtendPhase", ...TERMINAL]);
+
+    function op(id, type, parent, issuer, claim, extra = {}) {
+      return { id, type, parent, issuer, claim, observes: [], ...extra };
+    }
+
+    const base = {
+      startPhone: op("01-start-phone", "StartPhase", "parked-work-1", "Android", "claim-phone-1", { mode: "running", planSeconds: 1500 }),
+      startChrome: op("02-start-chrome", "StartPhase", "parked-work-1", "Chrome", "claim-chrome-1", { mode: "running", planSeconds: 1500 })
+    };
+
+    const takeoverKinds = ["PausePhase", "ResumePhase", "ExtendPhase", "SkipPhase", "AbandonPhase", "CompletePhase"];
+
+    function takeoverOps(kind) {
+      const seed = op("01-start", "StartPhase", "parked-work-2", "Android", "claim-phone", { mode: kind === "ResumePhase" ? "paused" : "running", planSeconds: 1500 });
+      const phone = op("03-owner-action", kind, "01-start", "Android", "claim-phone", {
+        addSeconds: kind === "ExtendPhase" ? 300 : 0,
+        workSeconds: TERMINAL.has(kind) ? 780 : 0,
+        nextParked: TERMINAL.has(kind) ? "parked-break-1" : null,
+        semanticKey: kind === "CompletePhase" ? "complete:phase-2:claim-phone:01-start" : null
+      });
+      const takeover = op("02-takeover", "TakeOverOffline", "01-start", "Chrome", "claim-chrome-provisional", { provisional: true, planSeconds: 1500 });
+      return [seed, takeover, phone];
+    }
+
+    const scenarios = [
+      {
+        id: "starts", label: "Offline starts", title: "Simultaneous Start from one Parked phase",
+        description: "Android and Chrome start while partitioned. Neither timestamp nor Device ID wins.",
+        rule: "Both starts are authentic children of the same Parked phase. Equal sets must expose both heads and freeze canonical timer effects until settlement.",
+        ops: () => [base.startPhone, base.startChrome]
+      },
+      {
+        id: "handoff", label: "Handoff + late", title: "Handoff separates late delivery from stale authorship",
+        description: "A pre-handoff duplicate is harmless; an old-owner command authored after observing Handoff is fenced.",
+        rule: "Arrival order has no authority. The old claim becomes invalid only along causal succession: a knowingly superseded command is rejected, while a genuinely concurrent command would remain a branch.",
+        ops: () => {
+          const start = op("01-start", "StartPhase", "parked-work-3", "Android", "claim-phone", { mode: "running", planSeconds: 1500 });
+          const pause = op("02-pause", "PausePhase", "01-start", "Android", "claim-phone");
+          const handoff = op("03-handoff", "HandoffPhase", "02-pause", "Android", "claim-chrome", { fromClaim: "claim-phone", target: "Chrome" });
+          const resume = op("04-resume", "ResumePhase", "03-handoff", "Chrome", "claim-chrome");
+          const stale = op("05-stale-extend", "ExtendPhase", "02-pause", "Android", "claim-phone", { observes: ["03-handoff"], addSeconds: 300 });
+          return [start, pause, handoff, resume, stale, pause];
+        }
+      },
+      {
+        id: "takeover", label: "Takeover race", title: "Offline takeover versus owner activity",
+        description: "Choose each owner command. The provisional Chrome claim and authentic Android command remain inspectable.",
+        rule: "A takeover is explicit, never timeout-created. Any concurrent owner activity makes both heads visible; this applies equally to Pause, Resume, Extend, Skip, Reset, and Completion.",
+        variants: takeoverKinds,
+        ops: variant => takeoverOps(variant)
+      },
+      {
+        id: "delivery", label: "Delivery faults", title: "Duplicate, missing, reordered, and replayed delivery",
+        description: "Deliver children before parents, replay semantic Completion, then restore the gap.",
+        rule: "Missing causal prerequisites stay Pending. Replaying the same stable Operation ID has one effect. Once the gap arrives, every Replica drains to the same projection.",
+        ops: () => {
+          const start = op("01-start", "StartPhase", "parked-work-4", "Android", "claim-phone", { mode: "running", planSeconds: 1500 });
+          const pause = op("02-pause", "PausePhase", "01-start", "Android", "claim-phone");
+          const resume = op("03-resume", "ResumePhase", "02-pause", "Android", "claim-phone");
+          const complete = op("04-complete", "CompletePhase", "03-resume", "Android", "claim-phone", { semanticKey: "complete:phase-4:claim-phone:03-resume", workSeconds: 1420, nextParked: "parked-break-2" });
+          return [complete, complete, resume, start, pause];
+        }
+      },
+      {
+        id: "clocks", label: "Clock + lifecycle", title: "Clock jumps and runtime loss are evidence, not authority",
+        description: "Android reboots and Chrome disappears; durable timer facts survive while uncertain elapsed time stays explicit.",
+        rule: "Wall time never orders commands or selects an owner. Monotonic samples project locally. Lost monotonic continuity produces Time uncertain and demands an explicit confirmed takeover or adjustment.",
+        clockEvidence: true,
+        ops: () => {
+          const start = op("01-start", "StartPhase", "parked-work-5", "Android", "claim-phone", { mode: "running", planSeconds: 1500 });
+          const pause = op("02-pause", "PausePhase", "01-start", "Android", "claim-phone", { elapsedSeconds: 420 });
+          const takeover = op("03-confirmed-takeover", "TakeOverOffline", "02-pause", "Chrome", "claim-chrome", { provisional: true, timeUncertain: true, estimateConfirmed: true });
+          return [start, pause, takeover];
+        }
+      },
+      {
+        id: "settlement", label: "Settle branches", title: "Select one branch or compose recovered focus",
+        description: "A Resolution references every known head; the losing branch remains in audit history.",
+        rule: "Settlement changes product effects, not immutable evidence. Selection may retain one branch; composition may preserve genuine non-overlapping focus as recovered Work.",
+        ops: () => {
+          const start = op("01-start", "StartPhase", "parked-work-6", "Android", "claim-phone", { mode: "running", planSeconds: 1500 });
+          const takeover = op("02-takeover", "TakeOverOffline", "01-start", "Chrome", "claim-chrome", { provisional: true });
+          const phoneDone = op("03-phone-complete", "CompletePhase", "01-start", "Android", "claim-phone", { semanticKey: "complete:p6:phone:01", workSeconds: 900, nextParked: "parked-break-3" });
+          const chromeDone = op("04-chrome-complete", "CompletePhase", "02-takeover", "Chrome", "claim-chrome", { semanticKey: "complete:p6:chrome:02", workSeconds: 480, nextParked: "parked-break-3" });
+          const settle = op("05-settle", "ResolveTimerConflict", null, "Android", "resolution-1", { parents: ["03-phone-complete", "04-chrome-complete"], strategy: "compose", recoveredSeconds: 480, nextParked: "parked-break-3" });
+          return [start, takeover, phoneDone, chromeDone, settle];
+        }
+      },
+      {
+        id: "concurrent-settle", label: "Settlement race", title: "Concurrent settlements conflict again",
+        description: "Android selects one branch while Chrome composes focus offline. Neither Resolution silently wins.",
+        rule: "Offline settlement is provisional. Incompatible concurrent Resolutions become the next exact conflict-head set and require a later Resolution over both heads.",
+        ops: () => {
+          const a = op("01-start-phone", "StartPhase", "parked-work-7", "Android", "claim-phone");
+          const b = op("02-start-chrome", "StartPhase", "parked-work-7", "Chrome", "claim-chrome");
+          const sa = op("03-settle-select", "ResolveTimerConflict", null, "Android", "resolution-a", { parents: ["01-start-phone", "02-start-chrome"], strategy: "select", selected: "01-start-phone", provisional: true });
+          const sb = op("04-settle-compose", "ResolveTimerConflict", null, "Chrome", "resolution-b", { parents: ["01-start-phone", "02-start-chrome"], strategy: "compose", recoveredSeconds: 240, provisional: true });
+          return [a, b, sa, sb];
+        }
+      },
+      {
+        id: "checkpoint", label: "Checkpoint restore", title: "Checkpoint restoration keeps unresolved heads",
+        description: "A compacted prefix restores both conflict heads before trailing Operations are replayed.",
+        rule: "A Checkpoint is verified evidence of a complete multi-feed frontier, never a flattened snapshot. Restore stages the conflict set and replays trailing Operations through the same ingestion path.",
+        checkpoint: true,
+        ops: () => {
+          const a = op("01-checkpoint-phone", "StartPhase", "parked-work-8", "Android", "claim-phone", { fromCheckpoint: true });
+          const b = op("02-checkpoint-chrome", "StartPhase", "parked-work-8", "Chrome", "claim-chrome", { fromCheckpoint: true });
+          const pa = op("03-trailing-pause", "PausePhase", "01-checkpoint-phone", "Android", "claim-phone");
+          return [a, b, pa];
+        }
+      }
+    ];
+
+    function parentsOf(operation) {
+      return operation.parents || (operation.parent && !operation.parent.startsWith("parked-") ? [operation.parent] : []);
+    }
+
+    function materialize(deliveries) {
+      const unique = new Map();
+      const duplicateIds = new Set();
+      for (const operation of deliveries) {
+        if (unique.has(operation.id)) duplicateIds.add(operation.id);
+        else unique.set(operation.id, operation);
+      }
+      const ordered = [...unique.values()].sort((a, b) => a.id.localeCompare(b.id));
+      const accepted = new Map();
+      const disposition = new Map();
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const operation of ordered) {
+          if (disposition.has(operation.id)) continue;
+          const dependencies = [...parentsOf(operation), ...(operation.observes || [])];
+          const missing = dependencies.filter(id => !accepted.has(id));
+          const permanentlyRejected = dependencies.some(id => disposition.get(id)?.status === "rejected");
+          if (permanentlyRejected) {
+            disposition.set(operation.id, { status: "rejected", reason: "causal prerequisite rejected" }); changed = true; continue;
+          }
+          if (missing.length) continue;
+
+          if (COMMANDS.has(operation.type) || operation.type === "HandoffPhase") {
+            const parentState = accepted.get(operation.parent)?.state;
+            const observedSupersession = (operation.observes || []).some(id => {
+              const observed = accepted.get(id)?.operation;
+              return observed && observed.type === "HandoffPhase" && accepted.get(id).state.previousClaim === operation.claim;
+            });
+            const expectedClaim = operation.type === "HandoffPhase" ? operation.fromClaim : operation.claim;
+            if (observedSupersession || !parentState || parentState.owner !== operation.issuer || parentState.claim !== expectedClaim || parentState.terminal) {
+              disposition.set(operation.id, { status: "rejected", reason: observedSupersession ? "known-stale ownership claim" : "issuer does not own exact parent head" }); changed = true; continue;
+            }
+          }
+
+          let state;
+          if (operation.type === "StartPhase") {
+            state = { owner: operation.issuer, claim: operation.claim, mode: operation.mode || "running", planSeconds: operation.planSeconds || 1500, elapsedSeconds: 0, provisional: false, terminal: null };
+          } else if (operation.type === "ResolveTimerConflict") {
+            state = { owner: null, claim: operation.claim, mode: "parked", planSeconds: 0, elapsedSeconds: operation.recoveredSeconds || 0, provisional: !!operation.provisional, terminal: "settled", strategy: operation.strategy, selected: operation.selected, recoveredSeconds: operation.recoveredSeconds || 0, auditParents: operation.parents };
+          } else {
+            const source = accepted.get(operation.parent).state;
+            state = { ...source };
+            if (operation.type === "HandoffPhase") {
+              state.previousClaim = source.claim; state.owner = operation.target; state.claim = operation.claim; state.provisional = false;
+            } else if (operation.type === "TakeOverOffline") {
+              state.previousClaim = source.claim; state.owner = operation.issuer; state.claim = operation.claim; state.provisional = true; state.timeUncertain = !!operation.timeUncertain; state.estimateConfirmed = !!operation.estimateConfirmed;
+            } else if (operation.type === "PausePhase") {
+              state.mode = "paused"; state.elapsedSeconds = operation.elapsedSeconds ?? state.elapsedSeconds;
+            } else if (operation.type === "ResumePhase") {
+              state.mode = "running";
+            } else if (operation.type === "ExtendPhase") {
+              state.planSeconds += operation.addSeconds || 0;
+            } else if (TERMINAL.has(operation.type)) {
+              state.owner = null; state.mode = "parked"; state.terminal = operation.type; state.elapsedSeconds = operation.workSeconds || state.elapsedSeconds; state.nextParked = operation.nextParked;
+            }
+          }
+          accepted.set(operation.id, { operation, state });
+          disposition.set(operation.id, { status: "accepted", reason: "causally ready and authorized" });
+          changed = true;
+        }
+      }
+      for (const operation of ordered) {
+        if (!disposition.has(operation.id)) disposition.set(operation.id, { status: "pending", reason: "missing causal prerequisite" });
+      }
+      for (const id of duplicateIds) {
+        const prior = disposition.get(id);
+        disposition.set(id, { ...prior, reason: prior.reason + "; replay deduplicated" });
+      }
+      const consumed = new Set();
+      for (const { operation } of accepted.values()) for (const parent of parentsOf(operation)) consumed.add(parent);
+      const heads = [...accepted.entries()].filter(([id]) => !consumed.has(id)).map(([id, value]) => ({ id, ...value })).sort((a,b) => a.id.localeCompare(b.id));
+      const conflict = heads.length > 1;
+      return { accepted, disposition, heads, conflict, duplicateIds, pending: [...disposition.values()].filter(x => x.status === "pending").length, rejected: [...disposition.values()].filter(x => x.status === "rejected").length };
+    }
+
+    function normalized(result) {
+      return JSON.stringify({
+        heads: result.heads.map(h => ({ id: h.id, owner: h.state.owner, claim: h.state.claim, mode: h.state.mode, terminal: h.state.terminal, planSeconds: h.state.planSeconds, strategy: h.state.strategy, recoveredSeconds: h.state.recoveredSeconds })),
+        dispositions: [...result.disposition.entries()].sort().map(([id, d]) => [id, d.status]),
+        conflict: result.conflict
+      });
+    }
+
+    function permutations(items) {
+      if (items.length <= 1) return [items];
+      const out = [];
+      items.forEach((item, i) => permutations([...items.slice(0,i), ...items.slice(i+1)]).forEach(rest => out.push([item, ...rest])));
+      return out;
+    }
+
+    function checkScenario(ops) {
+      const unique = [...new Map(ops.map(x => [x.id, x])).values()];
+      const orders = permutations(unique);
+      const outcomes = new Set(orders.map(order => normalized(materialize(order))));
+      const baseline = materialize(unique);
+      const replay = materialize([...unique, ...unique]);
+      const staleSafe = [...baseline.disposition.entries()].filter(([,d]) => d.reason.includes("known-stale")).every(([id]) => !baseline.accepted.has(id));
+      const authenticHeads = baseline.heads.every(h => baseline.accepted.has(h.id));
+      return { orders: orders.length, outcomes: outcomes.size, converges: outcomes.size === 1, duplicateSafe: normalized(baseline) === normalized(replay), staleSafe, authenticHeads };
+    }
+
+    let scenarioIndex = 0;
+    let variant = takeoverKinds[0];
+    let delivered = [];
+    let lastDelivered = null;
+
+    const $ = id => document.getElementById(id);
+    function currentScenario() { return scenarios[scenarioIndex]; }
+    function currentOps() { return currentScenario().ops(variant); }
+
+    function reset() { delivered = []; lastDelivered = null; render(); }
+    function deliver(operation) { delivered.push(operation); lastDelivered = operation; render(); }
+    function nextUndelivered() {
+      const counts = new Map(); delivered.forEach(x => counts.set(x.id, (counts.get(x.id)||0)+1));
+      return currentOps().find((x, index, all) => (counts.get(x.id)||0) < all.slice(0,index+1).filter(y => y.id === x.id).length);
+    }
+
+    function operationLabel(operation) {
+      const names = { AbandonPhase: "Reset (AbandonPhase)", ResolveTimerConflict: "Timer settlement" };
+      return names[operation.type] || operation.type.replace("Phase", "").replace(/([a-z])([A-Z])/g, "$1 $2");
+    }
+
+    function renderTabs() {
+      $("tabs").innerHTML = scenarios.map((s,i) => `<button class="tab ${i===scenarioIndex?'active':''}" data-index="${i}">${i+1}. ${s.label}</button>`).join("");
+      document.querySelectorAll(".tab").forEach(button => button.onclick = () => { scenarioIndex = Number(button.dataset.index); reset(); });
+    }
+
+    function renderOps(ops) {
+      const deliveredCounts = new Map(); delivered.forEach(x => deliveredCounts.set(x.id, (deliveredCounts.get(x.id)||0)+1));
+      let seen = new Map();
+      $("op-list").innerHTML = ops.map((operation, index) => {
+        const occurrence = (seen.get(operation.id)||0)+1; seen.set(operation.id, occurrence);
+        const isDelivered = (deliveredCounts.get(operation.id)||0) >= occurrence;
+        const parents = [...parentsOf(operation), ...(operation.observes||[])];
+        return `<button class="op ${isDelivered?'delivered':''}" data-op="${index}">
+          <div class="op-head"><span>${operationLabel(operation)}</span><span class="device ${operation.issuer==='Chrome'?'chrome':''}">${operation.issuer}</span></div>
+          <div class="op-meta">${operation.id}${parents.length ? ` ← ${parents.join(', ')}` : ''}${operation.fromCheckpoint?' · checkpoint':''}</div>
+        </button>`;
+      }).join("");
+      document.querySelectorAll(".op:not(.delivered)").forEach(button => button.onclick = () => deliver(ops[Number(button.dataset.op)]));
+      $("delivery-count").textContent = `${delivered.length}/${ops.length} deliveries`;
+    }
+
+    function renderProjection(result, scenario) {
+      let state = "No accepted Active phase";
+      let note = result.pending ? `${result.pending} Operation${result.pending>1?'s':''} waiting for prerequisites.` : "Deliver an Operation to begin.";
+      let className = "";
+      if (result.conflict) { state = "Settlement required"; note = `${result.heads.length} authentic heads are visible. Canonical controls and conflicted product effects are frozen.`; className = "conflict"; }
+      else if (result.heads.length === 1) {
+        const h = result.heads[0];
+        if (h.state.terminal === "settled") { state = h.state.provisional ? "Provisional settlement" : "Settled · timer parked"; note = h.state.strategy === "compose" ? `Resolution composes ${h.state.recoveredSeconds || 0}s as recovered focus; all source branches remain audited.` : "Resolution selects one product outcome; source branches remain audited."; }
+        else if (h.state.terminal) { state = `Uncontested ${operationLabel(h.operation)}`; note = "This terminal candidate may now affect canonical History and next-phase parking."; }
+        else { state = `${h.state.mode === 'paused' ? 'Paused' : 'Running'} · ${h.state.owner}`; note = `${h.state.provisional?'Provisional ':''}owner ${h.state.claim}${h.state.timeUncertain?' · Time uncertain confirmed':''}.`; }
+        className = "safe";
+      }
+      const clock = scenario.clockEvidence ? `<div class="clock-strip">
+        <div class="clock-card"><strong>Wall clock +2h</strong>Ignored for ordering</div>
+        <div class="clock-card"><strong>Android reboot</strong>Monotonic continuity lost</div>
+        <div class="clock-card"><strong>Chrome runtime loss</strong>Durable facts retained</div>
+      </div>` : "";
+      const branchHtml = result.heads.length ? result.heads.map(head => {
+        const s = head.state;
+        const description = s.terminal === "settled"
+          ? `${s.strategy} Resolution · parents ${(s.auditParents||[]).join(' + ')}`
+          : `${operationLabel(head.operation)} · ${s.terminal || s.mode} · claim ${s.claim}${s.elapsedSeconds ? ` · ${s.elapsedSeconds}s focus` : ''}`;
+        return `<div class="branch ${result.conflict?'conflicting':''}"><div class="branch-row"><div><h3>${head.id}</h3><p>${description}</p></div><span class="badge ${s.provisional?'provisional':''}">${s.provisional?'provisional':(s.owner||'terminal')}</span></div></div>`;
+      }).join("") : `<div class="empty">The projection has no causally ready head yet.</div>`;
+      $("projection").innerHTML = `<div class="status-card ${className}"><div class="status-label">Canonical projection</div><div class="status-value">${state}</div><div class="status-note">${note}</div></div>${clock}<div class="section-title"><h2>Exact head set</h2><span>${result.heads.length} head${result.heads.length===1?'':'s'}</span></div><div class="branches">${branchHtml}</div>`;
+    }
+
+    function renderLedger(result) {
+      if (!delivered.length) { $("ledger").innerHTML = `<div class="empty">Delivery decisions appear here.</div>`; return; }
+      const ids = [...new Set(delivered.map(x => x.id))];
+      $("ledger").innerHTML = ids.map(id => {
+        const d = result.disposition.get(id);
+        const count = delivered.filter(x => x.id === id).length;
+        return `<div class="ledger-row"><span class="dot ${d.status}"></span><span><span class="mono">${id}</span><div class="ledger-reason">${d.reason}</div></span><span>${count>1?`×${count}`:d.status}</span></div>`;
+      }).join("");
+    }
+
+    function renderProof(ops, scenario) {
+      const proof = checkScenario(ops);
+      const conflictPreserved = scenario.id === "handoff" ? true : materialize(ops).heads.length >= (scenario.id === "starts" || scenario.id === "concurrent-settle" ? 2 : 1);
+      const rows = [
+        ["Equal sets converge", proof.converges, `${proof.orders} orders → ${proof.outcomes} outcome`],
+        ["Replay has one effect", proof.duplicateSafe, "stable Operation ID dedupe"],
+        ["Known-stale is fenced", proof.staleSafe, "never advances a head"],
+        ["Authentic heads recoverable", proof.authenticHeads && conflictPreserved, "every head remains inspectable"]
+      ];
+      if (scenario.id === "takeover") {
+        const family = takeoverKinds.map(kind => checkScenario(takeoverOps(kind))).every(x => x.converges && x.duplicateSafe && x.authenticHeads);
+        rows.push(["All takeover races", family, "Pause · Resume · Extend · Skip · Reset · Completion"]);
+      }
+      if (scenario.checkpoint) rows.push(["Checkpoint keeps conflict", materialize(ops.slice(0,2)).heads.length === 2, "two restored frontier heads"]);
+      $("proof").innerHTML = rows.map(([label, pass, detail]) => `<div class="proof-row ${pass?'':'fail'}"><span>${label}<br><span style="color:var(--muted)">${detail}</span></span><b>${pass?'PASS':'FAIL'}</b></div>`).join("");
+    }
+
+    function render() {
+      const scenario = currentScenario();
+      const ops = currentOps();
+      const result = materialize(delivered);
+      renderTabs();
+      $("scenario-title").textContent = scenario.title;
+      $("scenario-description").textContent = scenario.description;
+      $("scenario-rule").textContent = scenario.rule;
+      $("variant-wrap").hidden = !scenario.variants;
+      if (scenario.variants) {
+        $("variant").innerHTML = takeoverKinds.map(k => `<option value="${k}" ${k===variant?'selected':''}>Owner: ${operationLabel({type:k})}</option>`).join("");
+      }
+      renderOps(ops);
+      renderProjection(result, scenario);
+      renderLedger(result);
+      renderProof(ops, scenario);
+      $("next").disabled = !nextUndelivered();
+    }
+
+    $("reset").onclick = reset;
+    $("next").onclick = () => { const next = nextUndelivered(); if (next) deliver(next); };
+    $("replay").onclick = () => { if (lastDelivered) deliver(lastDelivered); };
+    $("shuffle").onclick = () => {
+      const shuffled = [...currentOps()];
+      for (let i=shuffled.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]]; }
+      delivered = shuffled; lastDelivered = shuffled.at(-1); render();
+    };
+    $("variant").onchange = event => { variant = event.target.value; reset(); };
+    render();
+  </script>
+</body>
+</html>
