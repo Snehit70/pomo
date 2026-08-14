@@ -1,0 +1,59 @@
+; POMO-SUITE-1 dormant tracer-bullet schema.
+; Encoding MUST use RFC 8949 Core Deterministic Encoding and the stricter
+; profile documented in README.md. CDDL validity alone is not canonicality.
+
+pomo-operation = #6.18([
+  protected : bstr .cbor protected-headers,
+  unprotected : {},
+  payload : bstr .cbor unsigned-operation,
+  signature : bstr .size 64
+])
+
+; Private-use labels are fixed protocol constants, not negotiable parameters.
+protected-headers = {
+  1 : -9,             ; alg = ESP256
+  2 : [-65537, -65538, -65539, -65540, -65541], ; crit
+  -65537 : 1,         ; Cryptographic suite
+  -65538 : 1,         ; Suite generation
+  -65539 : 1,         ; signed-object kind = Operation
+  -65540 : 1,         ; signed-object schema
+  -65541 : bstr .size 32 ; complete Device ID
+}
+
+; Fixed-position tuple coordinated by the cross-runtime kernel. The frontier
+; is sorted by the bytewise concatenation of Device ID and incarnation ID.
+unsigned-operation = [
+  suite : 1,
+  suite-generation : 1,
+  member-id : bstr .size 32,
+  device-id : bstr .size 32,
+  incarnation-id : bstr .size 16,
+  sequence : uint,
+  previous-operation-id : bstr .size 32 / nil,
+  frontier : [* frontier-entry],
+  authorization-epoch : uint,
+  payload-schema : 1,
+  operation-kind : 1,
+  payload-hash : bstr .size 32
+]
+
+frontier-entry = [
+  device-id : bstr .size 32,
+  incarnation-id : bstr .size 16,
+  sequence : uint,
+  head-operation-id : bstr .size 32
+]
+
+; Ticket #102 carries one synchronized Shared preference fact.
+preference-payload = [
+  schema : 1,
+  key : tstr .size (1..128),
+  value : tstr .size (0..4096)
+]
+
+; Operation ID input, before SHA-256.
+operation-id-domain = [
+  "Pomo Operation ID",
+  1,
+  unsigned-operation-bytes : bstr .cbor unsigned-operation
+]

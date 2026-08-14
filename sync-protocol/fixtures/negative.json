@@ -1,0 +1,65 @@
+{
+  "format": "pomo-suite-1-negative-corpus",
+  "version": 1,
+  "cases": [
+    {
+      "id": "unsigned-non-minimal-suite",
+      "inputHex": "8c1801015820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f5820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f50404142434445464748494a4b4c4d4e4f01f68001010158207f2021cb07cf611568fd796ad75a954bcdfb92d08827ab968d2f6e6097e2668c",
+      "expected": "REJECT_NON_CANONICAL"
+    },
+    {
+      "id": "unsigned-indefinite-array",
+      "inputHex": "9f01015820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f5820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f50404142434445464748494a4b4c4d4e4f01f68001010158207f2021cb07cf611568fd796ad75a954bcdfb92d08827ab968d2f6e6097e2668cff",
+      "expected": "REJECT_NON_CANONICAL"
+    },
+    {
+      "id": "preference-non-minimal-schema",
+      "inputHex": "83180174666f6375734475726174696f6e4d696e75746573623235",
+      "expected": "REJECT_NON_CANONICAL"
+    },
+    {
+      "id": "unsupported-suite",
+      "inputHex": "8c02015820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f5820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f50404142434445464748494a4b4c4d4e4f01f68001010158207f2021cb07cf611568fd796ad75a954bcdfb92d08827ab968d2f6e6097e2668c",
+      "expected": "REJECT_UNSUPPORTED_SUITE"
+    },
+    {
+      "id": "unsupported-suite-generation",
+      "inputHex": "8c01025820000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f5820202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f50404142434445464748494a4b4c4d4e4f01f68001010158207f2021cb07cf611568fd796ad75a954bcdfb92d08827ab968d2f6e6097e2668c",
+      "expected": "REJECT_UNSUPPORTED_SUITE_GENERATION"
+    },
+    {
+      "id": "ecdsa-high-s",
+      "rawSignatureHex": "efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716f7cb1c942d657c41d436c7a1b6e29f65f3e900dbb9aff4064dc4ab2f843acda8",
+      "expected": "REJECT_HIGH_S"
+    },
+    {
+      "id": "ecdsa-der-on-wire",
+      "rawSignatureHex": "3045022100efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf371602200834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5f51f93782857a9",
+      "expected": "REJECT_SIGNATURE_LENGTH"
+    },
+    {
+      "id": "argon2-memory-weakened",
+      "parameters": {
+        "version": 19,
+        "memoryKiB": 32768,
+        "passes": 3,
+        "parallelism": 4,
+        "saltLength": 16,
+        "outputLength": 32
+      },
+      "expected": "REJECT_ARGON2_PROFILE"
+    },
+    {
+      "id": "argon2-memory-excessive",
+      "parameters": {
+        "version": 19,
+        "memoryKiB": 131072,
+        "passes": 3,
+        "parallelism": 4,
+        "saltLength": 16,
+        "outputLength": 32
+      },
+      "expected": "REJECT_ARGON2_PROFILE_BEFORE_ALLOCATION"
+    }
+  ]
+}

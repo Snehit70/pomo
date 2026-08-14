@@ -107,6 +107,8 @@ android {
         unitTests.isIncludeAndroidResources = true
         unitTests.isReturnDefaultValues = true
     }
+
+    sourceSets.getByName("test").resources.srcDir(rootProject.file("sync-protocol"))
 }
 
 ktlint {
@@ -140,6 +142,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.bouncycastle:bcprov-jdk15to18:1.84")
     implementation("fr.acinq.secp256k1:secp256k1-kmp-jni-android:0.16.0")
     implementation("io.ktor:ktor-server-core:2.3.12")
     implementation("io.ktor:ktor-server-cio:2.3.12")

@@ -1,0 +1,84 @@
+{
+  "format": "pomo-suite-1-primitive-corpus",
+  "version": 1,
+  "hkdfSha256": [
+    {
+      "id": "rfc5869-a1",
+      "ikmHex": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+      "saltHex": "000102030405060708090a0b0c",
+      "infoHex": "f0f1f2f3f4f5f6f7f8f9",
+      "length": 42,
+      "prkHex": "077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5",
+      "okmHex": "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"
+    }
+  ],
+  "hpkeP256": [
+    {
+      "id": "rfc9180-a3-1-base-sequence-0",
+      "kemId": 16,
+      "kdfId": 1,
+      "aeadId": 1,
+      "ephemeralPrivateKeyHex": "4995788ef4b9d6132b249ce59a77281493eb39af373d236a1fe415cb0c2d7beb",
+      "ephemeralPublicKeyHex": "04a92719c6195d5085104f469a8b9814d5838ff72b60501e2c4466e5e67b325ac98536d7b61a1af4b78e5b7f951c0900be863c403ce65c9bfcb9382657222d18c4",
+      "recipientPrivateKeyHex": "f3ce7fdae57e1a310d87f1ebbde6f328be0a99cdbcadf4d6589cf29de4b8ffd2",
+      "recipientPublicKeyHex": "04fe8c19ce0905191ebc298a9245792531f26f0cece2460639e8bc39cb7f706a826a779b4cf969b8a0e539c7f62fb3d30ad6aa8f80e30f1d128aafd68a2ce72ea0",
+      "infoHex": "4f6465206f6e2061204772656369616e2055726e",
+      "aadHex": "436f756e742d30",
+      "plaintextHex": "4265617574792069732074727574682c20747275746820626561757479",
+      "encapsulatedKeyHex": "04a92719c6195d5085104f469a8b9814d5838ff72b60501e2c4466e5e67b325ac98536d7b61a1af4b78e5b7f951c0900be863c403ce65c9bfcb9382657222d18c4",
+      "ciphertextHex": "5ad590bb8baa577f8619db35a36311226a896e7342a6d836d8b7bcd2f20b6c7f9076ac232e3ab2523f39513434"
+    }
+  ],
+  "aes256Gcm": [
+    {
+      "id": "nist-cavp-gcm-encrypt-256-count-0",
+      "keyHex": "b52c505a37d78eda5dd34f20c22540ea1b58963cf8e5bf8ffa85f9f2492505b4",
+      "nonceHex": "516c33929df5a3284ff463d7",
+      "plaintextHex": "",
+      "aadHex": "",
+      "ciphertextHex": "",
+      "tagHex": "bdc1ac884d332457a1d2664f168c76f0"
+    }
+  ],
+  "ecdsaP256Sha256": [
+    {
+      "id": "rfc6979-a2-5-sample-low-s",
+      "messageUtf8": "sample",
+      "privateKeyHex": "c9afa9d845ba75166b5c215767b1d6934e50c3db36e89b127b8a622b120f6721",
+      "publicXHex": "60fed4ba255a9d31c961eb74c6356d68c049b8923b61fa6ce669622e60f29fb6",
+      "publicYHex": "7903fe1008b8bc99a41ae9e95628bc64f2f1b20c2d7e9f5177a3c294d4462299",
+      "rHex": "efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716",
+      "publishedHighSHex": "f7cb1c942d657c41d436c7a1b6e29f65f3e900dbb9aff4064dc4ab2f843acda8",
+      "pomoLowSHex": "0834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5f51f93782857a9",
+      "pomoRawSignatureHex": "efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf37160834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5f51f93782857a9",
+      "expected": "ACCEPT"
+    }
+  ],
+  "argon2id": [
+    {
+      "id": "rfc9106-5-3",
+      "version": 19,
+      "memoryKiB": 32,
+      "passes": 3,
+      "parallelism": 4,
+      "tagLength": 32,
+      "passwordHex": "0101010101010101010101010101010101010101010101010101010101010101",
+      "saltHex": "02020202020202020202020202020202",
+      "secretHex": "0303030303030303",
+      "associatedDataHex": "040404040404040404040404",
+      "tagHex": "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659"
+    }
+  ],
+  "pomoRecoveryArgon2idProfile": {
+    "version": 19,
+    "memoryKiB": 65536,
+    "passes": 3,
+    "parallelism": 4,
+    "saltLength": 16,
+    "outputLength": 32,
+    "passwordUtf8": "Pomo recovery fixture",
+    "saltHex": "000102030405060708090a0b0c0d0e0f",
+    "tagHex": "dc3c08e37a88978480dfa1c46d1f485c4e5ddc599a32626c9f1a3e92c5704f63",
+    "source": "RFC 9106 section 7.4 second recommended option"
+  }
+}
