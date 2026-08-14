@@ -16,7 +16,7 @@ internal object CoseOperationWire {
     fun deviceId(wire: ByteArray): ProtocolBytes {
         val fields = wireFields(wire)
         val cose = DeterministicCbor.encode(fields[0])
-        return OperationCodec.decodeUnsigned(CoseSign1.embeddedPayload(cose)).deviceId
+        return OperationCodec.decodeUnsignedForVerification(CoseSign1.embeddedPayload(cose)).deviceId
     }
 
     fun sign(
@@ -56,7 +56,7 @@ internal object CoseOperationWire {
             (fields[1] as? CborValue.Bytes)?.value
                 ?: throw IllegalArgumentException("Operation fact payload must be a byte string")
         val canonicalUnsigned = CoseSign1.embeddedPayload(cose)
-        val operation = OperationCodec.decodeUnsigned(canonicalUnsigned)
+        val operation = OperationCodec.decodeUnsignedForVerification(canonicalUnsigned)
         OperationCodec.decodePreference(payload)
         require(OperationCodec.payloadHash(payload) == operation.payloadHash)
         CoseSign1.verify(cose, operation, canonicalUnsigned, publicKey)

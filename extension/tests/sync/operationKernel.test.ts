@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { bytesToHex } from "../../src/shared/hex";
-import { OperationKernel, type OperationJournal, type OperationSigner, type OperationVerifier } from "../../src/sync/kernel/OperationKernel";
+import { OperationKernel, type OperationJournal, type OperationJournalEntry, type OperationSigner, type OperationVerifier } from "../../src/sync/kernel/OperationKernel";
 import { SharedPreferenceProjection, encodeSharedPreferenceFact } from "../../src/sync/materialize/sharedPreferences";
 import { canonicalUnsignedOperation, operationId, payloadHash } from "../../src/sync/protocol/operation";
 import { OperationKind, type AuthenticatedOperation, type OperationDisposition, POMO_SUITE_1, POMO_SUITE_GENERATION_1, type UnsignedOperation } from "../../src/sync/protocol/types";
@@ -27,13 +27,20 @@ class FixtureCrypto implements OperationSigner, OperationVerifier {
 
 class MemoryJournal implements OperationJournal {
   readonly records: Array<{ readonly id: string; readonly disposition: OperationDisposition }> = [];
-  async record(operation: AuthenticatedOperation, disposition: OperationDisposition): Promise<void> {
-    this.records.push({ id: operation.operationId, disposition });
+  readonly rejected: Array<{ readonly rawWire: Uint8Array; readonly disposition: OperationDisposition }> = [];
+  async recordBatch(entries: readonly OperationJournalEntry[]): Promise<void> {
+    this.records.push(...entries.map(({ operation, disposition }) => ({ id: operation.operationId, disposition })));
+  }
+  async recordRejected(rawWire: Uint8Array, disposition: OperationDisposition): Promise<void> {
+    this.rejected.push({ rawWire: rawWire.slice(), disposition });
   }
 }
 
 class FailingJournal implements OperationJournal {
-  async record(): Promise<void> {
+  async recordBatch(): Promise<void> {
+    throw new Error("durable journal unavailable");
+  }
+  async recordRejected(): Promise<void> {
     throw new Error("durable journal unavailable");
   }
 }
@@ -92,16 +99,53 @@ describe("OperationKernel four-call seam", () => {
     expect(result.status === "AUTHORED" && result.disposition).toBe("ACCEPTED");
     expect(journal.records).toHaveLength(1);
     expect(kernel.summarize()).toMatchObject({ accepted: 1, pending: 0, quarantined: 0 });
+    expect(kernel.summarize().dispositionCounts.get("ACCEPTED")).toBe(1);
     expect(projection.value("focusDurationMinutes")).toBe("25");
   });
 
   test("blocks incomplete authoring and rejects an unauthenticated envelope", async () => {
-    const { kernel } = harness();
+    const { kernel, journal, crypto } = harness();
     expect(await kernel.author({ ...request(), completePrerequisites: new Set(["AUTHORIZATION"]) })).toEqual({
       status: "BLOCKED_PREREQUISITE",
       missing: new Set(["PROFILE_FRONTIER"]),
     });
+    expect([...kernel.summarize().dispositionCounts.values()].every((count) => count === 0)).toBe(true);
     expect(await kernel.ingest(new Uint8Array([1, 2, 3]))).toBe("REJECTED_INVALID");
+    expect(journal.rejected).toEqual([{
+      rawWire: new Uint8Array([1, 2, 3]),
+      disposition: "REJECTED_INVALID",
+    }]);
+
+    const payload = encodeSharedPreferenceFact("focusDurationMinutes", "25");
+    const unsupported: UnsignedOperation = {
+      suite: 2,
+      suiteGeneration: POMO_SUITE_GENERATION_1,
+      memberId: MEMBER,
+      deviceId: DEVICE,
+      incarnationId: INCARNATION,
+      sequence: 1,
+      previousHash: null,
+      frontier: [],
+      authorizationEpoch: 1,
+      payloadHash: await payloadHash(payload),
+      payloadSchema: 1,
+      kind: OperationKind.SharedPreferenceSet,
+    };
+    const unsupportedEnvelope = Uint8Array.of(0x82);
+    crypto.operations.set(bytesToHex(unsupportedEnvelope), {
+      unsigned: unsupported,
+      payload,
+      canonicalUnsigned: new Uint8Array(),
+      operationId: "",
+      signedEnvelope: unsupportedEnvelope,
+    });
+    expect(await kernel.ingest(unsupportedEnvelope)).toBe("REJECTED_UNSUPPORTED_SUITE");
+    expect(journal.rejected.at(-1)).toEqual({
+      rawWire: unsupportedEnvelope,
+      disposition: "REJECTED_UNSUPPORTED_SUITE",
+    });
+    expect(kernel.summarize().dispositionCounts.get("REJECTED_INVALID")).toBe(1);
+    expect(kernel.summarize().dispositionCounts.get("REJECTED_UNSUPPORTED_SUITE")).toBe(1);
   });
 
   test("deduplicates replay and restores a verified covered feed", async () => {
@@ -109,6 +153,7 @@ describe("OperationKernel four-call seam", () => {
     const authored = await kernel.author(request());
     if (authored.status !== "AUTHORED") throw new Error("fixture authoring was blocked");
     expect(await kernel.ingest(authored.operation.signedEnvelope)).toBe("DUPLICATE");
+    expect(kernel.summarize().dispositionCounts.get("DUPLICATE")).toBe(1);
     expect(await kernel.restore({
       suite: POMO_SUITE_1,
       suiteGeneration: POMO_SUITE_GENERATION_1,
@@ -146,7 +191,15 @@ describe("OperationKernel four-call seam", () => {
     const kernel = new OperationKernel(crypto, crypto, new FailingJournal(), projection);
     await expect(kernel.author(request())).rejects.toThrow(/journal/);
     expect(kernel.summarize().accepted).toBe(0);
+    expect([...kernel.summarize().dispositionCounts.values()].every((count) => count === 0)).toBe(true);
     expect(projection.value("focusDurationMinutes")).toBeUndefined();
+  });
+
+  test("does not count a rejected wire when its audit persistence fails", async () => {
+    const crypto = new FixtureCrypto();
+    const kernel = new OperationKernel(crypto, crypto, new FailingJournal(), new SharedPreferenceProjection());
+    await expect(kernel.ingest(new Uint8Array())).rejects.toThrow(/journal/);
+    expect([...kernel.summarize().dispositionCounts.values()].every((count) => count === 0)).toBe(true);
   });
 
   test("does not fabricate missing feed positions when future pending candidates fork", async () => {
@@ -203,9 +256,14 @@ describe("OperationKernel four-call seam", () => {
     expect(await kernel.ingest(first)).toBe("ACCEPTED");
     const afterDrain = kernel.summarize();
     expect(afterDrain).toMatchObject({ accepted: 1, pending: 0, quarantined: 0 });
+    expect(afterDrain.dispositionCounts.get("PENDING_GAP")).toBe(1);
+    expect(afterDrain.dispositionCounts.get("ACCEPTED")).toBe(1);
+    expect(afterDrain.dispositionCounts.get("REJECTED_INVALID")).toBe(1);
 
     expect(await kernel.ingest(invalidSecond)).toBe("REJECTED_INVALID");
-    expect(kernel.summarize()).toEqual(afterDrain);
+    const afterReplay = kernel.summarize();
+    expect({ ...afterReplay, dispositionCounts: undefined }).toEqual({ ...afterDrain, dispositionCounts: undefined });
+    expect(afterReplay.dispositionCounts.get("REJECTED_INVALID")).toBe(2);
   });
 
   test("rejects non-canonical checkpoint preference projections without changing active state", async () => {

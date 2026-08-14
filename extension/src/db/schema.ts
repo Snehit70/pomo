@@ -1,6 +1,12 @@
 export const DB_NAME = "pomo";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
+
+export const SYNC_OPERATION_STORE = "syncOperations";
+export const SYNC_FEED_HEAD_STORE = "syncFeedHeads";
+export const SYNC_PREFERENCE_STORE = "syncPreferences";
+export const SYNC_OUTBOX_STORE = "syncOutbox";
+export const SYNC_DISPOSITION_EVENT_STORE = "syncDispositionEvents";
 
 type IndexDef = readonly [name: string, keyPath: string | string[]];
 
@@ -47,6 +53,28 @@ export function openDb(): Promise<IDBDatabase> {
       );
       ensureStore(db, transaction, "crewHiddenMembers", { keyPath: ["crewId", "identityPublicKey"] }, [["crewId", "crewId"]]);
       ensureStore(db, transaction, "crewRelayState", { keyPath: ["crewId", "relayUrl"] }, []);
+      // v3 → v4 is additive. Existing timer/history/Crew data is untouched;
+      // dormant sync state starts empty and is populated only by issue #103's DAO.
+      ensureStore(
+        db,
+        transaction,
+        SYNC_OPERATION_STORE,
+        { keyPath: "operationId" },
+        [
+          ["feedPosition", ["feedKey", "sequence"]],
+          ["disposition", "disposition"],
+        ],
+      );
+      ensureStore(db, transaction, SYNC_FEED_HEAD_STORE, { keyPath: "feedKey" }, []);
+      ensureStore(db, transaction, SYNC_PREFERENCE_STORE, { keyPath: "key" }, []);
+      ensureStore(db, transaction, SYNC_OUTBOX_STORE, { keyPath: "operationId" }, [["state", "state"]]);
+      ensureStore(
+        db,
+        transaction,
+        SYNC_DISPOSITION_EVENT_STORE,
+        { keyPath: "id", autoIncrement: true },
+        [["disposition", "disposition"]],
+      );
     };
     request.onsuccess = () => {
       resolve(request.result);

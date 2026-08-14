@@ -1,0 +1,708 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 8,
+    "identityHash": "4d1b6dccd539dbfb9d4014678c625979",
+    "entities": [
+      {
+        "tableName": "day_stats",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `completed` INTEGER NOT NULL, `workMinutes` INTEGER NOT NULL, `breakMinutes` INTEGER NOT NULL, `lastUpdated` INTEGER NOT NULL, PRIMARY KEY(`date`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completed",
+            "columnName": "completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "workMinutes",
+            "columnName": "workMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "breakMinutes",
+            "columnName": "breakMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUpdated",
+            "columnName": "lastUpdated",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`start` INTEGER NOT NULL, `date` TEXT NOT NULL, `type` TEXT NOT NULL, `duration` INTEGER NOT NULL, `completed` INTEGER NOT NULL, `synced` INTEGER NOT NULL, `tag` TEXT, PRIMARY KEY(`start`), FOREIGN KEY(`date`) REFERENCES `day_stats`(`date`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "start",
+            "columnName": "start",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completed",
+            "columnName": "completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "synced",
+            "columnName": "synced",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "start"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sessions_date",
+            "unique": false,
+            "columnNames": [
+              "date"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sessions_date` ON `${TABLE_NAME}` (`date`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "day_stats",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "date"
+            ],
+            "referencedColumns": [
+              "date"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "crew_snapshots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`crewId` TEXT NOT NULL, `identityPublicKey` TEXT NOT NULL, `displayName` TEXT NOT NULL, `avatarBase64` TEXT, `allTimeFocusMinutes` INTEGER NOT NULL, `publishedAtEpochSeconds` INTEGER NOT NULL, `localDate` TEXT NOT NULL, `utcOffsetMinutes` INTEGER NOT NULL, `currentStreak` INTEGER NOT NULL, `lastFocusedAtEpochSeconds` INTEGER NOT NULL, `protocolVersion` INTEGER NOT NULL, `statsJson` TEXT, PRIMARY KEY(`crewId`, `identityPublicKey`))",
+        "fields": [
+          {
+            "fieldPath": "crewId",
+            "columnName": "crewId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "identityPublicKey",
+            "columnName": "identityPublicKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "avatarBase64",
+            "columnName": "avatarBase64",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "allTimeFocusMinutes",
+            "columnName": "allTimeFocusMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publishedAtEpochSeconds",
+            "columnName": "publishedAtEpochSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localDate",
+            "columnName": "localDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "utcOffsetMinutes",
+            "columnName": "utcOffsetMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentStreak",
+            "columnName": "currentStreak",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastFocusedAtEpochSeconds",
+            "columnName": "lastFocusedAtEpochSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "protocolVersion",
+            "columnName": "protocolVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "statsJson",
+            "columnName": "statsJson",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "crewId",
+            "identityPublicKey"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_crew_snapshots_crewId",
+            "unique": false,
+            "columnNames": [
+              "crewId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_crew_snapshots_crewId` ON `${TABLE_NAME}` (`crewId`)"
+          },
+          {
+            "name": "index_crew_snapshots_crewId_publishedAtEpochSeconds",
+            "unique": false,
+            "columnNames": [
+              "crewId",
+              "publishedAtEpochSeconds"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_crew_snapshots_crewId_publishedAtEpochSeconds` ON `${TABLE_NAME}` (`crewId`, `publishedAtEpochSeconds`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "crew_daily_aggregates",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`crewId` TEXT NOT NULL, `identityPublicKey` TEXT NOT NULL, `localDate` TEXT NOT NULL, `focusMinutes` INTEGER NOT NULL, `completedWorkBlocks` INTEGER NOT NULL, PRIMARY KEY(`crewId`, `identityPublicKey`, `localDate`), FOREIGN KEY(`crewId`, `identityPublicKey`) REFERENCES `crew_snapshots`(`crewId`, `identityPublicKey`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "crewId",
+            "columnName": "crewId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "identityPublicKey",
+            "columnName": "identityPublicKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localDate",
+            "columnName": "localDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "focusMinutes",
+            "columnName": "focusMinutes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedWorkBlocks",
+            "columnName": "completedWorkBlocks",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "crewId",
+            "identityPublicKey",
+            "localDate"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_crew_daily_aggregates_crewId_identityPublicKey",
+            "unique": false,
+            "columnNames": [
+              "crewId",
+              "identityPublicKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_crew_daily_aggregates_crewId_identityPublicKey` ON `${TABLE_NAME}` (`crewId`, `identityPublicKey`)"
+          },
+          {
+            "name": "index_crew_daily_aggregates_crewId_localDate",
+            "unique": false,
+            "columnNames": [
+              "crewId",
+              "localDate"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_crew_daily_aggregates_crewId_localDate` ON `${TABLE_NAME}` (`crewId`, `localDate`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "crew_snapshots",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "crewId",
+              "identityPublicKey"
+            ],
+            "referencedColumns": [
+              "crewId",
+              "identityPublicKey"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "crew_hidden_members",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`crewId` TEXT NOT NULL, `identityPublicKey` TEXT NOT NULL, `hiddenAtEpochSeconds` INTEGER NOT NULL, PRIMARY KEY(`crewId`, `identityPublicKey`))",
+        "fields": [
+          {
+            "fieldPath": "crewId",
+            "columnName": "crewId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "identityPublicKey",
+            "columnName": "identityPublicKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hiddenAtEpochSeconds",
+            "columnName": "hiddenAtEpochSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "crewId",
+            "identityPublicKey"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_crew_hidden_members_crewId",
+            "unique": false,
+            "columnNames": [
+              "crewId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_crew_hidden_members_crewId` ON `${TABLE_NAME}` (`crewId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "crew_relay_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`crewId` TEXT NOT NULL, `relayUrl` TEXT NOT NULL, `lastAttemptEpochSeconds` INTEGER NOT NULL, `lastSuccessEpochSeconds` INTEGER, `lastError` TEXT, PRIMARY KEY(`crewId`, `relayUrl`))",
+        "fields": [
+          {
+            "fieldPath": "crewId",
+            "columnName": "crewId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relayUrl",
+            "columnName": "relayUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAttemptEpochSeconds",
+            "columnName": "lastAttemptEpochSeconds",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccessEpochSeconds",
+            "columnName": "lastSuccessEpochSeconds",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "crewId",
+            "relayUrl"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_crew_relay_state_crewId",
+            "unique": false,
+            "columnNames": [
+              "crewId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_crew_relay_state_crewId` ON `${TABLE_NAME}` (`crewId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sync_operations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `memberId` TEXT NOT NULL, `deviceId` TEXT NOT NULL, `incarnationId` TEXT NOT NULL, `sequence` INTEGER NOT NULL, `previousOperationId` TEXT, `signedWire` BLOB NOT NULL, `preferenceKey` TEXT NOT NULL, `preferenceValue` TEXT NOT NULL, `disposition` TEXT NOT NULL, `localAuthor` INTEGER NOT NULL, PRIMARY KEY(`operationId`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memberId",
+            "columnName": "memberId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "incarnationId",
+            "columnName": "incarnationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sequence",
+            "columnName": "sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "previousOperationId",
+            "columnName": "previousOperationId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "signedWire",
+            "columnName": "signedWire",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preferenceKey",
+            "columnName": "preferenceKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preferenceValue",
+            "columnName": "preferenceValue",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "disposition",
+            "columnName": "disposition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localAuthor",
+            "columnName": "localAuthor",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sync_operations_deviceId_incarnationId_sequence",
+            "unique": false,
+            "columnNames": [
+              "deviceId",
+              "incarnationId",
+              "sequence"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_operations_deviceId_incarnationId_sequence` ON `${TABLE_NAME}` (`deviceId`, `incarnationId`, `sequence`)"
+          },
+          {
+            "name": "index_sync_operations_disposition",
+            "unique": false,
+            "columnNames": [
+              "disposition"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_operations_disposition` ON `${TABLE_NAME}` (`disposition`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sync_feed_heads",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`deviceId` TEXT NOT NULL, `incarnationId` TEXT NOT NULL, `sequence` INTEGER NOT NULL, `operationId` TEXT, `forkedAt` INTEGER, PRIMARY KEY(`deviceId`, `incarnationId`))",
+        "fields": [
+          {
+            "fieldPath": "deviceId",
+            "columnName": "deviceId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "incarnationId",
+            "columnName": "incarnationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sequence",
+            "columnName": "sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "forkedAt",
+            "columnName": "forkedAt",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "deviceId",
+            "incarnationId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sync_preference_projection",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`preferenceKey` TEXT NOT NULL, `preferenceValue` TEXT NOT NULL, `operationId` TEXT NOT NULL, PRIMARY KEY(`preferenceKey`))",
+        "fields": [
+          {
+            "fieldPath": "preferenceKey",
+            "columnName": "preferenceKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preferenceValue",
+            "columnName": "preferenceValue",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "preferenceKey"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sync_outbox",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `signedWire` BLOB NOT NULL, `state` TEXT NOT NULL, `attemptCount` INTEGER NOT NULL, PRIMARY KEY(`operationId`), FOREIGN KEY(`operationId`) REFERENCES `sync_operations`(`operationId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signedWire",
+            "columnName": "signedWire",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attemptCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sync_outbox_state",
+            "unique": false,
+            "columnNames": [
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_outbox_state` ON `${TABLE_NAME}` (`state`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "sync_operations",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "operationId"
+            ],
+            "referencedColumns": [
+              "operationId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "sync_disposition_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `operationId` TEXT, `disposition` TEXT NOT NULL, `signedWire` BLOB NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "disposition",
+            "columnName": "disposition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signedWire",
+            "columnName": "signedWire",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sync_disposition_events_disposition",
+            "unique": false,
+            "columnNames": [
+              "disposition"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_disposition_events_disposition` ON `${TABLE_NAME}` (`disposition`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4d1b6dccd539dbfb9d4014678c625979')"
+    ]
+  }
+}

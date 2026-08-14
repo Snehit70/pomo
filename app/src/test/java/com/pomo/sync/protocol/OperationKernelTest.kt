@@ -3,6 +3,7 @@ package com.pomo.sync.protocol
 import com.pomo.sync.crypto.CoseKernelSigner
 import com.pomo.sync.crypto.CoseKernelVerifier
 import com.pomo.sync.crypto.CoseOperationWire
+import com.pomo.sync.crypto.CoseSign1
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,7 +21,7 @@ public class OperationKernelTest {
     @Test
     public fun preferenceTracerBulletAuthorsStoresIngestsAndMaterializesRawWire() {
         val stored = mutableListOf<AuthenticatedOperation>()
-        val kernel = kernel(OperationStore { stored += it })
+        val kernel = kernel(OperationStore { operation, _, _, _ -> stored += operation })
         val authored = kernel.author(authorRequest("bell")) as AuthorResult.Authored
 
         assertEquals(IngestDisposition.ACCEPTED, authored.disposition)
@@ -28,15 +29,18 @@ public class OperationKernelTest {
         assertEquals(IngestDisposition.DUPLICATE, kernel.ingest(authored.value.signedEnvelope))
         assertEquals("bell", kernel.materializedPreference("timer.sound"))
         assertEquals(1, kernel.summarize().accepted)
+        assertEquals(1, kernel.summarize().dispositionCounts[IngestDisposition.ACCEPTED])
+        assertEquals(1, kernel.summarize().dispositionCounts[IngestDisposition.DUPLICATE])
     }
 
     @Test
     public fun durableStoreFailureCannotMutateKernelState() {
-        val kernel = kernel(OperationStore { throw IllegalStateException("disk unavailable") })
+        val kernel = kernel(OperationStore { _, _, _, _ -> throw IllegalStateException("disk unavailable") })
         val wire = authenticated(operation(1, null, payload("bell")), payload("bell")).signedEnvelope
 
         assertEquals(IngestDisposition.REJECTED_INVALID, kernel.ingest(wire))
         assertTrue(kernel.summarize().heads.isEmpty())
+        assertTrue(kernel.summarize().dispositionCounts.values.all { it == 0 })
     }
 
     @Test
@@ -88,12 +92,27 @@ public class OperationKernelTest {
         assertEquals(2, kernel.summarize().accepted)
         assertEquals(0, kernel.summarize().pending)
         assertEquals(IngestDisposition.REJECTED_INVALID, kernel.ingest(future.signedEnvelope))
+        assertEquals(2, kernel.summarize().dispositionCounts[IngestDisposition.REJECTED_INVALID])
     }
 
     @Test
     public fun malformedAuthenticatedWireIsRejectedBeforeFeedStateChanges() {
         val kernel = kernel()
-        assertEquals(IngestDisposition.REJECTED_INVALID, kernel.ingest(byteArrayOf(0x80.toByte())))
+        assertEquals(IngestDisposition.REJECTED_INVALID, kernel.ingest(byteArrayOf()))
+        assertTrue(kernel.summarize().heads.isEmpty())
+        assertEquals(1, kernel.summarize().rejected)
+    }
+
+    @Test
+    public fun authenticatedUnsupportedSuiteIsClassifiedAfterVerification() {
+        val payload = payload("bell")
+        val unsupported = operation(1, null, payload).copy(suite = PomoSuite.ID + 1)
+        val wire = signedVerificationWire(unsupported, payload)
+        val kernel = kernel()
+
+        assertEquals(IngestDisposition.REJECTED_UNSUPPORTED_SUITE, kernel.ingest(wire))
+        assertEquals(1, kernel.summarize().rejected)
+        assertEquals(1, kernel.summarize().dispositionCounts[IngestDisposition.REJECTED_UNSUPPORTED_SUITE])
         assertTrue(kernel.summarize().heads.isEmpty())
     }
 
@@ -189,7 +208,7 @@ public class OperationKernelTest {
         assertEquals(RestoreResult.REJECTED_CHECKPOINT, kernel().restore(duplicate, emptyList()))
     }
 
-    private fun kernel(store: OperationStore = OperationStore { }): OperationKernel =
+    private fun kernel(store: OperationStore = OperationStore { _, _, _, _ -> }): OperationKernel =
         OperationKernel(
             CoseKernelSigner(pair.private),
             CoseKernelVerifier { pair.public },
@@ -214,6 +233,22 @@ public class OperationKernelTest {
         operation: UnsignedOperation,
         payload: ByteArray,
     ): AuthenticatedOperation = CoseOperationWire.sign(operation, payload, pair.private)
+
+    private fun signedVerificationWire(
+        operation: UnsignedOperation,
+        payload: ByteArray,
+    ): ByteArray {
+        val canonical = OperationCodec.encodeUnsignedForVerification(operation)
+        val cose = CoseSign1.sign(operation, canonical, pair.private)
+        return DeterministicCbor.encode(
+            CborValue.Array(
+                listOf(
+                    DeterministicCbor.decodeCanonical(cose),
+                    CborValue.Bytes(payload),
+                ),
+            ),
+        )
+    }
 
     private fun payload(value: String): ByteArray =
         OperationCodec.encodePreference(PreferenceSet("timer.sound", PreferenceValue.Text(value)))

@@ -61,7 +61,7 @@ public class SharedCorpusTest {
             OperationKernel(
                 CoseKernelSigner(signingPrivateKey),
                 CoseKernelVerifier { signingPublicKey },
-                OperationStore { },
+                OperationStore { _, _, _, _ -> },
                 CheckpointVerifier { },
             )
         val authored =
@@ -190,9 +190,12 @@ public class SharedCorpusTest {
                     "REJECT_UNSUPPORTED_SUITE_GENERATION",
                 )
         }.forEach { fixture ->
+            val input = fixture.asJsonObject.hex("inputHex")
             assertThrows(IllegalArgumentException::class.java) {
-                OperationCodec.decodeUnsigned(fixture.asJsonObject.hex("inputHex"))
+                OperationCodec.decodeUnsigned(input)
             }
+            val verified = OperationCodec.decodeUnsignedForVerification(input)
+            assertEquals(input.hex(), OperationCodec.encodeUnsignedForVerification(verified).hex())
         }
         val signatureFixture =
             resource("fixtures/primitives.json")

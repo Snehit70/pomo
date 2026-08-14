@@ -12,9 +12,11 @@ import {
   importHpkeP256KeyPair,
   openHpkeBase,
   sealHpkeBase,
+  signP256LowS,
   verifyP256LowS,
   type RecoveryArgon2idProfile,
 } from "../../src/sync/crypto/PomoCrypto";
+import { CborTag, encodeCanonicalCbor } from "../../src/sync/protocol/cbor";
 import { canonicalUnsignedOperation, operationId, payloadHash } from "../../src/sync/protocol/operation";
 import { encodeSharedPreferenceFact } from "../../src/sync/materialize/sharedPreferences";
 import { OperationKind, type UnsignedOperation } from "../../src/sync/protocol/types";
@@ -167,5 +169,33 @@ describe("dormant COSE Operation adapter", () => {
     expect(verified.operationId).toBe(id);
     expect(verified.unsigned).toEqual(unsigned);
     expect(verified.payload).toEqual(payload);
+  });
+
+  test("authenticates an unsupported generation for distinct kernel rejection", async () => {
+    const keys = await generateP256SigningKeyPair();
+    const payload = encodeSharedPreferenceFact("focusDurationMinutes", "25");
+    const deviceId = "11".repeat(32);
+    const canonicalUnsupported = encodeCanonicalCbor([
+      1,
+      2,
+      hexToBytes("00".repeat(32)),
+      hexToBytes(deviceId),
+      hexToBytes("22".repeat(16)),
+      1,
+      null,
+      [],
+      1,
+      1,
+      OperationKind.SharedPreferenceSet,
+      hexToBytes(await payloadHash(payload)),
+    ]);
+    const protectedHeaders = coseProtectedHeaders(hexToBytes(deviceId), 1, 2);
+    const signature = await signP256LowS(keys.privateKey, coseSignatureStructure(protectedHeaders, canonicalUnsupported));
+    const cose = new CborTag(18, [protectedHeaders, new Map(), canonicalUnsupported, signature]);
+    const wire = encodeCanonicalCbor([cose, payload]);
+
+    const verified = await new CoseOperationVerifier((candidate) => candidate === deviceId ? keys.publicKey : undefined).verify(wire);
+    expect(verified.unsigned.suite).toBe(1);
+    expect(verified.unsigned.suiteGeneration).toBe(2);
   });
 });

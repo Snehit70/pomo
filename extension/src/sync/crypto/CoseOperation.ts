@@ -1,6 +1,6 @@
 import { utf8ToBytes } from "../../shared/bytes";
 import { hexToBytes } from "../../shared/hex";
-import { assertOperationIdentity, decodeUnsignedOperation, operationId } from "../protocol/operation";
+import { assertOperationIdentity, decodeUnsignedOperation, decodeUnsignedOperationForVerification, operationId, payloadHash } from "../protocol/operation";
 import { CborTag, decodeCanonicalCbor, encodeCanonicalCbor, type CborKey, type CborValue } from "../protocol/cbor";
 import { POMO_SUITE_1, POMO_SUITE_GENERATION_1, type AuthenticatedOperation, type UnsignedOperation } from "../protocol/types";
 import { signP256LowS, verifyP256LowS } from "./PomoCrypto";
@@ -34,13 +34,17 @@ function asBytes(value: CborValue, name: string): Uint8Array {
   return value;
 }
 
-function protectedHeaders(deviceId: Uint8Array): ReadonlyMap<CborKey, CborValue> {
+function protectedHeaders(
+  deviceId: Uint8Array,
+  suite: number = POMO_SUITE_1,
+  suiteGeneration: number = POMO_SUITE_GENERATION_1,
+): ReadonlyMap<CborKey, CborValue> {
   if (deviceId.length !== 32) throw new Error("COSE Device ID must be 32 bytes");
   return new Map<CborKey, CborValue>([
     [HEADER_ALGORITHM, COSE_ALGORITHM],
     [HEADER_CRITICAL, [...CRITICAL_HEADERS]],
-    [HEADER_SUITE, POMO_SUITE_1],
-    [HEADER_SUITE_GENERATION, POMO_SUITE_GENERATION_1],
+    [HEADER_SUITE, suite],
+    [HEADER_SUITE_GENERATION, suiteGeneration],
     [HEADER_OBJECT_KIND, OPERATION_OBJECT_KIND],
     [HEADER_OBJECT_SCHEMA, OPERATION_OBJECT_SCHEMA],
     [HEADER_DEVICE_ID, deviceId],
@@ -51,8 +55,12 @@ function signatureStructure(protectedBytes: Uint8Array, payload: Uint8Array): Ui
   return encodeCanonicalCbor(["Signature1", protectedBytes, EXTERNAL_AAD, payload]);
 }
 
-export function coseProtectedHeaders(deviceId: Uint8Array): Uint8Array {
-  return encodeCanonicalCbor(protectedHeaders(deviceId));
+export function coseProtectedHeaders(
+  deviceId: Uint8Array,
+  suite: number = POMO_SUITE_1,
+  suiteGeneration: number = POMO_SUITE_GENERATION_1,
+): Uint8Array {
+  return encodeCanonicalCbor(protectedHeaders(deviceId, suite, suiteGeneration));
 }
 
 export function coseSignatureStructure(protectedBytes: Uint8Array, payload: Uint8Array): Uint8Array {
@@ -87,10 +95,10 @@ export function decodeCoseOperation(envelope: Uint8Array): DecodedCoseOperation 
   const canonicalUnsigned = asBytes(fields[2]!, "COSE payload");
   const signature = asBytes(fields[3]!, "COSE signature");
   if (signature.length !== 64) throw new Error("COSE ESP256 signature must be 64 bytes");
-  const operation = decodeUnsignedOperation(canonicalUnsigned);
+  const operation = decodeUnsignedOperationForVerification(canonicalUnsigned);
   const deviceId = hexToBytes(operation.deviceId);
-  const expectedProtected = encodeCanonicalCbor(protectedHeaders(deviceId));
-  if (!equalBytes(protectedBytes, expectedProtected)) throw new Error("COSE protected headers do not match POMO-SUITE-1");
+  const expectedProtected = encodeCanonicalCbor(protectedHeaders(deviceId, operation.suite, operation.suiteGeneration));
+  if (!equalBytes(protectedBytes, expectedProtected)) throw new Error("COSE protected headers do not match the Operation suite");
   return { canonicalUnsigned, deviceId, signature, signatureInput: signatureStructure(protectedBytes, canonicalUnsigned) };
 }
 
@@ -136,11 +144,12 @@ export class CoseOperationVerifier implements OperationVerifier {
   async verify(wire: Uint8Array): Promise<AuthenticatedOperation> {
     const { cose, payload } = decodeAuthenticatedWire(wire);
     const decoded = decodeCoseOperation(cose);
-    const unsigned = decodeUnsignedOperation(decoded.canonicalUnsigned);
+    const unsigned = decodeUnsignedOperationForVerification(decoded.canonicalUnsigned);
     const publicKey = await this.resolvePublicKey(unsigned.deviceId);
     if (publicKey === undefined || !(await verifyP256LowS(publicKey, decoded.signatureInput, decoded.signature))) {
       throw new Error("invalid COSE Operation signature");
     }
+    if ((await payloadHash(payload)) !== unsigned.payloadHash) throw new Error("Operation payload hash mismatch");
     const id = await operationId(decoded.canonicalUnsigned);
     const authenticated: AuthenticatedOperation = {
       unsigned,
@@ -149,7 +158,9 @@ export class CoseOperationVerifier implements OperationVerifier {
       operationId: id,
       signedEnvelope: wire.slice(),
     };
-    await assertOperationIdentity(unsigned, payload, decoded.canonicalUnsigned, id);
+    if (unsigned.suite === POMO_SUITE_1 && unsigned.suiteGeneration === POMO_SUITE_GENERATION_1) {
+      await assertOperationIdentity(unsigned, payload, decoded.canonicalUnsigned, id);
+    }
     return authenticated;
   }
 }

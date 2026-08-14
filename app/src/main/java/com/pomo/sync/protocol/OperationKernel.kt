@@ -15,8 +15,19 @@ internal fun interface OperationVerifier {
 }
 
 internal fun interface OperationStore {
-    /** Must return only after the authenticated bytes are durably committed. */
-    fun append(operation: AuthenticatedOperation)
+    /** Must atomically persist the wire, disposition, feed/projection effects, and any local outbox obligation. */
+    fun commit(
+        operation: AuthenticatedOperation,
+        disposition: IngestDisposition,
+        localAuthor: Boolean,
+        reclassifications: List<OperationReclassification>,
+    )
+
+    /** Atomically records a raw wire that cannot produce a persistable authenticated Operation. */
+    fun reject(
+        signedEnvelope: ByteArray,
+        disposition: IngestDisposition,
+    ) {}
 }
 
 internal fun interface CheckpointVerifier {
@@ -40,11 +51,27 @@ internal class OperationKernel(
         val checkpointIds: MutableMap<Long, ProtocolBytes> = linkedMapOf(),
     )
 
+    private data class StateSnapshot(
+        val feeds: MutableMap<String, FeedState>,
+        val knownIds: MutableSet<ProtocolBytes>,
+        val quarantined: MutableSet<ProtocolBytes>,
+        val checkpointPreferences: MutableMap<String, String>,
+        val materializedPreferences: MutableMap<String, String>,
+        val dispositionCounts: MutableMap<IngestDisposition, Int>,
+    )
+
+    private data class IngestResult(
+        val disposition: IngestDisposition,
+        val reclassifications: List<OperationReclassification> = emptyList(),
+    )
+
     private val feeds: MutableMap<String, FeedState> = linkedMapOf()
     private val knownIds: MutableSet<ProtocolBytes> = linkedSetOf()
     private val quarantined: MutableSet<ProtocolBytes> = linkedSetOf()
     private val checkpointPreferences: MutableMap<String, String> = linkedMapOf()
     private val materializedPreferences: MutableMap<String, String> = linkedMapOf()
+    private val dispositionCounts: MutableMap<IngestDisposition, Int> =
+        IngestDisposition.entries.associateWithTo(linkedMapOf()) { 0 }
 
     fun author(request: AuthorRequest): AuthorResult {
         val missing = mutableSetOf<String>()
@@ -78,38 +105,79 @@ internal class OperationKernel(
             val wire = signer.sign(operation, payload, canonical, operationId)
             val authenticated = verifier.verify(wire)
             validateAuthenticated(wire, authenticated, operation, payload, canonical, operationId)
-            store.append(authenticated)
-            val disposition = ingestAuthenticated(authenticated)
+            val before = captureState()
+            val result = ingestAuthenticated(authenticated)
             require(
-                disposition != IngestDisposition.REJECTED_INVALID &&
-                    disposition != IngestDisposition.REJECTED_UNSUPPORTED_SUITE,
+                result.disposition != IngestDisposition.REJECTED_INVALID &&
+                    result.disposition != IngestDisposition.REJECTED_UNSUPPORTED_SUITE,
             ) {
                 "Locally authored Operation failed ingestion"
             }
-            AuthorResult.Authored(authenticated, disposition)
+            try {
+                store.commit(
+                    authenticated,
+                    result.disposition,
+                    localAuthor = true,
+                    reclassifications = result.reclassifications,
+                )
+            } catch (error: Throwable) {
+                restoreState(before)
+                throw error
+            }
+            record(result)
+            AuthorResult.Authored(authenticated, result.disposition)
         }.getOrElse { AuthorResult.Blocked(setOf("AUTHORING_COMMIT")) }
     }
 
     fun ingest(signedEnvelope: ByteArray): IngestDisposition {
         val authenticated =
-            runCatching {
-                verifier.verify(signedEnvelope).also { validateAuthenticated(signedEnvelope, it) }
-            }.getOrElse { return IngestDisposition.REJECTED_INVALID }
+            runCatching { verifier.verify(signedEnvelope) }
+                .getOrElse {
+                    return reject(signedEnvelope, IngestDisposition.REJECTED_INVALID)
+                }
         if (authenticated.operation.suite != PomoSuite.ID ||
             authenticated.operation.suiteGeneration != PomoSuite.INITIAL_GENERATION
         ) {
-            return IngestDisposition.REJECTED_UNSUPPORTED_SUITE
+            return reject(signedEnvelope, IngestDisposition.REJECTED_UNSUPPORTED_SUITE)
         }
-        if (runCatching { store.append(authenticated) }.isFailure) return IngestDisposition.REJECTED_INVALID
-        return ingestAuthenticated(authenticated)
+        if (runCatching { validateAuthenticated(signedEnvelope, authenticated) }.isFailure) {
+            return reject(signedEnvelope, IngestDisposition.REJECTED_INVALID)
+        }
+        val before = captureState()
+        val result = ingestAuthenticated(authenticated)
+        return try {
+            store.commit(
+                authenticated,
+                result.disposition,
+                localAuthor = false,
+                reclassifications = result.reclassifications,
+            )
+            record(result)
+            result.disposition
+        } catch (_: Throwable) {
+            restoreState(before)
+            IngestDisposition.REJECTED_INVALID
+        }
     }
 
-    private fun ingestAuthenticated(authenticated: AuthenticatedOperation): IngestDisposition {
+    private fun reject(
+        signedEnvelope: ByteArray,
+        disposition: IngestDisposition,
+    ): IngestDisposition {
+        return if (runCatching { store.reject(signedEnvelope, disposition) }.isSuccess) {
+            record(disposition)
+            disposition
+        } else {
+            IngestDisposition.REJECTED_INVALID
+        }
+    }
+
+    private fun ingestAuthenticated(authenticated: AuthenticatedOperation): IngestResult {
         val operation = authenticated.operation
         if (operation.suite != PomoSuite.ID || operation.suiteGeneration != PomoSuite.INITIAL_GENERATION) {
-            return IngestDisposition.REJECTED_UNSUPPORTED_SUITE
+            return IngestResult(IngestDisposition.REJECTED_UNSUPPORTED_SUITE)
         }
-        if (authenticated.operationId in knownIds) return IngestDisposition.DUPLICATE
+        if (authenticated.operationId in knownIds) return IngestResult(IngestDisposition.DUPLICATE)
 
         val key = feedKey(operation.deviceId, operation.incarnationId)
         val feed = feeds[key] ?: FeedState()
@@ -120,28 +188,29 @@ internal class OperationKernel(
         ) {
             knownIds += authenticated.operationId
             quarantineFork(feed, operation.sequence, authenticated, existing?.operationId ?: checkpointId)
-            return IngestDisposition.QUARANTINED_FORK
+            return IngestResult(IngestDisposition.QUARANTINED_FORK)
         }
         if (feed.forkedAt?.let { operation.sequence >= it } == true) {
             feeds.putIfAbsent(key, feed)
             feed.candidates[operation.sequence] = authenticated
             knownIds += authenticated.operationId
             quarantined += authenticated.operationId
-            return IngestDisposition.QUARANTINED_FORK
+            return IngestResult(IngestDisposition.QUARANTINED_FORK)
         }
         if (operation.sequence == feed.head + 1 && operation.previousOperationId != feed.headId) {
-            return IngestDisposition.REJECTED_INVALID
+            return IngestResult(IngestDisposition.REJECTED_INVALID)
         }
-        if (operation.sequence <= feed.head) return IngestDisposition.REJECTED_INVALID
+        if (operation.sequence <= feed.head) return IngestResult(IngestDisposition.REJECTED_INVALID)
         feeds.putIfAbsent(key, feed)
         feed.candidates[operation.sequence] = authenticated
         knownIds += authenticated.operationId
         val result = attemptAccept(feed, authenticated)
         if (result == IngestDisposition.ACCEPTED) {
-            drainAll()
+            val reclassifications = drainAll()
             rematerialize()
+            return IngestResult(result, reclassifications)
         }
-        return result
+        return IngestResult(result)
     }
 
     fun summarize(): KernelSummary {
@@ -165,7 +234,18 @@ internal class OperationKernel(
             }
             feed.forkedAt?.let { forks += "$key@$it" }
         }
-        return KernelSummary(heads, gaps, waits, forks, accepted, pending, quarantined.size)
+        return KernelSummary(
+            heads,
+            gaps,
+            waits,
+            forks,
+            accepted,
+            pending,
+            quarantined.size,
+            dispositionCounts.getValue(IngestDisposition.REJECTED_INVALID) +
+                dispositionCounts.getValue(IngestDisposition.REJECTED_UNSUPPORTED_SUITE),
+            dispositionCounts.toMap(),
+        )
     }
 
     fun restore(
@@ -226,7 +306,7 @@ internal class OperationKernel(
                 runCatching {
                     verifier.verify(wire).also { staged.validateAuthenticated(wire, it) }
                 }.getOrElse { return RestoreResult.REJECTED_CHECKPOINT }
-            if (staged.ingestAuthenticated(authenticated) != IngestDisposition.ACCEPTED) {
+            if (staged.ingestAuthenticated(authenticated).disposition != IngestDisposition.ACCEPTED) {
                 return RestoreResult.REJECTED_CHECKPOINT
             }
         }
@@ -244,6 +324,40 @@ internal class OperationKernel(
     }
 
     fun materializedPreference(key: String): String? = materializedPreferences[key]
+
+    private fun captureState(): StateSnapshot = StateSnapshot(
+        feeds = feeds.mapValuesTo(linkedMapOf()) { (_, feed) ->
+            FeedState(
+                head = feed.head,
+                headId = feed.headId,
+                forkedAt = feed.forkedAt,
+                accepted = feed.accepted.toMutableMap(),
+                candidates = feed.candidates.toMutableMap(),
+                pending = feed.pending.toMutableMap(),
+                checkpointIds = feed.checkpointIds.toMutableMap(),
+            )
+        },
+        knownIds = knownIds.toMutableSet(),
+        quarantined = quarantined.toMutableSet(),
+        checkpointPreferences = checkpointPreferences.toMutableMap(),
+        materializedPreferences = materializedPreferences.toMutableMap(),
+        dispositionCounts = dispositionCounts.toMutableMap(),
+    )
+
+    private fun restoreState(snapshot: StateSnapshot) {
+        feeds.clear()
+        feeds.putAll(snapshot.feeds)
+        knownIds.clear()
+        knownIds.addAll(snapshot.knownIds)
+        quarantined.clear()
+        quarantined.addAll(snapshot.quarantined)
+        checkpointPreferences.clear()
+        checkpointPreferences.putAll(snapshot.checkpointPreferences)
+        materializedPreferences.clear()
+        materializedPreferences.putAll(snapshot.materializedPreferences)
+        dispositionCounts.clear()
+        dispositionCounts.putAll(snapshot.dispositionCounts)
+    }
 
     private fun validateAuthenticated(
         wire: ByteArray,
@@ -293,7 +407,8 @@ internal class OperationKernel(
                 (feed.accepted[dependency.sequence]?.operationId ?: feed.checkpointIds[dependency.sequence]) == dependency.headOperationId
         }
 
-    private fun drainAll() {
+    private fun drainAll(): List<OperationReclassification> {
+        val reclassifications = mutableListOf<OperationReclassification>()
         var progressed: Boolean
         do {
             progressed = false
@@ -303,11 +418,25 @@ internal class OperationKernel(
                     feed.pending.remove(next.operation.sequence)
                     feed.candidates.remove(next.operation.sequence)
                     knownIds.remove(next.operationId)
+                    reclassifications += OperationReclassification(next, IngestDisposition.REJECTED_INVALID)
                     return@forEach
                 }
-                if (attemptAccept(feed, next) == IngestDisposition.ACCEPTED) progressed = true
+                if (attemptAccept(feed, next) == IngestDisposition.ACCEPTED) {
+                    reclassifications += OperationReclassification(next, IngestDisposition.ACCEPTED)
+                    progressed = true
+                }
             }
         } while (progressed)
+        return reclassifications
+    }
+
+    private fun record(result: IngestResult) {
+        record(result.disposition)
+        result.reclassifications.forEach { record(it.disposition) }
+    }
+
+    private fun record(disposition: IngestDisposition) {
+        dispositionCounts[disposition] = dispositionCounts.getValue(disposition) + 1
     }
 
     private fun quarantineFork(

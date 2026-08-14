@@ -4,9 +4,19 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
 internal object OperationCodec {
-    fun encodeUnsigned(operation: UnsignedOperation): ByteArray {
-        require(operation.suite == PomoSuite.ID)
-        require(operation.suiteGeneration == PomoSuite.INITIAL_GENERATION)
+    fun encodeUnsigned(operation: UnsignedOperation): ByteArray = encodeUnsigned(operation, allowUnsupportedSuite = false)
+
+    internal fun encodeUnsignedForVerification(operation: UnsignedOperation): ByteArray =
+        encodeUnsigned(operation, allowUnsupportedSuite = true)
+
+    private fun encodeUnsigned(
+        operation: UnsignedOperation,
+        allowUnsupportedSuite: Boolean,
+    ): ByteArray {
+        if (!allowUnsupportedSuite) {
+            require(operation.suite == PomoSuite.ID)
+            require(operation.suiteGeneration == PomoSuite.INITIAL_GENERATION)
+        }
         require(operation.payloadSchema == PomoSuite.PREFERENCE_SCHEMA)
         require(operation.kind == PomoSuite.PREFERENCE_SET_KIND)
         val sortedFrontier =
@@ -49,7 +59,16 @@ internal object OperationCodec {
         return ProtocolBytes.of(MessageDigest.getInstance("SHA-256").digest(domain), PomoSuite.ID_BYTES)
     }
 
-    fun decodeUnsigned(canonicalUnsigned: ByteArray): UnsignedOperation {
+    fun decodeUnsigned(canonicalUnsigned: ByteArray): UnsignedOperation =
+        decodeUnsigned(canonicalUnsigned, allowUnsupportedSuite = false)
+
+    internal fun decodeUnsignedForVerification(canonicalUnsigned: ByteArray): UnsignedOperation =
+        decodeUnsigned(canonicalUnsigned, allowUnsupportedSuite = true)
+
+    private fun decodeUnsigned(
+        canonicalUnsigned: ByteArray,
+        allowUnsupportedSuite: Boolean,
+    ): UnsignedOperation {
         val fields =
             (DeterministicCbor.decodeCanonical(canonicalUnsigned) as? CborValue.Array)?.values
                 ?: throw IllegalArgumentException("Operation must be an array")
@@ -94,7 +113,9 @@ internal object OperationCodec {
                 kind = unsigned(fields[10], "Operation kind").toInt(),
                 payloadHash = bytes(fields[11], PomoSuite.ID_BYTES, "payload hash"),
             )
-        require(encodeUnsigned(operation).contentEquals(canonicalUnsigned)) { "Operation meaning is not canonical" }
+        require(encodeUnsigned(operation, allowUnsupportedSuite).contentEquals(canonicalUnsigned)) {
+            "Operation meaning is not canonical"
+        }
         return operation
     }
 

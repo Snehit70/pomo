@@ -8,13 +8,18 @@ export enum OperationKind {
   SharedPreferenceSet = 1,
 }
 
-export type OperationDisposition =
-  | "ACCEPTED"
-  | "DUPLICATE"
-  | "PENDING_GAP"
-  | "PENDING_CAUSAL"
-  | "QUARANTINED_FORK"
-  | "REJECTED_INVALID";
+export const OPERATION_DISPOSITIONS = [
+  "ACCEPTED",
+  "DUPLICATE",
+  "PENDING_GAP",
+  "PENDING_CAUSAL",
+  "QUARANTINED_FORK",
+  "REJECTED_INVALID",
+  "REJECTED_UNSUPPORTED_SUITE",
+] as const;
+
+export type OperationDisposition = typeof OPERATION_DISPOSITIONS[number];
+export type RejectedDisposition = Extract<OperationDisposition, `REJECTED_${string}`>;
 
 export interface FrontierEntry {
   readonly deviceId: Hex;
@@ -70,4 +75,5 @@ export interface KernelSummary {
   readonly accepted: number;
   readonly pending: number;
   readonly quarantined: number;
+  readonly dispositionCounts: ReadonlyMap<OperationDisposition, number>;
 }

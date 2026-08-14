@@ -34,10 +34,12 @@ export function compareBytes(left: Uint8Array, right: Uint8Array): number {
   return left.length - right.length;
 }
 
-export function validateUnsignedOperation(operation: UnsignedOperation): void {
-  if (operation.suite !== POMO_SUITE_1 || operation.suiteGeneration !== POMO_SUITE_GENERATION_1) {
+function validateUnsignedOperationFields(operation: UnsignedOperation, allowUnsupportedSuite: boolean): void {
+  if (!allowUnsupportedSuite && (operation.suite !== POMO_SUITE_1 || operation.suiteGeneration !== POMO_SUITE_GENERATION_1)) {
     throw new Error("unsupported Pomo suite or generation");
   }
+  requireUint(operation.suite, "suite");
+  requireUint(operation.suiteGeneration, "suiteGeneration");
   requireHex(operation.memberId, HASH_BYTES, "memberId");
   requireHex(operation.deviceId, HASH_BYTES, "deviceId");
   requireHex(operation.incarnationId, INCARNATION_BYTES, "incarnationId");
@@ -58,6 +60,10 @@ export function validateUnsignedOperation(operation: UnsignedOperation): void {
     if (previous !== undefined && compareFrontier(previous, entry) >= 0) throw new Error("frontier must be unique and canonically ordered");
     previous = entry;
   }
+}
+
+export function validateUnsignedOperation(operation: UnsignedOperation): void {
+  validateUnsignedOperationFields(operation, false);
 }
 
 export function canonicalUnsignedOperation(operation: UnsignedOperation): Uint8Array {
@@ -99,7 +105,7 @@ function asBytes(value: CborValue, name: string, length: number): Uint8Array {
   return value;
 }
 
-export function decodeUnsignedOperation(bytes: Uint8Array): UnsignedOperation {
+function decodeUnsignedOperationFields(bytes: Uint8Array, allowUnsupportedSuite: boolean): UnsignedOperation {
   const fields = asArray(decodeCanonicalCbor(bytes), "Operation", 12);
   if (!Array.isArray(fields[7])) throw new Error("frontier must be an array");
   const frontier = fields[7].map((raw, index) => {
@@ -126,8 +132,17 @@ export function decodeUnsignedOperation(bytes: Uint8Array): UnsignedOperation {
     kind: asUint(fields[10]!, "kind") as OperationKind,
     payloadHash: bytesToHex(asBytes(fields[11]!, "payloadHash", HASH_BYTES)),
   };
-  validateUnsignedOperation(operation);
+  validateUnsignedOperationFields(operation, allowUnsupportedSuite);
   return operation;
+}
+
+export function decodeUnsignedOperation(bytes: Uint8Array): UnsignedOperation {
+  return decodeUnsignedOperationFields(bytes, false);
+}
+
+/** Decode enough authenticated structure to let the kernel classify an unsupported suite distinctly. */
+export function decodeUnsignedOperationForVerification(bytes: Uint8Array): UnsignedOperation {
+  return decodeUnsignedOperationFields(bytes, true);
 }
 
 export async function sha256(bytes: Uint8Array): Promise<Uint8Array> {
