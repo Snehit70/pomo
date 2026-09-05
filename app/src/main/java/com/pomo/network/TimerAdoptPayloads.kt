@@ -125,15 +125,30 @@ public object TimerAdoptPayloads {
      * - Both sides live (running or paused) on different sessions → true only when
      *   `payload.remaining < current.remaining` (strict least-remaining).
      * - Otherwise false; caller should respond HTTP 409 `timer_busy`.
+     *
+     * Single source of truth is [adoptReason]; this returns true for the
+     * adopt reasons so the decision and its logged explanation cannot drift.
      */
     public fun canAdopt(
         current: TimerState,
         payload: Payload,
-    ): Boolean {
-        if (current.status == TimerState.STATUS_STOPPED) return true
-        if (isSameSession(current, payload)) return true
-        if (!isLiveStatus(current.status) || !isLiveStatus(payload.status)) return false
-        return payload.remaining < current.remaining
+    ): Boolean = adoptReason(current, payload) in ADOPT_REASONS
+
+    /**
+     * Why [canAdopt] says yes or no, as a stable code for the link activity log.
+     */
+    public fun adoptReason(
+        current: TimerState,
+        payload: Payload,
+    ): String {
+        if (current.status == TimerState.STATUS_STOPPED) return REASON_PHONE_STOPPED
+        if (isSameSession(current, payload)) return REASON_SAME_SESSION
+        if (!isLiveStatus(current.status) || !isLiveStatus(payload.status)) return REASON_NOT_LIVE
+        return if (payload.remaining < current.remaining) {
+            REASON_LEAST_REMAINING
+        } else {
+            REASON_DESK_NOT_SHORTER
+        }
     }
 
     private fun isLiveStatus(status: String): Boolean {
@@ -158,6 +173,15 @@ public object TimerAdoptPayloads {
         next.next_phase = null
         return next
     }
+
+    public const val REASON_PHONE_STOPPED: String = "phone-stopped"
+    public const val REASON_SAME_SESSION: String = "same-session"
+    public const val REASON_LEAST_REMAINING: String = "least-remaining"
+    public const val REASON_DESK_NOT_SHORTER: String = "desk-not-shorter"
+    public const val REASON_NOT_LIVE: String = "not-live"
+
+    private val ADOPT_REASONS: Set<String> =
+        setOf(REASON_PHONE_STOPPED, REASON_SAME_SESSION, REASON_LEAST_REMAINING)
 
     private val ALLOWED_STATUS: Set<String> =
         setOf(

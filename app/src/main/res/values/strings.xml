@@ -50,6 +50,11 @@
     <string name="pairing_copy">Copy</string>
     <string name="pairing_share">Share</string>
     <string name="pairing_copied">Pairing payload copied</string>
+    <string name="link_activity_title">Link activity</string>
+    <string name="link_activity_summary">When desktop clients connect, sync, and what the timer picked</string>
+    <string name="link_activity_empty">No link activity yet.</string>
+    <string name="link_activity_copied">Link activity copied</string>
+    <string name="link_activity_share_title">Share link activity</string>
     <string name="pairing_share_title">Share Pomo pairing</string>
     <string name="scan_pairing_qr_title">Scan pairing QR</string>
     <string name="scan_pairing_qr_summary">Read a Pomo pairing QR from another screen</string>

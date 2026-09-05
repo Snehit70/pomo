@@ -21,6 +21,7 @@ import com.pomo.cues.CueVariant
 import com.pomo.cues.StateCueEngine
 import com.pomo.cues.StateCueEvent
 import com.pomo.db.HistoryCacheRepository
+import com.pomo.network.LinkLog
 import com.pomo.network.PhoneMessages
 import com.pomo.network.PhoneServer
 import com.pomo.network.PomoServiceAdvertiser
@@ -102,6 +103,9 @@ public class PomodoroService : Service(), TimerObserver {
 
     public val pairingPayload: String
         get() = gson.toJson(mapOf("url" to pairingUrl, "token" to pairingToken))
+
+    /** Session-scoped desk-link activity for the Settings log screen. Never contains secrets. */
+    public fun linkLogSnapshot(): String = LinkLog.snapshot()
 
     public inner class LocalBinder : Binder() {
         public val service: PomodoroService
@@ -811,6 +815,10 @@ public class PomodoroService : Service(), TimerObserver {
                 checkForNewAchievements()
             }
 
+            LinkLog.record(
+                "link import from ${(parsed.source ?: "desk").trim().take(32).ifBlank { "desk" }}: " +
+                    "accepted=${parsed.accepted.size} rejected=${parsed.rejected.size}",
+            )
             mapOf(
                 "success" to true,
                 "accepted" to parsed.accepted.map { it.clientId },
@@ -836,7 +844,11 @@ public class PomodoroService : Service(), TimerObserver {
         val result =
             commandMutex.withLock {
                 withContext(Dispatchers.Main) {
+                    val reason = TimerAdoptPayloads.adoptReason(currentState, payload)
+                    val desk = LinkLog.describe(payload.status, payload.phase, payload.remaining)
+                    val phone = LinkLog.describe(currentState.status, currentState.phase, currentState.remaining)
                     if (!TimerAdoptPayloads.canAdopt(currentState, payload)) {
+                        LinkLog.record("link adopt desk $desk vs phone $phone: rejected ($reason)")
                         return@withContext AdoptResult.Conflict(currentState.copy())
                     }
 
@@ -850,6 +862,7 @@ public class PomodoroService : Service(), TimerObserver {
                     currentState = next
                     offlineTimer.updateState(currentState)
                     saveCurrentState()
+                    LinkLog.record("link adopt desk $desk vs phone $phone: adopted ($reason)")
                     AdoptResult.Success(currentState.copy())
                 }
             }

@@ -210,6 +210,98 @@ public class TimerAdoptPayloadsTest {
     }
 
     @Test
+    public fun adoptReason_phoneStopped() {
+        val phone = TimerState().apply { status = TimerState.STATUS_STOPPED }
+        val payload =
+            TimerAdoptPayloads.parse(
+                """{"status":"running","phase":"work","remaining":100,"duration":1500,"start_time":99.0,"completed":1,"daily_goal":8}""",
+            )
+        assertEquals(TimerAdoptPayloads.REASON_PHONE_STOPPED, TimerAdoptPayloads.adoptReason(phone, payload))
+    }
+
+    @Test
+    public fun adoptReason_sameSession() {
+        val phone =
+            TimerState().apply {
+                status = TimerState.STATUS_RUNNING
+                phase = TimerState.PHASE_WORK
+                start_time = 42.0
+                remaining = 50.0
+                duration = 1500.0
+            }
+        val payload =
+            TimerAdoptPayloads.parse(
+                """{"status":"running","phase":"work","remaining":40,"duration":1500,"start_time":42.0,"completed":1,"daily_goal":8}""",
+            )
+        assertEquals(TimerAdoptPayloads.REASON_SAME_SESSION, TimerAdoptPayloads.adoptReason(phone, payload))
+    }
+
+    @Test
+    public fun adoptReason_leastRemainingAndDeskNotShorter() {
+        val phone =
+            TimerState().apply {
+                status = TimerState.STATUS_RUNNING
+                phase = TimerState.PHASE_WORK
+                start_time = 100.0
+                remaining = 500.0
+                duration = 1500.0
+            }
+        val shorter =
+            TimerAdoptPayloads.parse(
+                """{"status":"running","phase":"work","remaining":100,"duration":1500,"start_time":200.0,"completed":1,"daily_goal":8}""",
+            )
+        val longer =
+            TimerAdoptPayloads.parse(
+                """{"status":"running","phase":"work","remaining":900,"duration":1500,"start_time":300.0,"completed":1,"daily_goal":8}""",
+            )
+        assertEquals(TimerAdoptPayloads.REASON_LEAST_REMAINING, TimerAdoptPayloads.adoptReason(phone, shorter))
+        assertEquals(TimerAdoptPayloads.REASON_DESK_NOT_SHORTER, TimerAdoptPayloads.adoptReason(phone, longer))
+    }
+
+    @Test
+    public fun adoptReason_notLiveWhenDeskStopped() {
+        val phone =
+            TimerState().apply {
+                status = TimerState.STATUS_RUNNING
+                phase = TimerState.PHASE_WORK
+                start_time = 100.0
+                remaining = 500.0
+                duration = 1500.0
+            }
+        val payload =
+            TimerAdoptPayloads.parse(
+                """{"status":"stopped","phase":"work","remaining":0,"duration":1500,"start_time":0,"completed":1,"daily_goal":8}""",
+            )
+        assertEquals(TimerAdoptPayloads.REASON_NOT_LIVE, TimerAdoptPayloads.adoptReason(phone, payload))
+    }
+
+    @Test
+    public fun canAdopt_matchesAdoptReasons() {
+        val phone =
+            TimerState().apply {
+                status = TimerState.STATUS_RUNNING
+                phase = TimerState.PHASE_WORK
+                start_time = 100.0
+                remaining = 500.0
+                duration = 1500.0
+            }
+        val adoptPayload =
+            TimerAdoptPayloads.parse(
+                """{"status":"running","phase":"work","remaining":100,"duration":1500,"start_time":200.0,"completed":1,"daily_goal":8}""",
+            )
+        val rejectPayload =
+            TimerAdoptPayloads.parse(
+                """{"status":"running","phase":"work","remaining":900,"duration":1500,"start_time":300.0,"completed":1,"daily_goal":8}""",
+            )
+        assertTrue(TimerAdoptPayloads.canAdopt(phone, adoptPayload))
+        assertTrue(
+            TimerAdoptPayloads.adoptReason(phone, rejectPayload) ==
+                TimerAdoptPayloads.REASON_DESK_NOT_SHORTER &&
+                !TimerAdoptPayloads.canAdopt(phone, rejectPayload),
+        )
+    }
+
+    @Test
     public fun applyTo_copiesPayloadIntoState() {
         val base =
             TimerState().apply {

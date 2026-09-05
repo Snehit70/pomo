@@ -101,17 +101,23 @@ public class PhoneServer(
 
                     post("/api/toggle") {
                         if (!call.isAuthorized()) return@post call.rejectUnauthorized()
-                        call.respondJson(success(service.toggleTimerBlocking()))
+                        val state = service.toggleTimerBlocking()
+                        LinkLog.record("link cmd toggle → ${LinkLog.describe(state.status, state.phase, state.remaining)}")
+                        call.respondJson(success(state))
                     }
 
                     post("/api/skip") {
                         if (!call.isAuthorized()) return@post call.rejectUnauthorized()
-                        call.respondJson(success(service.skipTimerBlocking()))
+                        val state = service.skipTimerBlocking()
+                        LinkLog.record("link cmd skip → ${LinkLog.describe(state.status, state.phase, state.remaining)}")
+                        call.respondJson(success(state))
                     }
 
                     post("/api/reset") {
                         if (!call.isAuthorized()) return@post call.rejectUnauthorized()
-                        call.respondJson(success(service.resetTimerBlocking()))
+                        val state = service.resetTimerBlocking()
+                        LinkLog.record("link cmd reset → ${LinkLog.describe(state.status, state.phase, state.remaining)}")
+                        call.respondJson(success(state))
                     }
 
                     post("/api/extend") {
@@ -119,7 +125,9 @@ public class PhoneServer(
                         val secondsDelta =
                             parseAddTimeSeconds(call.receiveText())
                                 ?: return@post call.respondBadRequest("invalid add-time delta")
-                        call.respondJson(success(service.addTimeBlocking(secondsDelta)))
+                        val state = service.addTimeBlocking(secondsDelta)
+                        LinkLog.record("link cmd extend +${secondsDelta}s → ${LinkLog.describe(state.status, state.phase, state.remaining)}")
+                        call.respondJson(success(state))
                     }
 
                     get("/api/config") {
@@ -135,6 +143,7 @@ public class PhoneServer(
                             } catch (_: Exception) {
                                 return@post call.respondBadRequest("invalid config")
                             }
+                        LinkLog.record("link config applied")
                         call.respondJson(success(state))
                     }
 
@@ -154,10 +163,12 @@ public class PhoneServer(
 
                         val token = if (hello is Frame.Text) parseHelloToken(hello.readText()) else null
                         if (token != service.pairingToken) {
+                            LinkLog.record("link rejected (bad token)")
                             close()
                             return@webSocket
                         }
 
+                        LinkLog.record("link connected")
                         synchronized(sessionsLock) { sessions.add(this) }
                         try {
                             send(Frame.Text(stateMessage()))
@@ -166,6 +177,7 @@ public class PhoneServer(
                             }
                         } finally {
                             synchronized(sessionsLock) { sessions.remove(this) }
+                            LinkLog.record("link disconnected")
                         }
                     }
                 }
@@ -178,8 +190,10 @@ public class PhoneServer(
             newEngine.start(wait = false)
             engine = newEngine
             Log.d(TAG, "Phone API listening on port $port")
+            LinkLog.record("api listening :$port")
         } catch (e: Exception) {
             Log.w(TAG, "Phone API failed to start on port $port: ${e.message}")
+            LinkLog.record("api failed to start :$port")
             runCatching { newEngine.stop(gracePeriodMillis = 0, timeoutMillis = 0) }
             engine = null
         }
@@ -189,6 +203,7 @@ public class PhoneServer(
         engine?.stop(gracePeriodMillis = 500, timeoutMillis = 1500)
         engine = null
         synchronized(sessionsLock) { sessions.clear() }
+        LinkLog.record("api stopped")
     }
 
     public suspend fun broadcastState() {

@@ -60,6 +60,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
     private val gson = Gson()
 
     private val pairingDialog = mutableStateOf<PairingDialogData?>(null)
+    private val linkLogDialog = mutableStateOf<String?>(null)
     private val rotateConfirm = mutableStateOf(false)
     private val scanResult = mutableStateOf<ScanResultData?>(null)
     private val restorePreview = mutableStateOf<RestorePreviewData?>(null)
@@ -71,6 +72,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
     override fun onDestroyView() {
         tagManagerDialog.value = false
         pairingDialog.value = null
+        linkLogDialog.value = null
         rotateConfirm.value = false
         scanResult.value = null
         restorePreview.value = null
@@ -183,6 +185,20 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                             onDismiss = { pairingDialog.value = null },
                         )
                     }
+                    linkLogDialog.value?.let { logText ->
+                        LinkLogDialog(
+                            logText = logText,
+                            onCopy = {
+                                copyLinkActivity(logText)
+                                linkLogDialog.value = null
+                            },
+                            onShare = {
+                                shareLinkActivity(logText)
+                                linkLogDialog.value = null
+                            },
+                            onDismiss = { linkLogDialog.value = null },
+                        )
+                    }
                     if (rotateConfirm.value) {
                         RotateTokenConfirmDialog(
                             onConfirm = {
@@ -264,6 +280,13 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.scan_pairing_qr_title),
                     summary = getString(R.string.scan_pairing_qr_summary),
                     onClick = ::launchQrScanner,
+                ),
+            )
+            add(
+                SettingsItem.Action(
+                    title = getString(R.string.link_activity_title),
+                    summary = getString(R.string.link_activity_summary),
+                    onClick = ::onLinkActivityClick,
                 ),
             )
 
@@ -583,6 +606,30 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
         } catch (_: Exception) {
             null
         }
+
+    private fun onLinkActivityClick() {
+        val service = (activity as? MainActivity)?.service
+        if (service == null) {
+            showMessage(R.string.pair_desktop_unavailable)
+            return
+        }
+        linkLogDialog.value = service.linkLogSnapshot()
+    }
+
+    private fun copyLinkActivity(logText: String) {
+        val cm = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText(getString(R.string.link_activity_title), logText))
+        showMessage(R.string.link_activity_copied)
+    }
+
+    private fun shareLinkActivity(logText: String) {
+        val intent =
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, logText.ifBlank { getString(R.string.link_activity_empty) })
+            }
+        startActivity(Intent.createChooser(intent, getString(R.string.link_activity_share_title)))
+    }
 
     private fun copyPairingPayload(payload: String) {
         val cm = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
