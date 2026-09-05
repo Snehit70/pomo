@@ -108,6 +108,104 @@ class LeastRemainingAdoptTest(unittest.TestCase):
         desk = payload(status="running", remaining=100.0, start_time=42.0, phase="short")
         self.assertFalse(is_same_session(current, desk))
 
+    def test_focus_overrides_break_any_remaining(self):
+        # Desk work vs phone break adopts even when desk has MORE remaining.
+        current = phone(
+            status="running", phase="short", remaining=300.0, start_time=1.0,
+        )
+        desk = payload(
+            status="running", phase="work", remaining=1400.0,
+            duration=1500.0, start_time=2.0,
+        )
+        self.assertFalse(is_same_session(current, desk))
+        self.assertTrue(can_adopt(current, desk))
+
+    def test_focus_overrides_long_break_any_remaining(self):
+        current = phone(
+            status="paused", phase="long", remaining=200.0, start_time=1.0,
+        )
+        desk = payload(
+            status="paused", phase="work", remaining=1400.0,
+            duration=1500.0, start_time=2.0,
+        )
+        self.assertTrue(can_adopt(current, desk))
+
+    def test_break_does_not_override_work(self):
+        # Desk break vs phone work is 409 busy even with LESS remaining.
+        current = phone(
+            status="running", phase="work", remaining=1400.0, start_time=1.0,
+        )
+        desk = payload(
+            status="running", phase="short", remaining=100.0,
+            duration=300.0, start_time=2.0,
+        )
+        self.assertFalse(can_adopt(current, desk))
+
+    def test_long_break_does_not_override_work(self):
+        current = phone(
+            status="paused", phase="work", remaining=1400.0, start_time=1.0,
+        )
+        desk = payload(
+            status="paused", phase="long", remaining=100.0,
+            duration=900.0, start_time=2.0,
+        )
+        self.assertFalse(can_adopt(current, desk))
+
+    def test_paused_counts_as_live_focus_wins(self):
+        current = phone(
+            status="paused", phase="short", remaining=250.0, start_time=1.0,
+        )
+        desk = payload(
+            status="paused", phase="work", remaining=1400.0,
+            duration=1500.0, start_time=2.0,
+        )
+        self.assertTrue(can_adopt(current, desk))
+        flipped = phone(
+            status="paused", phase="work", remaining=1400.0, start_time=1.0,
+        )
+        flipped_desk = payload(
+            status="paused", phase="short", remaining=100.0,
+            duration=300.0, start_time=2.0,
+        )
+        self.assertFalse(can_adopt(flipped, flipped_desk))
+
+    def test_break_vs_break_short_vs_long_least_remaining(self):
+        # Same class (both break, incl. short-vs-long) -> strict least-remaining.
+        current = phone(
+            status="running", phase="long", remaining=600.0, start_time=1.0,
+        )
+        self.assertTrue(
+            can_adopt(current, payload(
+                status="running", phase="short", remaining=599.0,
+                duration=300.0, start_time=2.0,
+            ))
+        )
+        self.assertFalse(
+            can_adopt(current, payload(
+                status="running", phase="short", remaining=600.0,
+                duration=300.0, start_time=2.0,
+            ))
+        )
+        self.assertFalse(
+            can_adopt(current, payload(
+                status="running", phase="short", remaining=601.0,
+                duration=300.0, start_time=2.0,
+            ))
+        )
+
+    def test_work_vs_work_least_remaining(self):
+        current = phone(status="running", phase="work", remaining=900.0, start_time=1.0)
+        self.assertTrue(
+            can_adopt(current, payload(
+                status="running", phase="work", remaining=899.0, start_time=2.0,
+            ))
+        )
+        self.assertFalse(
+            can_adopt(current, payload(
+                status="running", phase="work", remaining=900.0, start_time=2.0,
+            ))
+        )
+
     def test_adopt_reconstructs_missing_start_time_from_firmware_semantics(self):
         with tempfile.TemporaryDirectory() as directory, patch("pomo_link.client.time.time", return_value=2000):
             engine = Engine(directory=directory)

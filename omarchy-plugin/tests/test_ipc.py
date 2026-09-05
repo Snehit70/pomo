@@ -88,9 +88,25 @@ class EngineStatusFileTest(unittest.TestCase):
             engine._handle_ipc_line('{"cmd":"toggle"}')
             engine._handle_ipc_line('{"cmd":"skip"}')
             self.assertEqual(engine.pending_ipc_gestures, ["toggle", "skip"])
+            # IPC arrival order is preserved in the timestamp queue as well.
+            self.assertEqual(len(engine.pending_ipc_at), 2)
+            self.assertLessEqual(engine.pending_ipc_at[0], engine.pending_ipc_at[1])
             engine.drain_pending_gesture()
             engine.drain_pending_gesture()
             self.assertEqual(applied, ["toggle", "skip"])
+        finally:
+            tmp.cleanup()
+
+    def test_boot_local_ipc_toggle_runs_locally(self):
+        # Wave-1 boot-local: fresh boot owns the clock, so an IPC toggle
+        # applies immediately in arrival order instead of parking.
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            engine = Engine(directory=tmp.name, stdout_status=False)
+            self.assertTrue(engine.model.local_owner)
+            engine._handle_ipc_line('{"cmd":"toggle"}')
+            self.assertEqual(engine.pending_ipc_gestures, [])
+            self.assertEqual(engine.model.status, "running")
         finally:
             tmp.cleanup()
 

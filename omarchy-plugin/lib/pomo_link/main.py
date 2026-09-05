@@ -24,6 +24,13 @@ _last_error_at = 0.0
 
 GESTURE_COMMANDS = ("toggle", "skip", "reset", "extend")
 
+# Max time a gesture shows the "waiting to connect" hint while neither the
+# phone path nor local ownership is available. Fresh boot owns the local
+# clock (see Engine.__init__), so boot gestures run immediately; this only
+# bounds the hint for the residual neither-owned hold (e.g. a restored live
+# snapshot before OFFLINE flips ownership).
+GESTURE_HOLD_S = 2.0
+
 
 def _emit(obj):
     sys.stdout.write(json.dumps(obj, separators=(",", ":")) + "\n")
@@ -73,11 +80,11 @@ class Engine:
         self.model.phase_complete_handler = self._on_phase_complete
         self.model.session_complete_handler = self._on_session_complete
         self._restore_timer()
-        if not self.model.has_state:
-            # Stopped work idle for the bar during `.` probe. No local ownership
-            # yet — boot probe ignores gestures until OFFLINE / UNPAIRED.
-            self.model.set_local_owner(True)
-            self.model.set_local_owner(False)
+        # Boot owns the local clock until proven SYNCED — including a
+        # restored live snapshot — so gestures run offline immediately
+        # instead of waiting out the boot probe. SYNCED flips ownership
+        # back via client.set_mode; import+adopt resolves any conflict.
+        self.model.set_local_owner(True)
         self.client = PomoClient(self.model, self.queue, self.store)
         self.last_timer_snap_at = 0.0
         self.last_status = None
@@ -92,9 +99,11 @@ class Engine:
         # Last-wins gesture slot: a press replaces the queued one instead of
         # queueing behind it, so 3x Start is one toggle, not start-pause-start.
         self.pending_gesture = None
+        self.pending_gesture_at = 0.0
         # IPC commands are discrete requests from the CLI; preserve their
         # order instead of applying stdin's last-wins coalescing rule.
         self.pending_ipc_gestures = []
+        self.pending_ipc_at = []
         self._handling_ipc = False
         self._stdin_remainder = b""
         self._stdin_draining = False
@@ -142,14 +151,26 @@ class Engine:
         from_ipc = bool(self.pending_ipc_gestures)
         if from_ipc:
             gesture = self.pending_ipc_gestures[0]
+            enqueued_at = self.pending_ipc_at[0] if self.pending_ipc_at else time.monotonic()
         else:
             gesture = self.pending_gesture
+            enqueued_at = self.pending_gesture_at or time.monotonic()
         if gesture is None:
             return
         if not (self.client.phone_commands_active() or self.model.local_owner):
-            # Held until the mode change that allows it (BOOT / first
-            # CONNECTING / enter-SYNC). Never dropped silently.
-            return
+            # Neither path owns the clock (transient BOOT/DISCOVERING).
+            # Bound the hold to ~2s: show "waiting to connect" while fresh,
+            # then claim local ownership and fall through to execute. Safe
+            # because phone_commands_active() is False here, so no live
+            # phone clock is being stolen; SYNCED later flips back via
+            # client.set_mode and import+adopt resolves conflicts.
+            if time.monotonic() - enqueued_at < GESTURE_HOLD_S:
+                if not self.client.message:
+                    self.client.message = "waiting to connect"
+                return
+            if self.client.message == "waiting to connect":
+                self.client.message = ""
+            self.model.set_local_owner(True)
         if self.client.message == "waiting to connect":
             self.client.message = ""
         # Announce busy, then submit. On the phone path the gesture goes to
@@ -164,8 +185,11 @@ class Engine:
             raise
         if from_ipc:
             self.pending_ipc_gestures.pop(0)
+            if self.pending_ipc_at:
+                self.pending_ipc_at.pop(0)
         else:
             self.pending_gesture = None
+            self.pending_gesture_at = 0.0
         if not went_async:
             self.client.busy = False
             if self.model.local_owner:
@@ -375,10 +399,13 @@ class Engine:
             self.emit_status(force=True)
             return self.last_status
         if cmd in GESTURE_COMMANDS:
+            now = time.monotonic()
             if self._handling_ipc:
                 self.pending_ipc_gestures.append(cmd)
+                self.pending_ipc_at.append(now)
             else:
                 self.pending_gesture = cmd
+                self.pending_gesture_at = now
             if self.client.message == "waiting to connect":
                 self.client.message = ""
             if not (

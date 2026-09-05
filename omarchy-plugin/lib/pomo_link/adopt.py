@@ -23,10 +23,17 @@ def is_same_session(phone, payload):
 def can_adopt(phone, payload):
     """Whether the phone should take `payload` as the sole live clock.
 
+    Focus-over-break precedence (identical to Kotlin `canAdopt`):
+
     1. Phone STOPPED → always adopt.
     2. Same session (start_time + phase, both > 0) → always adopt.
-    3. Both live on different sessions → only if payload.remaining < phone.remaining.
-    4. Otherwise 409 timer_busy; client snaps to phone.
+    3. Both live (running/paused) on different sessions, different classes
+       (work vs short/long break) → work side wins: desk work vs phone
+       break adopts regardless of remaining; desk break vs phone work is
+       409 busy (client snaps to phone).
+    4. Both live, same class (both work, or both break incl. short-vs-long)
+       → strict least-remaining: payload.remaining < phone.remaining.
+    5. Otherwise 409 timer_busy; client snaps to phone.
     """
     if phone.get("status") == "stopped":
         return True
@@ -34,4 +41,11 @@ def can_adopt(phone, payload):
         return True
     if not is_live_status(phone.get("status")) or not is_live_status(payload.get("status")):
         return False
+    # Phase classes: work vs break (short/long). Non-work counts as break so
+    # short-vs-long stays in the same class and falls to least-remaining.
+    phone_work = phone.get("phase") == "work"
+    payload_work = payload.get("phase") == "work"
+    if phone_work != payload_work:
+        # Focus overrides break in either direction: only the work side wins.
+        return payload_work
     return float(payload.get("remaining") or 0.0) < float(phone.get("remaining") or 0.0)
