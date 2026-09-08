@@ -318,7 +318,7 @@ class SendTimeoutTest(unittest.TestCase):
             def settimeout(self, value):
                 pass
 
-            def sendall(self, data):
+            def send(self, data):
                 raise OSError("broken pipe")
 
             def close(self):
