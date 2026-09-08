@@ -31,12 +31,18 @@ class FakeWs:
     def send_text(self, text):
         self.sent.append(text)
 
+    def try_send_text(self, text):
+        self.sent.append(text)
+
     def close(self):
         self.connected = False
 
     def recv_ready(self, timeout):
         del timeout
         return False
+
+    def try_send_ping(self):
+        self.sent.append("ping")
 
     def read_texts(self):
         return []
@@ -194,6 +200,22 @@ class ReconnectTest(unittest.TestCase):
         self.assertFalse(self.model.local_owner)
         self.assertEqual(self.client.mode, "CONNECTING")
         self.assertGreater(self.client.last_socket_contact_at, 0)
+
+    def test_gesture_transport_failure_recovers_to_local_clock(self):
+        self.client.ever_synced = True
+        self.client.set_mode("SYNCED")
+        self.client.busy = True
+
+        self.client._apply_gesture_result("toggle", (0, ""))
+
+        self.assertFalse(self.client.busy)
+        self.assertEqual([tag for tag, _func in self.worker.jobs], ["soft_resync"])
+
+        self.rest.code = 0
+        self.worker.run_next(self.client)
+
+        self.assertEqual(self.client.mode, "OFFLINE")
+        self.assertTrue(self.model.local_owner)
 
 
 if __name__ == "__main__":

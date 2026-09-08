@@ -480,8 +480,24 @@ class PomoClient:
                 self.enter_offline("connect retries exhausted")
             return
         try:
-            self.ws.send_text(json.dumps({"type": "hello", "token": self.token}))
+            self.ws.try_send_text(json.dumps({"type": "hello", "token": self.token}))
         except WebSocketError as exc:
+            if "would block" in str(exc).lower():
+                self.log("hello send would block -> soft disconnect")
+                self.connect_failures += 1
+                self._note_pinned_failure()
+                self.last_socket_contact_at = 0.0
+                self.retry_started_at = time.monotonic()
+                self.retry_delay_s = RECONNECT_INTERVAL_S
+                if self.in_boot_probe():
+                    self.set_mode("DISCOVERING")
+                    return
+                self.set_mode("CONNECTING")
+                if self.connect_failures >= CONNECT_RETRY_MAX:
+                    self.enter_offline("connect retries exhausted")
+                    return
+                self.on_websocket_disconnected()
+                return
             self.log("hello send failed: %s" % exc)
             self.connect_failures += 1
             self._note_pinned_failure()
@@ -526,7 +542,7 @@ class PomoClient:
     def _apply_soft_resync_result(self, result):
         self.soft_resyncing = False
         code, _body = self._result_tuple(result)
-        if self.mode == "SYNCED":
+        if code == 200 and self.mode == "SYNCED":
             # The old socket delivered a state frame while we probed; the
             # light path already re-synced us.
             return
@@ -885,7 +901,7 @@ class PomoClient:
             return
         self.last_ping_at = now
         try:
-            self.ws.send_ping()
+            self.ws.try_send_ping()
         except WebSocketError:
             self.on_websocket_disconnected()
 
@@ -1327,6 +1343,14 @@ class PomoClient:
             return
         if code == 0:
             self.note_error("%s failed: phone unreachable" % tag)
+            if self.mode in ("SYNCED", "CONNECTING"):
+                # A dead phone must not leave the bar in a permanent
+                # phone-owned state. Probe reachability immediately; the
+                # failed probe transitions to OFFLINE and restores the
+                # local clock.
+                self.soft_resync("gesture transport fail")
+            else:
+                self.enter_offline("gesture transport fail")
             return
         self.note_error("%s failed: http %s" % (tag, code))
 
