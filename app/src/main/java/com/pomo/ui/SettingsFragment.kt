@@ -6,8 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.graphics.Bitmap
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -46,7 +44,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -57,8 +54,6 @@ import androidx.preference.PreferenceManager
 import com.google.android.material.transition.MaterialFadeThrough
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.MultiFormatWriter
 import com.pomo.BuildConfig
 import com.pomo.MainActivity
 import com.pomo.R
@@ -85,7 +80,7 @@ import java.time.ZoneId
 public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListener {
     private val gson = Gson()
 
-    private val pairingDialog = mutableStateOf<PairingDialogData?>(null)
+    private val pairingDialog = mutableStateOf<PairingSheetData?>(null)
     private val rotateConfirm = mutableStateOf(false)
     private val scanResult = mutableStateOf<ScanResultData?>(null)
     private val restorePreview = mutableStateOf<RestorePreviewData?>(null)
@@ -196,15 +191,17 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     )
 
                     pairingDialog.value?.let { data ->
-                        PairingDialog(
+                        PairingSheet(
                             data = data,
-                            onCopy = {
-                                copyPairingPayload(data.payload)
+                            onCopy = { copyToClipboard(it) },
+                            onShare = { sharePairingPayload(data.payload) },
+                            onRotate = {
                                 pairingDialog.value = null
+                                rotateConfirm.value = true
                             },
-                            onShare = {
-                                sharePairingPayload(data.payload)
+                            onScan = {
                                 pairingDialog.value = null
+                                launchQrScanner()
                             },
                             onDismiss = { pairingDialog.value = null },
                         )
@@ -648,13 +645,11 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
             showMessage(R.string.pair_desktop_unavailable)
             return
         }
-        val qrSize = (220 * resources.displayMetrics.density).toInt()
         pairingDialog.value =
-            PairingDialogData(
+            PairingSheetData(
                 url = service.pairingUrl,
                 token = service.pairingToken,
                 payload = service.pairingPayload,
-                qr = createQrBitmap(service.pairingPayload, qrSize)?.asImageBitmap(),
             )
     }
 
@@ -668,26 +663,10 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
         }
     }
 
-    private fun createQrBitmap(
-        payload: String,
-        size: Int,
-    ): Bitmap? =
-        try {
-            val matrix = MultiFormatWriter().encode(payload, BarcodeFormat.QR_CODE, size, size)
-            Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).also { bmp ->
-                for (x in 0 until size) {
-                    for (y in 0 until size) {
-                        bmp.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            null
-        }
 
-    private fun copyPairingPayload(payload: String) {
+    private fun copyToClipboard(text: String) {
         val cm = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText(getString(R.string.pair_desktop_title), payload))
+        cm.setPrimaryClip(ClipData.newPlainText(getString(R.string.pair_desktop_title), text))
         showMessage(R.string.pairing_copied)
     }
 

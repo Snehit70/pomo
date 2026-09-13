@@ -53,6 +53,9 @@
     <string name="pairing_token_label">Pairing token</string>
     <string name="pairing_payload_label">Pairing payload</string>
     <string name="pairing_copy">Copy</string>
+    <string name="pairing_sheet_instructions">On your desktop, run the command below, or copy the setup code.</string>
+    <string name="pairing_toggle_token">Show or hide token</string>
+    <string name="pairing_copy_code">Copy setup code</string>
     <string name="pairing_share">Share</string>
     <string name="pairing_copied">Pairing payload copied</string>
     <string name="pairing_share_title">Share Pomo pairing</string>
