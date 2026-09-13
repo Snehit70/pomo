@@ -1,8 +1,8 @@
 package com.pomo.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,8 +31,6 @@ import com.pomo.BuildConfig
 import com.pomo.R
 import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.SectionHeader
-import com.pomo.ui.components.PomoButton
-import com.pomo.ui.components.SectionHeaderVariant
 import com.pomo.ui.theme.PomoRadius
 import com.pomo.update.ApkInstaller
 import com.pomo.update.DownloadOutcome
@@ -198,10 +196,11 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
                         PomoButton(
                             onClick = { install(s.release) },
                             variant = PomoButtonVariant.Tonal,
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                horizontal = 14.dp,
-                                vertical = 8.dp,
-                            ),
+                            contentPadding =
+                                PaddingValues(
+                                    horizontal = 14.dp,
+                                    vertical = 8.dp,
+                                ),
                         ) { Text(stringResource(R.string.updates_install_action)) }
                     is UpdateUiState.Downloading -> Unit
                     UpdateUiState.Installing -> Unit
@@ -229,6 +228,6 @@ private fun UpdateActionButton(
         onClick = onClick,
         variant = PomoButtonVariant.Ghost,
         enabled = enabled,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
     ) { Text(label) }
 }

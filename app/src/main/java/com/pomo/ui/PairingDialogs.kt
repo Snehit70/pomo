@@ -30,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.pomo.R
 import com.pomo.ui.components.PomoButton
@@ -51,8 +50,10 @@ internal data class ScanResultData(
 )
 
 /** Masked token display: dots with a readable tail until the eye toggles it open. */
-private fun maskedToken(token: String, shown: Boolean): String =
-    if (shown) token else "••••••••••••" + token.takeLast(4)
+private fun maskedToken(
+    token: String,
+    shown: Boolean,
+): String = if (shown) token else "••••••••••••" + token.takeLast(4)
 
 private fun buildCommand(
     url: String,

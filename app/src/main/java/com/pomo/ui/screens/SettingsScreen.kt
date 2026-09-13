@@ -22,10 +22,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Casino
@@ -75,7 +73,6 @@ import com.pomo.ui.components.SegmentedToggle
 import com.pomo.ui.components.SegmentedToggleOption
 import com.pomo.ui.theme.JetBrainsMono
 import com.pomo.ui.theme.PomoRadius
-import com.pomo.util.UtilPreferenceManager
 import kotlin.random.Random
 
 public sealed interface SettingsItem {
@@ -342,16 +339,19 @@ private fun SettingsGroupCard(
                         is SettingsItem.Section -> Unit
                         is SettingsItem.Note -> NoteRow(item)
                         is SettingsItem.IntPref -> IntPrefRow(prefs, item)
-                        is SettingsItem.BoolPref -> GatedRow(prefs, item.enabledWhen, item.enabledPrefKeys) {
-                            BoolPrefRow(prefs, item, it)
-                        }
-                        is SettingsItem.ChoicePref -> GatedRow(prefs, item.enabledWhen, item.enabledPrefKeys) {
-                            ChoicePrefRow(prefs, item)
-                        }
+                        is SettingsItem.BoolPref ->
+                            GatedRow(prefs, item.enabledWhen, item.enabledPrefKeys) {
+                                BoolPrefRow(prefs, item, it)
+                            }
+                        is SettingsItem.ChoicePref ->
+                            GatedRow(prefs, item.enabledWhen, item.enabledPrefKeys) {
+                                ChoicePrefRow(prefs, item)
+                            }
                         is SettingsItem.SegmentedPref -> SegmentedPrefRow(prefs, item)
-                        is SettingsItem.Action -> GatedRow(prefs, item.enabledWhen, item.enabledPrefKeys) {
-                            ActionRow(item, it)
-                        }
+                        is SettingsItem.Action ->
+                            GatedRow(prefs, item.enabledWhen, item.enabledPrefKeys) {
+                                ActionRow(item, it)
+                            }
                         is SettingsItem.CompletionCuePreview -> CompletionCuePreviewRow(prefs, item)
                         is SettingsItem.ManualHapticPreview -> ManualHapticPreviewRow(prefs, item)
                     }

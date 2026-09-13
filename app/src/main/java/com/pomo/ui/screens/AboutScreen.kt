@@ -90,16 +90,17 @@ public fun AboutScreen(onBack: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable {
-                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(
-                    ClipData.newPlainText(
-                        context.getString(R.string.app_name),
-                        "${context.getString(R.string.app_name)} ${BuildConfig.VERSION_NAME}",
-                    ),
-                )
-                Toast.makeText(context, R.string.about_version_copied, Toast.LENGTH_SHORT).show()
-            },
+            modifier =
+                Modifier.clickable {
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(
+                        ClipData.newPlainText(
+                            context.getString(R.string.app_name),
+                            "${context.getString(R.string.app_name)} ${BuildConfig.VERSION_NAME}",
+                        ),
+                    )
+                    Toast.makeText(context, R.string.about_version_copied, Toast.LENGTH_SHORT).show()
+                },
         ) {
             Text(
                 text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
