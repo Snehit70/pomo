@@ -1,20 +1,29 @@
 package com.pomo.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -22,12 +31,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -37,6 +48,11 @@ import com.pomo.ui.components.PomoButtonVariant
 import com.pomo.ui.components.PomoDialog
 import com.pomo.ui.components.PomoSheet
 import com.pomo.ui.theme.JetBrainsMono
+import com.pomo.ui.theme.PomoRadius
+import com.pomo.ui.theme.PomoTokens
+import com.pomo.ui.theme.SuccessGreenDark
+import com.pomo.ui.theme.SuccessGreenLight
+import kotlinx.coroutines.delay
 
 internal data class PairingSheetData(
     val url: String,
@@ -68,8 +84,18 @@ internal fun PairingSheet(
     onRotate: () -> Unit,
     onScan: () -> Unit,
     onDismiss: () -> Unit,
+    connectedProvider: () -> Int = { 0 },
 ) {
     var tokenShown by remember { mutableStateOf(false) }
+    var connectedClients by remember { mutableStateOf(connectedProvider()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            connectedClients = connectedProvider()
+            delay(1_000)
+        }
+    }
+    val connected = connectedClients > 0
+    val successGreen = if (PomoTokens.colors.isDark) SuccessGreenDark else SuccessGreenLight
 
     PomoSheet(title = stringResource(R.string.pair_desktop_title), onDismissRequest = onDismiss) {
         Column(
@@ -81,27 +107,63 @@ internal fun PairingSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Column(
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val pulse = rememberInfiniteTransition()
+                val dotAlpha by pulse.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 0.3f,
+                    animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+                )
+                Box(
+                    modifier =
+                        Modifier
+                            .size(8.dp)
+                            .alpha(if (connected) 1f else dotAlpha)
+                            .background(
+                                if (connected) successGreen else MaterialTheme.colorScheme.primary,
+                                CircleShape,
+                            ),
+                )
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    stringResource(
+                        if (connected) R.string.pairing_status_connected else R.string.pairing_status_waiting,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color =
+                        if (connected) {
+                            successGreen
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                )
+            }
+            Box(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium),
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PomoRadius.Md))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            RoundedCornerShape(PomoRadius.Md),
+                        ),
             ) {
                 SelectionContainer {
                     Text(
                         text = buildCommand(data.url, maskedToken(data.token, tokenShown)),
                         style = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMono),
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 14.dp, top = 12.dp, end = 44.dp),
+                        modifier = Modifier.padding(start = 14.dp, top = 12.dp, end = 44.dp, bottom = 12.dp),
                     )
                 }
                 IconButton(
-                    onClick = { tokenShown = !tokenShown },
-                    modifier = Modifier.align(Alignment.End),
+                    onClick = { onCopy(buildCommand(data.url, data.token)) },
+                    modifier = Modifier.align(Alignment.TopEnd),
                 ) {
                     Icon(
-                        imageVector = if (tokenShown) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        contentDescription = stringResource(R.string.pairing_toggle_token),
+                        Icons.Outlined.ContentCopy,
+                        contentDescription = stringResource(R.string.pairing_copy_command),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -238,6 +300,11 @@ private fun SheetActionRow(
                 )
             }
         }
+        Icon(
+            Icons.AutoMirrored.Outlined.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

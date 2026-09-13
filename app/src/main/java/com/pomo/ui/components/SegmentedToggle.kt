@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -11,13 +12,16 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.pomo.ui.theme.PomoTheme
 
 public data class SegmentedToggleOption(
     val value: String,
     val label: String,
     val weight: Float = 1f,
+    val icon: ImageVector? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +47,13 @@ public fun SegmentedToggle(
                         activeContentColor = MaterialTheme.colorScheme.primary,
                     ),
             ) {
+                if (option.icon != null) {
+                    Icon(
+                        option.icon,
+                        contentDescription = null,
+                        modifier = Modifier.height(18.dp),
+                    )
+                }
                 Text(option.label)
             }
         }

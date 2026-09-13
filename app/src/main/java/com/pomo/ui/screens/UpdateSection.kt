@@ -1,14 +1,17 @@
 package com.pomo.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
@@ -25,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -162,7 +166,12 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
                             UpdateUiState.Checking -> stringResource(R.string.updates_checking_summary)
                             UpdateUiState.UpToDate -> stringResource(R.string.updates_up_to_date_summary, BuildConfig.VERSION_NAME)
                             is UpdateUiState.Available -> stringResource(R.string.updates_available_summary, s.release.versionName)
-                            is UpdateUiState.Downloading -> stringResource(R.string.updates_downloading_summary, s.release.versionName)
+                            is UpdateUiState.Downloading ->
+                                stringResource(
+                                    R.string.updates_downloading_summary,
+                                    s.release.versionName,
+                                    (s.progress * 100).toInt(),
+                                )
                             UpdateUiState.Installing -> stringResource(R.string.updates_installing_summary)
                             is UpdateUiState.Failed -> stringResource(s.messageRes)
                         }
@@ -178,12 +187,24 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
                     )
                     val s = state
                     if (s is UpdateUiState.Downloading) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "${(s.progress * 100).toInt()}%",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Spacer(Modifier.height(8.dp))
+                        Box(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                        ) {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth(s.progress)
+                                        .fillMaxHeight()
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary),
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.width(8.dp))
@@ -197,7 +218,7 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
                     is UpdateUiState.Available ->
                         PomoButton(
                             onClick = { install(s.release) },
-                            variant = PomoButtonVariant.Tonal,
+                            variant = PomoButtonVariant.Filled,
                             contentPadding =
                                 PaddingValues(
                                     horizontal = 14.dp,

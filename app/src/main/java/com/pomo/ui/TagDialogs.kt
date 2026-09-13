@@ -16,9 +16,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.LabelOff
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,7 +32,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -42,9 +46,15 @@ import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
 import com.pomo.ui.components.PomoDialog
 import com.pomo.ui.components.PomoSheet
+import com.pomo.ui.theme.PomoRadius
 import com.pomo.ui.theme.PomoTokens
+import com.pomo.ui.theme.SuccessGreenDark
+import com.pomo.ui.theme.SuccessGreenLight
 import com.pomo.ui.theme.tagPalette
 import com.pomo.ui.theme.tagPaletteLight
+
+@Composable
+private fun successGreen(): Color = if (PomoTokens.colors.isDark) SuccessGreenDark else SuccessGreenLight
 
 @Composable
 internal fun TagManagerDialog(onDismiss: () -> Unit) {
@@ -84,16 +94,21 @@ internal fun TagManagerDialog(onDismiss: () -> Unit) {
             }
         }
         Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+            val dashEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
+            val outlineColor = MaterialTheme.colorScheme.outline
             Row(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .clickable { showAddDialog = true }
-                        .background(
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.shapes.medium,
-                        )
-                        .padding(vertical = 12.dp),
+                        .height(40.dp)
+                        .drawBehind {
+                            drawRoundRect(
+                                color = outlineColor,
+                                cornerRadius = CornerRadius(PomoRadius.Md.toPx()),
+                                style = Stroke(width = 1.dp.toPx(), pathEffect = dashEffect),
+                            )
+                        }
+                        .clickable { showAddDialog = true },
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -287,11 +302,21 @@ internal fun TagPickerSheet(
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit,
     showUntagged: Boolean = true,
+    title: String = stringResource(R.string.session_tags_title),
+    subtitle: String? = null,
 ) {
     val context = LocalContext.current
     val tagStore = remember { TagStore(context) }
 
-    PomoSheet(title = stringResource(R.string.session_tags_title), onDismissRequest = onDismiss) {
+    PomoSheet(title = title, onDismissRequest = onDismiss) {
+        if (subtitle != null) {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
+        }
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             if (showUntagged) {
                 PickerRow(
@@ -349,12 +374,19 @@ private fun PickerRow(
             style = MaterialTheme.typography.bodyLarge,
             color =
                 if (selected) {
-                    MaterialTheme.colorScheme.primary
+                    successGreen()
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
             modifier = Modifier.weight(1f).padding(start = 12.dp),
         )
-        Checkbox(checked = selected, onCheckedChange = null)
+        if (selected) {
+            Icon(
+                Icons.Outlined.Check,
+                contentDescription = null,
+                tint = successGreen(),
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }

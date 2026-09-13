@@ -23,6 +23,7 @@
     <string name="settings_title">Settings</string>
     <string name="settings_search_hint">Search settings</string>
     <string name="settings_search_empty">No settings match your search</string>
+    <string name="settings_search_clear">Clear search</string>
     <string name="number_editor_random">Random value</string>
     <string name="number_editor_range">Between %1$d and %2$d</string>
     <string name="number_editor_ok">OK</string>
@@ -37,7 +38,7 @@
     <string name="updates_again_action">Again</string>
     <string name="updates_available_summary">Version %1$s is available</string>
     <string name="updates_install_action">Update</string>
-    <string name="updates_downloading_summary">Downloading version %1$s</string>
+    <string name="updates_downloading_summary">Downloading version %1$s… %2$d%%</string>
     <string name="updates_installing_summary">Opening the installer…</string>
     <string name="updates_error_offline">No connection. Check your network and try again.</string>
     <string name="updates_error_rate_limited">GitHub rate limit reached. Try again later.</string>
@@ -59,16 +60,16 @@
     <string name="ip_address_summary">Desktop clients connect to the phone URL shown in pairing.</string>
     
     <string name="phone_api_port_title">Phone API port</string>
-    <string name="phone_api_port_summary">Port used by desktop clients on this phone</string>
+    <string name="phone_api_port_summary">Port desktop clients connect to</string>
     <string name="phone_api_enabled_title">Phone API</string>
-    <string name="phone_api_enabled_summary">Allow paired desktop clients to connect to this phone</string>
+    <string name="phone_api_enabled_summary">Let paired desktop clients connect</string>
     <string name="phone_api_wifi_only_title">Wi-Fi only</string>
-    <string name="phone_api_wifi_only_summary">Serve the phone API only on Wi-Fi or Ethernet</string>
-    <string name="pair_desktop_title">Pair desktop client</string>
-    <string name="pair_desktop_summary">Show URL, token, and QR for desktop setup</string>
+    <string name="phone_api_wifi_only_summary">Serve the phone API over Wi-Fi or Ethernet</string>
+    <string name="pair_desktop_title">Pairing</string>
+    <string name="pair_desktop_summary">Connect desktop clients</string>
     <string name="pair_desktop_unavailable">Start the timer service, then reopen this screen.</string>
     <string name="rotate_pairing_token_title">Rotate pairing token</string>
-    <string name="rotate_pairing_token_summary">Invalidate existing desktop pairings</string>
+    <string name="rotate_pairing_token_summary">Disconnects every paired desktop</string>
     <string name="rotate_pairing_token_confirm">Existing desktop clients will stop working until paired again.</string>
     <string name="rotate_pairing_token_action">Rotate</string>
     <string name="rotate_pairing_token_done">Pairing token rotated</string>
@@ -79,10 +80,13 @@
     <string name="pairing_sheet_instructions">On your desktop, run the command below, or copy the setup code.</string>
     <string name="pairing_toggle_token">Show or hide token</string>
     <string name="pairing_copy_code">Copy setup code</string>
+    <string name="pairing_copy_command">Copy command</string>
     <string name="pairing_share">Share</string>
     <string name="pairing_copied">Pairing payload copied</string>
     <string name="pairing_share_title">Share Pomo pairing</string>
-    <string name="scan_pairing_qr_title">Scan pairing QR</string>
+    <string name="pairing_status_waiting">Waiting for a desktop to connect…</string>
+    <string name="pairing_status_connected">Desktop connected</string>
+    <string name="scan_pairing_qr_title">Scan a pairing QR</string>
     <string name="scan_pairing_qr_summary">Read a Pomo pairing QR from another screen</string>
     <string name="scan_pairing_qr_missing">No QR scanner app is installed.</string>
     <string name="scan_pairing_qr_invalid">That QR code is not a Pomo pairing payload.</string>
@@ -95,11 +99,11 @@
     
     <string name="sound_title">Sound</string>
     <string name="sound_summary">Deliver completion cues through app-owned sounds</string>
-    <string name="state_cues_note">State cues mark timer transitions without reward or alarm cues.</string>
+    <string name="state_cues_note">Sounds and vibrations when the timer switches phase</string>
     <string name="state_cues_stronger_title">Stronger completion cues</string>
-    <string name="state_cues_stronger_summary">Use stronger completion cue delivery for easier detection</string>
-    <string name="ring_until_dismissed_title">Ring until acknowledged</string>
-    <string name="ring_until_dismissed_summary">Loop the completion alert for up to 1 minute until you dismiss it or act on the timer</string>
+    <string name="state_cues_stronger_summary">Stronger delivery for easier detection</string>
+    <string name="ring_until_dismissed_title">Ring until dismissed</string>
+    <string name="ring_until_dismissed_summary">Loop the alert up to 1 minute until dismissed</string>
     <string name="ring_sound_title">Ring sound</string>
     <string name="ring_sound_summary">Sound looped while ringing</string>
     <string name="ring_sound_system">System alarm</string>
@@ -120,7 +124,7 @@
     <string name="state_cues_short_break_complete_summary">Gentle return to focus</string>
     <string name="state_cues_long_break_complete_title">Long break complete</string>
     <string name="state_cues_long_break_complete_summary">Fresh reset into focus</string>
-    <string name="state_cues_start_resume_title">Start/Resume</string>
+    <string name="state_cues_start_resume_title">Start / Resume</string>
     <string name="state_cues_start_resume_summary">Subtle confirmation</string>
     <string name="state_cues_pause_title">Pause</string>
     <string name="state_cues_pause_summary">Neutral hold</string>
@@ -149,20 +153,21 @@
     <string name="state_cues_preview_button">Preview</string>
     <string name="state_cues_preview_audio">Audio</string>
     <string name="state_cues_preview_haptic">Haptic</string>
-    <string name="state_cues_preview_haptic_button">Preview haptic</string>
+    <string name="state_cues_preview_haptic_button">Play</string>
 
     <!-- Timer Settings -->
     <string name="category_timer">Timer</string>
-    <string name="pomodoro_duration_title">Focus Duration</string>
+    <string name="pomodoro_duration_title">Focus duration</string>
     <string name="pomodoro_duration_summary">Duration of focus sessions (minutes)</string>
-    <string name="short_break_title">Short Break</string>
+    <string name="short_break_title">Short break</string>
     <string name="short_break_summary">Duration of short breaks (minutes)</string>
-    <string name="long_break_title">Long Break</string>
+    <string name="long_break_title">Long break</string>
     <string name="long_break_summary">Duration of long breaks (minutes)</string>
+    <string name="long_break_interval_summary">Every 4 focus phases</string>
 
     <!-- Session Tags -->
     <string name="category_session_tags">Session Tags</string>
-    <string name="session_tags_title">Session Tags</string>
+    <string name="session_tags_title">Session tags</string>
     <string name="session_tags_summary">Label work blocks to track what you focused on</string>
     <string name="session_tags_manage">Manage Tags</string>
     <string name="session_tags_add">Add tag</string>
@@ -181,6 +186,7 @@
     <string name="session_tags_untagged_picker">Untagged</string>
     <string name="default_tag_title">Default tag</string>
     <string name="default_tag_summary">Applied to new focus blocks</string>
+    <string name="default_tag_picker_sub">Applied to new focus blocks unless you pick another tag on the timer.</string>
 
     <!-- Goals -->
     <string name="category_goals">Goals</string>
@@ -196,8 +202,8 @@
         <item>light</item>
         <item>dark</item>
     </string-array>
-    <string name="daily_goal_title">Daily Goal</string>
-    <string name="daily_goal_summary">Number of focus sessions per day</string>
+    <string name="daily_goal_title">Daily goal</string>
+    <string name="daily_goal_summary">Completed blocks to reach each day</string>
     <string name="release_notes_title">Release notes</string>
     <string name="release_notes_summary">Read what shipped in version %1$s</string>
     <string name="release_notes_installed_version">Installed version %1$s</string>
@@ -238,7 +244,7 @@
     <string name="about_made_with">Made with ❤️ and Kotlin</string>
 
     <string name="backup_export_title">Export backup</string>
-    <string name="backup_export_summary">Save history, crews, and identity to a JSON file you keep</string>
+    <string name="backup_export_summary">Save history, crews, and identity to a JSON file</string>
     <string name="backup_export_done">Backup saved</string>
     <string name="backup_export_failed">Backup could not be saved</string>
     <string name="backup_restore_title">Restore backup</string>
