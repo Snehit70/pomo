@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.OpenInNew
@@ -346,7 +347,7 @@ private fun LoadedNotes(
         )
         Spacer(Modifier.width(6.dp))
         Icon(
-            Icons.Outlined.OpenInNew,
+            Icons.AutoMirrored.Outlined.OpenInNew,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp),
