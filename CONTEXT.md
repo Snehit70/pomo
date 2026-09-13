@@ -232,3 +232,25 @@ One named render target of an instrument family — the extension's New Tab page
 side panel, popup, or badge. Surfaces share one engine state and one theme token
 set; they differ only in size and density.
 _Avoid_: page, window (generic), widget (the Android term).
+
+## Design process
+
+**Mock**:
+A disposable, high-fidelity rendering of a candidate UI built from the app's
+real design tokens, used to reach agreement before implementation. Never
+shipped, and never partially mirrored into code — the picked design is
+implemented once, fully.
+_Avoid_: prototype (implies evolving into code), wireframe, screenshot.
+
+**UI round**:
+One focused pass that takes a surface to fully consistent with the shared
+design tokens and string resources — no hardcoded measurements, colors,
+shapes, or copy. A round defines shared components when a surface forces the
+question; those components then apply app-wide.
+_Avoid_: redesign (too broad), polish (too vague).
+
+**Page shell**:
+The shared chrome every full-screen page composes from — back header with the
+page title, background, grouped cards with section headers, and edge spacing.
+Content varies between pages; shell anatomy does not.
+_Avoid_: layout, scaffold (a Compose type), theme.

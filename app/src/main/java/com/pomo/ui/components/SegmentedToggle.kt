@@ -27,12 +27,14 @@ public fun SegmentedToggle(
     selectedValue: String,
     onSelectedValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     SingleChoiceSegmentedButtonRow(modifier = modifier.height(IntrinsicSize.Min)) {
         options.forEachIndexed { index, option ->
             SegmentedButton(
                 selected = option.value == selectedValue,
                 onClick = { onSelectedValueChange(option.value) },
+                enabled = enabled,
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
                 modifier = Modifier.weight(option.weight).fillMaxHeight(),
                 colors =

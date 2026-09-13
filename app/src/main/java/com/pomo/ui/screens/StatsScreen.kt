@@ -73,6 +73,8 @@ import com.pomo.ui.components.SectionHeader
 import com.pomo.ui.components.rhythmCaption
 import com.pomo.ui.theme.PomoTokens
 import com.pomo.ui.theme.TimerTextStyle
+import com.pomo.ui.theme.tagPalette
+import com.pomo.ui.theme.tagPaletteLight
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -706,34 +708,6 @@ private enum class TagRange(val label: String) {
     Days30("30D"),
     All("All"),
 }
-
-private val tagPalette =
-    listOf(
-        Color(0xFF64B5F6),
-        Color(0xFF81C784),
-        Color(0xFFFFB74D),
-        Color(0xFFF06292),
-        Color(0xFFBA68C8),
-        Color(0xFF4DD0E1),
-        Color(0xFFFF8A65),
-        Color(0xFF90A4AE),
-        Color(0xFFAED581),
-        Color(0xFF7986CB),
-    )
-
-private val tagPaletteLight =
-    listOf(
-        Color(0xFF1565C0),
-        Color(0xFF2E7D32),
-        Color(0xFFEF6C00),
-        Color(0xFFC2185B),
-        Color(0xFF7B1FA2),
-        Color(0xFF00838F),
-        Color(0xFFD84315),
-        Color(0xFF455A64),
-        Color(0xFF558B2F),
-        Color(0xFF3949AB),
-    )
 
 private const val MAX_VISIBLE_TAGS = 8
 

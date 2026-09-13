@@ -1,19 +1,20 @@
 package com.pomo.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,14 +23,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.pomo.BuildConfig
+import com.pomo.R
 import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
+import com.pomo.ui.components.SectionHeader
+import com.pomo.ui.theme.PomoRadius
 import com.pomo.update.ApkInstaller
 import com.pomo.update.DownloadOutcome
 import com.pomo.update.GithubUpdateChecker
@@ -52,13 +56,13 @@ private sealed interface UpdateUiState {
 
     data object Installing : UpdateUiState
 
-    data class Failed(val message: String, val canOpenSettings: Boolean = false) : UpdateUiState
+    data class Failed(val messageRes: Int, val canOpenSettings: Boolean = false) : UpdateUiState
 }
 
 /**
- * The manual "Check for updates" card for the About screen. Hosts its own state (the
- * codebase has no ViewModel layer); pure logic lives in [GithubUpdateChecker] and
- * [ApkInstaller]. Callers gate this to the canonical build — the `.demo` build hides it.
+ * The manual "Check for updates" row, first group of the settings list. Hosts its own
+ * state (the codebase has no ViewModel layer); pure logic lives in [GithubUpdateChecker]
+ * and [ApkInstaller]. Callers gate this to the canonical build — the `.demo` build hides it.
  */
 @Composable
 internal fun UpdateSection(modifier: Modifier = Modifier) {
@@ -81,14 +85,10 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
                 when (val result = checker.check(BuildConfig.VERSION_NAME)) {
                     is UpdateCheckResult.UpdateAvailable -> UpdateUiState.Available(result.release)
                     UpdateCheckResult.UpToDate -> UpdateUiState.UpToDate
-                    UpdateCheckResult.Offline ->
-                        UpdateUiState.Failed("No connection. Check your network and try again.")
-                    UpdateCheckResult.RateLimited ->
-                        UpdateUiState.Failed("GitHub rate limit reached. Try again later.")
-                    UpdateCheckResult.MalformedMetadata ->
-                        UpdateUiState.Failed("Couldn't read the latest release. Try again later.")
-                    UpdateCheckResult.MissingAsset ->
-                        UpdateUiState.Failed("The latest release has no installable file yet.")
+                    UpdateCheckResult.Offline -> UpdateUiState.Failed(R.string.updates_error_offline)
+                    UpdateCheckResult.RateLimited -> UpdateUiState.Failed(R.string.updates_error_rate_limited)
+                    UpdateCheckResult.MalformedMetadata -> UpdateUiState.Failed(R.string.updates_error_malformed)
+                    UpdateCheckResult.MissingAsset -> UpdateUiState.Failed(R.string.updates_error_missing_asset)
                 }
         }
     }
@@ -97,7 +97,7 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
         if (!ApkInstaller.canInstall(context)) {
             state =
                 UpdateUiState.Failed(
-                    "Allow Pomo to install apps, then try again.",
+                    R.string.updates_error_install_permission,
                     canOpenSettings = true,
                 )
             return
@@ -116,103 +116,104 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
                             UpdateUiState.Installing
                         } else {
                             UpdateUiState.Failed(
-                                "Allow Pomo to install apps, then try again.",
+                                R.string.updates_error_install_permission,
                                 canOpenSettings = true,
                             )
                         }
                     }
-                    DownloadOutcome.Offline ->
-                        UpdateUiState.Failed("Download interrupted. Check your network and try again.")
-                    DownloadOutcome.Corrupt ->
-                        UpdateUiState.Failed("Download was corrupted. Try again.")
-                    DownloadOutcome.Failed ->
-                        UpdateUiState.Failed("Download failed. Try again.")
+                    DownloadOutcome.Offline -> UpdateUiState.Failed(R.string.updates_error_download_interrupted)
+                    DownloadOutcome.Corrupt -> UpdateUiState.Failed(R.string.updates_error_corrupt)
+                    DownloadOutcome.Failed -> UpdateUiState.Failed(R.string.updates_error_failed)
                 }
         }
     }
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(
-                "Updates",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.height(12.dp))
-
-            when (val s = state) {
-                UpdateUiState.Idle -> {
-                    StatusText("You're on version ${BuildConfig.VERSION_NAME}.")
-                    Spacer(Modifier.height(12.dp))
-                    PomoButton(onClick = ::check) { Text("Check for updates") }
-                }
-
-                UpdateUiState.Checking -> {
-                    StatusText("Checking for updates…")
-                    Spacer(Modifier.height(12.dp))
-                    PomoButton(onClick = {}, enabled = false, loading = true) { Text("Checking") }
-                }
-
-                UpdateUiState.UpToDate -> {
-                    StatusText("You're on the latest version (${BuildConfig.VERSION_NAME}).")
-                    Spacer(Modifier.height(12.dp))
-                    PomoButton(onClick = ::check, variant = PomoButtonVariant.Ghost) {
-                        Text("Check again")
-                    }
-                }
-
-                is UpdateUiState.Available -> {
-                    StatusText(
-                        "Version ${s.release.versionName} is available.",
-                        emphasis = true,
+    Column(modifier = modifier) {
+        SectionHeader(
+            stringResource(R.string.updates_title),
+            modifier = Modifier.padding(start = 4.dp, bottom = 10.dp),
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(PomoRadius.Lg),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Outlined.Download,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 12.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.updates_check_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
-                    if (s.release.releaseNotes.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        ReleaseNotes(s.release.releaseNotes)
+                    Spacer(Modifier.height(2.dp))
+                    val summary =
+                        when (val s = state) {
+                            UpdateUiState.Idle -> stringResource(R.string.updates_idle_summary, BuildConfig.VERSION_NAME)
+                            UpdateUiState.Checking -> stringResource(R.string.updates_checking_summary)
+                            UpdateUiState.UpToDate -> stringResource(R.string.updates_up_to_date_summary, BuildConfig.VERSION_NAME)
+                            is UpdateUiState.Available -> stringResource(R.string.updates_available_summary, s.release.versionName)
+                            is UpdateUiState.Downloading -> stringResource(R.string.updates_downloading_summary, s.release.versionName)
+                            UpdateUiState.Installing -> stringResource(R.string.updates_installing_summary)
+                            is UpdateUiState.Failed -> stringResource(s.messageRes)
+                        }
+                    Text(
+                        summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color =
+                            if (state is UpdateUiState.Available) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    )
+                    val s = state
+                    if (s is UpdateUiState.Downloading) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "${(s.progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PomoButton(onClick = { install(s.release) }) { Text("Download & install") }
+                }
+                Spacer(Modifier.width(8.dp))
+                when (val s = state) {
+                    UpdateUiState.Idle ->
+                        UpdateActionButton(stringResource(R.string.updates_check_action)) { check() }
+                    UpdateUiState.Checking ->
+                        UpdateActionButton(stringResource(R.string.updates_checking_action), enabled = false) {}
+                    UpdateUiState.UpToDate ->
+                        UpdateActionButton(stringResource(R.string.updates_again_action)) { check() }
+                    is UpdateUiState.Available ->
                         PomoButton(
-                            onClick = { state = UpdateUiState.Idle },
-                            variant = PomoButtonVariant.Ghost,
-                        ) { Text("Later") }
-                    }
-                }
-
-                is UpdateUiState.Downloading -> {
-                    StatusText("Downloading version ${s.release.versionName}…")
-                    Spacer(Modifier.height(12.dp))
-                    LinearProgressIndicator(
-                        progress = { s.progress },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    StatusText("${(s.progress * 100).toInt()}%")
-                }
-
-                UpdateUiState.Installing -> {
-                    StatusText("Opening the installer…")
-                }
-
-                is UpdateUiState.Failed -> {
-                    StatusText(s.message)
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            onClick = { install(s.release) },
+                            variant = PomoButtonVariant.Tonal,
+                            contentPadding =
+                                PaddingValues(
+                                    horizontal = 14.dp,
+                                    vertical = 8.dp,
+                                ),
+                        ) { Text(stringResource(R.string.updates_install_action)) }
+                    is UpdateUiState.Downloading -> Unit
+                    UpdateUiState.Installing -> Unit
+                    is UpdateUiState.Failed ->
                         if (s.canOpenSettings) {
-                            PomoButton(onClick = { ApkInstaller.openInstallPermissionSettings(context) }) {
-                                Text("Open settings")
+                            UpdateActionButton(stringResource(R.string.updates_open_settings)) {
+                                ApkInstaller.openInstallPermissionSettings(context)
                             }
+                        } else {
+                            UpdateActionButton(stringResource(R.string.updates_try_again)) { check() }
                         }
-                        PomoButton(onClick = ::check, variant = PomoButtonVariant.Ghost) {
-                            Text("Try again")
-                        }
-                    }
                 }
             }
         }
@@ -220,34 +221,15 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StatusText(
-    text: String,
-    emphasis: Boolean = false,
+private fun UpdateActionButton(
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
 ) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color =
-            if (emphasis) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-    )
-}
-
-@Composable
-private fun ReleaseNotes(notes: String) {
-    val scroll = rememberScrollState()
-    Text(
-        text = notes.trim(),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        lineHeight = 18.sp,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .heightIn(max = 160.dp)
-                .verticalScroll(scroll),
-    )
+    PomoButton(
+        onClick = onClick,
+        variant = PomoButtonVariant.Ghost,
+        enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+    ) { Text(label) }
 }

@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomo · Settings UI round · Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+<style>
+  /* ===== Design tokens, lifted verbatim from ui/theme/Color.kt, Type.kt, PomoSpacing, PomoRadius ===== */
+  :root {
+    --bg: #131418;
+    --surface: #1B1D22;
+    --elevated: #24272D;
+    --outline: #363A42;
+    --outline-strong: #585E69;
+    --on: #F2F3F6;
+    --muted: #A8ACB5;
+    --faint: #6E727B;
+    --signal: #E84A36;
+    --r-sm: 8px; --r-md: 14px; --r-lg: 20px; --r-pill: 999px;
+    --sp-xs: 4px; --sp-s: 8px; --sp-sm: 12px; --sp-m: 16px; --sp-lg: 20px; --sp-xl: 24px; --sp-xxl: 32px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  html, body { height: 100%; }
+  body {
+    background: #0B0C0E;
+    font-family: "Inter", system-ui, sans-serif;
+    color: var(--on);
+    display: flex; align-items: center; justify-content: center; gap: 40px;
+    padding: 32px; flex-wrap: wrap;
+  }
+  .msr {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal; font-style: normal;
+    font-size: 24px; line-height: 1;
+    letter-spacing: normal; text-transform: none;
+    white-space: nowrap; word-wrap: normal; direction: ltr;
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    user-select: none;
+  }
+
+  /* ===== Mock chrome (not part of the app UI) ===== */
+  .mock-notes { max-width: 300px; font-size: 13px; color: #9BA0AA; line-height: 1.55; }
+  .mock-notes h1 { font-size: 15px; font-weight: 600; color: #E8EAEE; margin-bottom: 6px; }
+  .mock-notes .sub { color: #6E727B; font-size: 12px; margin-bottom: 14px; }
+  .mock-notes ul { list-style: none; }
+  .mock-notes li { padding: 5px 0 5px 16px; border-top: 1px solid #1E2026; position: relative; }
+  .mock-notes li::before { content: "→"; color: var(--signal); position: absolute; left: 0; }
+  .mock-notes .tag { display: inline-block; font-size: 11px; font-weight: 600; color: #6BD98C; }
+
+  /* ===== Phone frame ===== */
+  .frame {
+    width: 412px; height: 892px; max-height: calc(100vh - 40px);
+    background: var(--bg);
+    border: 1px solid var(--outline); border-radius: 28px;
+    overflow: hidden; position: relative;
+    box-shadow: 0 24px 80px rgba(0,0,0,.5);
+  }
+  .page { display: none; height: 100%; flex-direction: column; background: var(--bg); }
+  .page.active { display: flex; }
+
+  /* ===== Page shell: back header ===== */
+  .page-header { display: flex; align-items: center; padding: 12px 20px 8px 8px; flex: none; }
+  .back-btn {
+    width: 48px; height: 48px; border: none; background: none; color: var(--on);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    border-radius: var(--r-pill);
+  }
+  .back-btn:active { background: rgba(255,255,255,.06); }
+  .back-btn.active { color: var(--signal); }
+  .page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; margin-left: 4px; }
+  .page-header .spacer { flex: 1; }
+
+  /* ===== Settings search (proposed) ===== */
+  .search-bar {
+    display: none; align-items: center; gap: var(--sp-sm);
+    margin: 0 20px 8px; padding: 4px 12px;
+    background: var(--surface); border: 1px solid var(--outline); border-radius: var(--r-md);
+  }
+  .search-bar.open { display: flex; }
+  .search-bar .msr { color: var(--muted); font-size: 20px; }
+  .search-bar input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--on); font-family: inherit; font-size: 15px; height: 40px;
+  }
+  .search-bar input::placeholder { color: var(--faint); }
+  .search-bar .clear-btn {
+    border: none; background: none; color: var(--muted); cursor: pointer;
+    display: none; align-items: center; padding: 4px;
+  }
+  .search-bar .clear-btn.visible { display: flex; }
+  .card.filtering .divider { display: none; }
+  .no-results {
+    display: none; text-align: center; padding: 48px 0; color: var(--muted); font-size: 14px;
+  }
+  .no-results .msr { font-size: 40px; color: var(--faint); display: block; margin-bottom: 12px; }
+
+  .page-body { flex: 1; overflow-y: auto; padding: 8px 20px 0; scrollbar-width: none; }
+  .page-body::-webkit-scrollbar { display: none; }
+  .group { margin-bottom: var(--sp-lg); }
+  .section-header {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted);
+    padding: 0 0 10px 4px;
+  }
+
+  /* ===== Card ===== */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--outline);       /* UI round: 1dp outline stroke */
+    border-radius: var(--r-lg);             /* PomoRadius.Lg everywhere */
+  }
+  .divider { height: 1px; background: rgba(54,58,66,.6); margin-left: var(--sp-m); }
+
+  /* ===== Rows ===== */
+  .row {
+    display: flex; align-items: center;
+    padding: 14px var(--sp-m);
+    gap: var(--sp-sm);
+    cursor: pointer; position: relative;
+  }
+  .row:active { background: rgba(255,255,255,.04); }
+  .row.static { cursor: default; }
+  .row.static:active { background: none; }
+  .row .lead-icon { color: var(--muted); flex: none; }
+  .row-text { flex: 1; min-width: 0; }
+  .row-title { font-size: 15px; font-weight: 600; color: var(--on); }
+  .row-summary { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .row-value { font-size: 15px; font-weight: 600; color: var(--on); flex: none; }
+  .row-value.mono { font-family: "JetBrains Mono", monospace; }
+  .row-value .unit { font-family: "Inter", sans-serif; font-size: 12px; font-weight: 500; color: var(--faint); margin-left: 4px; }
+  .row .chevron { color: var(--muted); flex: none; margin-left: 2px; }
+  .note-row { padding: 14px var(--sp-m); font-size: 13px; color: var(--muted); line-height: 1.4; }
+
+  /* ===== Switch (M3) ===== */
+  .switch {
+    width: 52px; height: 32px; border-radius: var(--r-pill); flex: none;
+    background: transparent; border: 2px solid var(--outline);
+    position: relative; transition: background .15s, border-color .15s;
+  }
+  .switch .thumb {
+    position: absolute; top: 50%; left: 6px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--outline-strong);
+    transform: translateY(-50%);
+    transition: left .15s, width .15s, height .15s, background .15s;
+  }
+  .switch.on { background: var(--signal); border-color: var(--signal); }
+  .switch.on .thumb { left: 22px; width: 24px; height: 24px; background: #FFFFFF; }
+
+  /* ===== Segmented toggle (M3 SegmentedButton) ===== */
+  .seg { display: flex; width: 100%; }
+  .seg button {
+    flex: 1; height: 40px;
+    background: none; border: 1px solid var(--outline); color: var(--on);
+    font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .seg button .msr { font-size: 18px; }
+  .seg button:first-child { border-radius: var(--r-md) 0 0 var(--r-md); }
+  .seg button:last-child { border-radius: 0 var(--r-md) var(--r-md) 0; }
+  .seg button + button { margin-left: -1px; }
+  .seg button.selected {
+    background: rgba(232,74,54,.18); color: var(--signal); font-weight: 600;
+    position: relative; z-index: 1;
+  }
+  .row-stack { padding: 14px var(--sp-m); cursor: default; }
+  .row-stack .seg { margin-top: var(--sp-sm); }
+
+  /* ===== Buttons ===== */
+  .btn {
+    min-height: 48px; border: none; border-radius: var(--r-md);
+    font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 0 18px;
+  }
+  .btn .msr { font-size: 18px; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn.filled { background: var(--signal); color: #FFFFFF; }
+  .btn.tonal { background: var(--elevated); border: 1px solid var(--outline); color: var(--signal); }
+  .btn.ghost { background: none; color: var(--muted); }
+  .btn.compact { min-height: 40px; }
+
+  /* ===== Updates row ===== */
+  .row-summary.emph { color: var(--signal); }
+  .progress { height: 4px; background: var(--elevated); border-radius: var(--r-pill); overflow: hidden; }
+  .progress .fill { height: 100%; width: 0%; background: var(--signal); border-radius: var(--r-pill); transition: width .2s; }
+  .spinner {
+    display: inline-block; width: 18px; height: 18px;
+    border: 2px solid var(--outline-strong); border-top-color: var(--signal); border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Cue previews sub-page ===== */
+  .cue-block .row-title { margin-bottom: 0; }
+  .cue-status { font-size: 12px; font-weight: 500; color: var(--muted); margin-top: var(--sp-s); }
+  .cue-buttons { display: flex; gap: var(--sp-xs); margin-top: 10px; }
+
+  /* ===== Dialogs ===== */
+  .overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,.65);
+    display: none; align-items: center; justify-content: center; z-index: 20;
+    animation: fade-in .15s ease-out;
+  }
+  .overlay.open { display: flex; }
+  .dialog {
+    width: calc(100% - 40px); max-width: 360px;
+    background: var(--elevated); border-radius: var(--r-lg);
+    padding: var(--sp-lg) var(--sp-lg) 14px;
+    animation: dialog-in .15s ease-out;
+  }
+  @keyframes fade-in { from { opacity: 0; } }
+  @keyframes dialog-in { from { opacity: 0; transform: scale(.96); } }
+  .dialog-title { font-size: 17px; font-weight: 600; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: var(--sp-s); margin-top: var(--sp-sm); }
+  .num-field-wrap {
+    display: flex; align-items: center; gap: var(--sp-s);
+    margin-top: var(--sp-sm); padding: 0 12px; height: 44px;
+    background: var(--surface); border: 1px solid var(--outline); border-radius: var(--r-md);
+  }
+  .num-field-wrap:focus-within { border-color: var(--outline-strong); }
+  .num-field {
+    flex: 1; min-width: 0; background: none; border: none; outline: none;
+    font-family: "JetBrains Mono", monospace; font-size: 17px; font-weight: 600; color: var(--on);
+  }
+  .num-suffix { font-size: 13px; color: var(--muted); flex: none; }
+  .field-icon-btn {
+    width: 32px; height: 32px; flex: none;
+    border: none; background: none; color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--r-pill);
+  }
+  .field-icon-btn:active { color: var(--signal); background: rgba(232,74,54,.12); }
+  .field-icon-btn .msr { font-size: 20px; }
+  .chip-row { display: flex; gap: var(--sp-s); margin-top: 10px; flex-wrap: wrap; }
+  .chip {
+    height: 32px; padding: 0 12px;
+    background: none; border: 1px solid var(--outline); border-radius: var(--r-sm);
+    font-family: inherit; font-size: 13px; font-weight: 500; color: var(--on);
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  }
+  .chip .msr { font-size: 18px; color: var(--signal); }
+  .chip.selected { background: rgba(232,74,54,.18); border-color: transparent; color: var(--signal); font-weight: 600; }
+  .step-hint { display: none; font-size: 13px; color: var(--signal); margin-top: 10px; }
+  .step-hint.invalid { display: block; }
+
+  /* ===== Pairing bottom sheet ===== */
+  .sheet-scrim {
+    position: absolute; inset: 0; background: rgba(0,0,0,.65);
+    display: none; z-index: 24; animation: fade-in .15s ease-out;
+  }
+  .sheet-scrim.open { display: block; }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--elevated); border-radius: var(--r-lg) var(--r-lg) 0 0;
+    padding: 8px var(--sp-lg) var(--sp-lg);
+    transform: translateY(105%); transition: transform .2s ease-out, visibility 0s .2s;
+    visibility: hidden;
+    z-index: 25;
+  }
+  .sheet.open { transform: translateY(0); visibility: visible; transition: transform .2s ease-out, visibility 0s 0s; }
+  .grabber { width: 32px; height: 4px; border-radius: var(--r-pill); background: var(--outline-strong); margin: 4px auto 10px; }
+  .sheet-header { display: flex; align-items: center; justify-content: space-between; }
+  .sheet-title { font-size: 17px; font-weight: 600; }
+  .sheet-close {
+    width: 32px; height: 32px; border: none; background: none; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: var(--r-pill);
+  }
+  .sheet-sub { font-size: 13px; color: var(--muted); line-height: 1.45; margin-top: 6px; }
+  .code-block {
+    position: relative;
+    background: #0E0F12; border: 1px solid var(--outline); border-radius: var(--r-md);
+    padding: 12px 44px 12px 14px; margin-top: 14px;
+  }
+  .code-block pre {
+    margin: 0; font-family: "JetBrains Mono", monospace; font-size: 12px;
+    line-height: 1.5; color: var(--on); white-space: pre-wrap; word-break: break-all;
+  }
+  .code-block .copy-btn { position: absolute; top: 6px; right: 6px; }
+  .cmd-args { color: var(--muted); }
+  .pair-status { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 12px; }
+  .pair-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--signal); animation: pulse 1.2s ease-in-out infinite; flex: none; }
+  .pair-status.connected { color: #6BD98C; }
+  .pair-status.connected .dot { background: #6BD98C; animation: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  .copy-row {
+    display: flex; align-items: center; gap: var(--sp-xs);
+    padding: 11px 0; border-top: 1px solid rgba(54,58,66,.6);
+  }
+  .copy-row:first-of-type { margin-top: 12px; }
+  .copy-text { flex: 1; min-width: 0; }
+  .copy-label { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .copy-value { font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--on); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .copy-btn {
+    width: 32px; height: 32px; flex: none; border: none; background: none; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: var(--r-pill);
+  }
+  .copy-btn:active { color: var(--signal); background: rgba(232,74,54,.12); }
+  .copy-btn .msr { font-size: 20px; }
+  .sheet-actions { display: flex; gap: var(--sp-s); margin-top: var(--sp-m); }
+  .sheet-more { margin-top: var(--sp-lg); }
+  .sheet-row {
+    display: flex; align-items: center; gap: var(--sp-sm);
+    padding: 12px 0; border-top: 1px solid rgba(54,58,66,.6); cursor: pointer;
+  }
+  .sheet-row:active { background: rgba(255,255,255,.04); }
+  .sheet-row .lead-icon { color: var(--muted); }
+  .sheet-row .chevron { color: var(--muted); }
+  .dialog-body { font-size: 14px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
+
+  /* ===== Session tags ===== */
+  #tags-list, #default-tag-list { margin-top: var(--sp-sm); }
+  .tag-row {
+    display: flex; align-items: center; gap: var(--sp-sm);
+    padding: 8px 0; border-top: 1px solid rgba(54,58,66,.6);
+  }
+  .tag-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .tag-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; color: var(--on); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .icon-btn {
+    width: 32px; height: 32px; flex: none; border: none; background: none; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: var(--r-pill);
+  }
+  .icon-btn:active { color: var(--on); background: rgba(255,255,255,.06); }
+  .icon-btn.danger:active { color: var(--signal); background: rgba(232,74,54,.12); }
+  .icon-btn .msr { font-size: 20px; }
+  .add-tag-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; height: 40px; margin-top: var(--sp-sm);
+    background: none; border: 1px dashed var(--outline-strong); border-radius: var(--r-md);
+    color: var(--on); font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .add-tag-btn .msr { font-size: 18px; color: var(--muted); }
+  .pick-row {
+    display: flex; align-items: center; gap: var(--sp-sm);
+    padding: 12px 0; border-top: 1px solid rgba(54,58,66,.6); cursor: pointer;
+  }
+  .pick-row:first-child { border-top: none; }
+  .pick-row:active { background: rgba(255,255,255,.04); }
+  .pick-check { font-size: 20px; color: #6BD98C; flex: none; }
+  .text-field {
+    flex: 1; min-width: 0; background: none; border: none; outline: none;
+    font-family: inherit; font-size: 15px; font-weight: 500; color: var(--on);
+  }
+  .text-field::placeholder { color: var(--faint); font-weight: 400; }
+  .row.disabled, .row-stack.disabled { opacity: .38; pointer-events: none; }
+  .btn:disabled { opacity: .38; pointer-events: none; }
+
+  /* ===== Release notes / About pages ===== */
+  .page-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .rel-demo {
+    display: flex; align-items: center; gap: var(--sp-s); flex-wrap: wrap;
+    padding: 0 0 var(--sp-sm); font-size: 12px; color: var(--faint);
+  }
+  .release-version { font-family: "JetBrains Mono", monospace; font-size: 24px; font-weight: 700; color: var(--on); line-height: 1; }
+  .rel-chip {
+    font-size: 11px; font-weight: 600; color: #6BD98C;
+    border: 1px solid rgba(107,217,140,.35); border-radius: var(--r-pill); padding: 3px 10px;
+  }
+  .release-date { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .release-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--faint); margin-top: var(--sp-m); margin-bottom: 10px;
+  }
+  .release-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .release-list li { position: relative; padding-left: 16px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+  .release-list li::before {
+    content: ""; position: absolute; left: 2px; top: 8px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--outline-strong);
+  }
+  .release-list code {
+    font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--on);
+    background: rgba(255,255,255,.06); border: 1px solid var(--outline);
+    border-radius: 6px; padding: 1px 5px;
+  }
+  .release-mono-body {
+    font-family: "JetBrains Mono", monospace; font-size: 13px; color: var(--muted);
+    line-height: 1.7; white-space: pre-line; animation: pulse 1.2s ease-in-out infinite;
+  }
+  .release-body-plain { font-size: 14px; color: var(--muted); line-height: 1.55; margin-top: 10px; }
+  .rel-cache-hint {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--muted);
+    background: var(--surface); border: 1px solid var(--outline); border-radius: var(--r-md);
+    padding: 10px 14px; margin-bottom: var(--sp-sm);
+  }
+  .rel-cache-hint .msr { font-size: 18px; color: var(--faint); }
+  .rel-full-changelog {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer;
+    padding: 10px; border-radius: var(--r-md);
+  }
+  .rel-full-changelog .msr { font-size: 16px; color: var(--faint); }
+  .rel-full-changelog:active { background: rgba(255,255,255,.04); }
+  .rel-hist-head {
+    display: flex; align-items: center; gap: var(--sp-sm);
+    padding: 13px var(--sp-m); cursor: pointer;
+  }
+  .rel-hist-head .msr { color: var(--muted); transition: transform .15s ease-out; flex: none; }
+  .rel-hist.open .rel-hist-head .msr { transform: rotate(180deg); }
+  .rel-hist-ver { font-family: "JetBrains Mono", monospace; font-size: 14px; font-weight: 600; color: var(--on); }
+  .rel-hist-date { flex: 1; font-size: 13px; color: var(--faint); }
+  .rel-hist-body { display: none; padding: 0 var(--sp-m) var(--sp-m) calc(var(--sp-m) + 16px); }
+  .rel-hist.open .rel-hist-body { display: block; }
+  .about-icon {
+    width: 120px; height: 120px; margin-top: 8px; display: block; flex: none;
+  }
+  .about-name { font-size: 28px; font-weight: 700; color: var(--on); margin-top: var(--sp-m); }
+  .about-version {
+    font-family: inherit; font-size: 14px; color: var(--muted); margin-top: 4px;
+    background: none; border: none; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; padding: 2px 6px;
+    border-radius: var(--r-sm);
+  }
+  .about-version .msr { font-size: 14px; color: var(--faint); }
+  .about-version:active { background: rgba(255,255,255,.06); }
+  .about-tagline { font-size: 15px; color: var(--on); text-align: center; line-height: 1.5; margin: var(--sp-xl) 0 0; }
+  .about-features { font-size: 14px; color: var(--muted); line-height: 1.65; white-space: pre-line; }
+  .about-credit { font-size: 13px; font-weight: 600; color: var(--faint); }
+  .about-credit-sub { font-size: 12px; color: var(--faint); opacity: .7; margin-top: 4px; }
+
+  /* ===== Snackbar ===== */
+  .snackbar {
+    position: absolute; left: 50%; bottom: var(--sp-lg); transform: translateX(-50%) translateY(20px);
+    background: #3A3E47; color: var(--on); font-size: 13px;
+    padding: 12px var(--sp-m); border-radius: var(--r-sm);
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+    white-space: nowrap; z-index: 30;
+  }
+  .snackbar.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+  <!-- Mock chrome: notes for the discussion, not part of the app UI -->
+  <div class="mock-notes">
+    <h1>Pomo · Settings UI round</h1>
+    <div class="sub">Mock v1 · dark only (light deferred) · fonts &amp; icons via Google Fonts CDN</div>
+    <ul>
+      <li>Icons on <b>every</b> row, outlined, muted gray; red stays reserved for live state &amp; errors</li>
+      <li>Updates = first standard section (same pipeline, radius, strings file)</li>
+      <li>Cards: 1dp outline stroke · radius hierarchy: cards &amp; dialogs 20 · controls 14 · chips 8 · switch pill</li>
+      <li>Choices ≤3 → inline buttons (ring sound joins theme mode)</li>
+      <li>Numbers → compact editor: typed or preset chips; port has an in-field Random action; live range validation</li>
+      <li>Bottom nav hidden on detail pages, not shown here at all</li>
+      <li>Summaries shortened where they rambled</li>
+      <li>Header search icon (confirmed in scope, live-filters rows)</li>
+      <li>Pairing sheet shows the real terminal command, no QR, desktops don't scan</li>
+        <li>Session tags → manager bottom sheet (color dots from real palette); Default tag row with picker sheet</li>
+        <li>State cues → rows depend on master toggles (dim when off); Ring sound only while "Ring until dismissed" is on; previews reflect availability; manual haptics as slim rows</li>
+        <li>Info → Release notes redesigned as a changelog: version hero + date + Installed chip, typeset bullets with inline code, earlier releases as expandable rows; cached-first (stale-while-revalidate): offline shows saved notes with a soft hint, hard error only when no cache exists; "Full changelog on GitHub" link</li>
+        <li>About → grounded feature rows (Achievements, Crews, Stats &amp; tags, Desktop control; not invented copy); Project card (GitHub repository, Report an issue), tap version to copy build info</li>
+    </ul>
+  </div>
+
+  <div class="frame">
+
+    <!-- ================= PAGE 1: SETTINGS ================= -->
+    <div class="page active" id="page-settings">
+      <div class="page-header">
+        <button class="back-btn" aria-label="Back"><span class="msr">arrow_back</span></button>
+        <div class="page-title">Settings</div>
+        <div class="spacer"></div>
+        <button class="back-btn" id="search-toggle" aria-label="Search settings"><span class="msr">search</span></button>
+      </div>
+
+      <div class="search-bar" id="search-bar">
+        <span class="msr">search</span>
+        <input id="search-input" type="text" placeholder="Search settings" autocomplete="off">
+        <button class="clear-btn" id="search-clear" aria-label="Clear search"><span class="msr">close</span></button>
+      </div>
+
+      <div class="page-body">
+        <div class="no-results" id="no-results">
+          <span class="msr">search_off</span>
+          No settings match your search
+        </div>
+
+        <!-- UPDATES, first standard section, rendered as a row like everything else -->
+        <div class="group">
+          <div class="section-header">Updates</div>
+          <div class="card">
+            <div class="row" id="updates-row">
+              <span class="msr lead-icon">system_update</span>
+              <div class="row-text">
+                <div class="row-title">Check for updates</div>
+                <div class="row-summary" id="updates-status">You're on version 2.19.1</div>
+                <div class="progress" id="updates-progress" style="display: none; margin-top: 8px;"><div class="fill" id="dl-fill"></div></div>
+              </div>
+              <span id="updates-trailing" style="flex: none;"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONNECTION -->
+        <div class="group">
+          <div class="section-header">Connection</div>
+          <div class="card">
+            <div class="row" data-toggle>
+              <span class="msr lead-icon">wifi_tethering</span>
+              <div class="row-text">
+                <div class="row-title">Phone API</div>
+                <div class="row-summary">Let paired desktop clients connect</div>
+              </div>
+              <div class="switch on"><div class="thumb"></div></div>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-toggle>
+              <span class="msr lead-icon">wifi</span>
+              <div class="row-text">
+                <div class="row-title">Wi-Fi only</div>
+                <div class="row-summary">Serve the phone API over Wi-Fi or Ethernet</div>
+              </div>
+              <div class="switch on"><div class="thumb"></div></div>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-num data-min="1024" data-max="65535" data-unit="" data-random>
+              <span class="msr lead-icon">lan</span>
+              <div class="row-text">
+                <div class="row-title">Phone API port</div>
+                <div class="row-summary">Port desktop clients connect to</div>
+              </div>
+              <div class="row-value mono"><span class="val">9876</span></div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+            <div class="divider"></div>
+            <div class="row" id="open-pairing">
+              <span class="msr lead-icon">qr_code_2</span>
+              <div class="row-text">
+                <div class="row-title">Pairing</div>
+                <div class="row-summary">Connect desktop clients</div>
+              </div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TIMER -->
+        <div class="group">
+          <div class="section-header">Timer</div>
+          <div class="card">
+            <div class="row" data-num data-min="1" data-max="180" data-unit="minutes" data-presets="15,25,45,60">
+              <span class="msr lead-icon">timer</span>
+              <div class="row-text">
+                <div class="row-title">Focus duration</div>
+              </div>
+              <div class="row-value mono"><span class="val">25</span><span class="unit">min</span></div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-num data-min="1" data-max="60" data-unit="minutes" data-presets="5,10,15,20">
+              <span class="msr lead-icon">coffee</span>
+              <div class="row-text">
+                <div class="row-title">Short break</div>
+              </div>
+              <div class="row-value mono"><span class="val">5</span><span class="unit">min</span></div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-num data-min="1" data-max="120" data-unit="minutes" data-presets="15,30,45,60">
+              <span class="msr lead-icon">snooze</span>
+              <div class="row-text">
+                <div class="row-title">Long break</div>
+                <div class="row-summary">Every 4 focus phases</div>
+              </div>
+              <div class="row-value mono"><span class="val">15</span><span class="unit">min</span></div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SESSION TAGS -->
+        <div class="group">
+          <div class="section-header">Session Tags</div>
+          <div class="card">
+            <div class="row" id="open-tags">
+              <span class="msr lead-icon">label</span>
+              <div class="row-text">
+                <div class="row-title">Session tags</div>
+                <div class="row-summary" id="tags-summary">Work · Study · Personal · Exercise</div>
+              </div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+            <div class="divider"></div>
+            <div class="row" id="open-default-tag">
+              <span class="msr lead-icon">flag</span>
+              <div class="row-text">
+                <div class="row-title">Default tag</div>
+                <div class="row-summary">Applied to new focus blocks</div>
+              </div>
+              <div class="row-value" id="default-tag-value">Work</div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- GOALS -->
+        <div class="group">
+          <div class="section-header">Goals</div>
+          <div class="card">
+            <div class="row" data-num data-min="0" data-max="50" data-unit="blocks a day" data-presets="4,8,12">
+              <span class="msr lead-icon">flag</span>
+              <div class="row-text">
+                <div class="row-title">Daily goal</div>
+                <div class="row-summary">Completed blocks to reach each day</div>
+              </div>
+              <div class="row-value mono"><span class="val">8</span><span class="unit">blocks</span></div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- STATE CUES -->
+        <div class="group">
+          <div class="section-header">State Cues</div>
+          <div class="card">
+            <div class="note-row">Sounds and vibrations when the timer switches phase</div>
+            <div class="divider"></div>
+            <div class="row" data-toggle id="row-vibration">
+              <span class="msr lead-icon">vibration</span>
+              <div class="row-text">
+                <div class="row-title">Vibration</div>
+                <div class="row-summary">Deliver state cues through vibration</div>
+              </div>
+              <div class="switch on"><div class="thumb"></div></div>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-toggle id="row-sound">
+              <span class="msr lead-icon">volume_up</span>
+              <div class="row-text">
+                <div class="row-title">Sound</div>
+                <div class="row-summary">Deliver completion cues through app-owned sounds</div>
+              </div>
+              <div class="switch on"><div class="thumb"></div></div>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-toggle id="row-stronger">
+              <span class="msr lead-icon">bolt</span>
+              <div class="row-text">
+                <div class="row-title">Stronger completion cues</div>
+                <div class="row-summary">Stronger delivery for easier detection</div>
+              </div>
+              <div class="switch"><div class="thumb"></div></div>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-toggle id="row-ring-until">
+              <span class="msr lead-icon">notifications_active</span>
+              <div class="row-text">
+                <div class="row-title">Ring until dismissed</div>
+                <div class="row-summary">Loop the alert up to 1 minute until dismissed</div>
+              </div>
+              <div class="switch on"><div class="thumb"></div></div>
+            </div>
+            <div class="divider" id="ring-sound-divider"></div>
+            <div class="row-stack" id="row-ring-sound">
+              <div style="display:flex; gap:12px; align-items:center;">
+                <span class="msr lead-icon" style="color: var(--muted);">music_note</span>
+                <div class="row-text">
+                  <div class="row-title">Ring sound</div>
+                  <div class="row-summary">Sound looped while ringing</div>
+                </div>
+              </div>
+              <div class="seg" data-seg>
+                <button class="selected">System alarm</button>
+                <button>Pomo cue</button>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="row" id="row-cue-previews">
+              <span class="msr lead-icon">graphic_eq</span>
+              <div class="row-text">
+                <div class="row-title">Cue previews</div>
+                <div class="row-summary">Preview completion cues and manual haptics</div>
+              </div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- THEME -->
+        <div class="group">
+          <div class="section-header">Theme</div>
+          <div class="card">
+            <div class="row-stack">
+              <div style="display:flex; gap:12px; align-items:center;">
+                <span class="msr lead-icon" style="color: var(--muted);">palette</span>
+                <div class="row-text">
+                  <div class="row-title">Theme mode</div>
+                  <div class="row-summary">Follow system, light, or dark</div>
+                </div>
+              </div>
+              <div class="seg" data-seg>
+                <button class="selected"><span class="msr">brightness_auto</span>System</button>
+                <button><span class="msr">light_mode</span>Light</button>
+                <button><span class="msr">dark_mode</span>Dark</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DATA -->
+        <div class="group">
+          <div class="section-header">Data</div>
+          <div class="card">
+            <div class="row" data-toast="Backup exported to Downloads">
+              <span class="msr lead-icon">download</span>
+              <div class="row-text">
+                <div class="row-title">Export backup</div>
+                <div class="row-summary">Save history, crews, and identity to a JSON file</div>
+              </div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-toast="File picker would open">
+              <span class="msr lead-icon">upload</span>
+              <div class="row-text">
+                <div class="row-title">Restore backup</div>
+                <div class="row-summary">Merge a Pomo backup file into this phone</div>
+              </div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- INFO -->
+        <div class="group">
+          <div class="section-header">Info</div>
+          <div class="card">
+            <div class="row" id="open-release">
+              <span class="msr lead-icon">article</span>
+              <div class="row-text">
+                <div class="row-title">Release notes</div>
+                <div class="row-summary">Read what shipped in version 2.19.1</div>
+              </div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+            <div class="divider"></div>
+            <div class="row" id="open-about">
+              <span class="msr lead-icon">info</span>
+              <div class="row-text">
+                <div class="row-title">About</div>
+                <div class="row-summary">Version info &amp; credits</div>
+              </div>
+              <span class="msr chevron">chevron_right</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="height: 32px;"></div>
+      </div>
+    </div>
+
+    <!-- ================= PAGE 2: CUE PREVIEWS ================= -->
+    <div class="page" id="page-previews">
+      <div class="page-header">
+        <button class="back-btn" id="previews-back" aria-label="Back to settings"><span class="msr">arrow_back</span></button>
+        <div class="page-title">Cue previews</div>
+      </div>
+
+      <div class="page-body">
+
+        <div class="group">
+          <div class="section-header">Completion cues</div>
+          <div class="card">
+            <div class="cue-block" style="padding: 14px 16px;">
+              <div class="row-title">Focus complete</div>
+              <div class="row-summary">Release into break</div>
+              <div class="seg" data-seg style="margin-top: 12px;">
+                <button>Variant 1</button>
+                <button class="selected">Variant 2</button>
+                <button>Variant 3</button>
+              </div>
+              <div class="cue-status" data-variant="Variant 2">Next completion: Variant 2 · Sound on · Vibration on</div>
+              <div class="cue-buttons">
+                <button class="btn tonal compact cue-btn-preview" style="padding: 0 16px;" data-toast="Previewing focus complete">Preview</button>
+                <button class="btn ghost compact cue-btn-audio" data-toast="Audio only · focus complete">Audio</button>
+                <button class="btn ghost compact cue-btn-haptic" data-toast="Haptic only · focus complete">Haptic</button>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="cue-block" style="padding: 14px 16px;">
+              <div class="row-title">Short break complete</div>
+              <div class="row-summary">Gentle return to focus</div>
+              <div class="seg" data-seg style="margin-top: 12px;">
+                <button class="selected">Variant 1</button>
+                <button>Variant 2</button>
+                <button>Variant 3</button>
+              </div>
+              <div class="cue-status" data-variant="Variant 1">Next completion: Variant 1 · Sound on · Vibration on</div>
+              <div class="cue-buttons">
+                <button class="btn tonal compact cue-btn-preview" style="padding: 0 16px;" data-toast="Previewing short break complete">Preview</button>
+                <button class="btn ghost compact cue-btn-audio" data-toast="Audio only · short break complete">Audio</button>
+                <button class="btn ghost compact cue-btn-haptic" data-toast="Haptic only · short break complete">Haptic</button>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="cue-block" style="padding: 14px 16px;">
+              <div class="row-title">Long break complete</div>
+              <div class="row-summary">Fresh reset into focus</div>
+              <div class="seg" data-seg style="margin-top: 12px;">
+                <button>Variant 1</button>
+                <button>Variant 2</button>
+                <button class="selected">Variant 3</button>
+              </div>
+              <div class="cue-status" data-variant="Variant 3">Next completion: Variant 3 · Sound on · Vibration on</div>
+              <div class="cue-buttons">
+                <button class="btn tonal compact cue-btn-preview" style="padding: 0 16px;" data-toast="Previewing long break complete">Preview</button>
+                <button class="btn ghost compact cue-btn-audio" data-toast="Audio only · long break complete">Audio</button>
+                <button class="btn ghost compact cue-btn-haptic" data-toast="Haptic only · long break complete">Haptic</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="section-header">Manual haptics</div>
+          <div class="card">
+            <div class="note-row">Fired from the timer controls. Pick a row to feel it</div>
+            <div class="divider"></div>
+            <div class="row" data-toast="Previewing start haptic">
+              <span class="msr lead-icon">play_circle</span>
+              <div class="row-text">
+                <div class="row-title">Start / Resume</div>
+                <div class="row-summary">Subtle confirmation</div>
+              </div>
+              <button class="btn ghost compact cue-btn-haptic">Play</button>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-toast="Previewing pause haptic">
+              <span class="msr lead-icon">pause_circle</span>
+              <div class="row-text">
+                <div class="row-title">Pause</div>
+                <div class="row-summary">Neutral hold</div>
+              </div>
+              <button class="btn ghost compact cue-btn-haptic">Play</button>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-toast="Previewing skip haptic">
+              <span class="msr lead-icon">skip_next</span>
+              <div class="row-text">
+                <div class="row-title">Skip</div>
+                <div class="row-summary">Firmer transition</div>
+              </div>
+              <button class="btn ghost compact cue-btn-haptic">Play</button>
+            </div>
+            <div class="divider"></div>
+            <div class="row" data-toast="Previewing reset haptic">
+              <span class="msr lead-icon">restart_alt</span>
+              <div class="row-text">
+                <div class="row-title">Reset</div>
+                <div class="row-summary">Firmest manual reset</div>
+              </div>
+              <button class="btn ghost compact cue-btn-haptic">Play</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="height: 32px;"></div>
+      </div>
+    </div>
+
+    <!-- ================= PAGE 3: RELEASE NOTES ================= -->
+    <div class="page" id="page-release">
+      <div class="page-header">
+        <button class="back-btn" id="release-back" aria-label="Back to settings"><span class="msr">arrow_back</span></button>
+        <div>
+          <div class="page-title">Release notes</div>
+          <div class="page-sub">Installed version 2.19.1</div>
+        </div>
+      </div>
+
+      <div class="page-body">
+        <div class="rel-demo">
+          <span>Demo state</span>
+          <button class="chip selected" data-rel-state="fresh">Fresh</button>
+          <button class="chip" data-rel-state="cached">Cached · offline</button>
+          <button class="chip" data-rel-state="loading">First fetch</button>
+          <button class="chip" data-rel-state="nocache">No cache</button>
+          <button class="chip" data-rel-state="notfound">No release</button>
+        </div>
+
+        <div class="rel-cache-hint" data-rel-states="cached" style="display:none;">
+          <span class="msr">cloud_off</span>Saved notes. Reconnect to refresh
+        </div>
+
+        <!-- Fresh / cached content -->
+        <div class="group" data-rel-states="fresh cached">
+          <div class="card" style="padding: var(--sp-m);">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div class="release-version">2.19.1</div>
+              <span class="rel-chip">Installed</span>
+            </div>
+            <div class="release-date">Released Sep 12, 2026</div>
+            <div class="release-label">What's changed</div>
+            <ul class="release-list">
+              <li>waybar: hybrid instrument mode, config value <code>mode = "hybrid"</code> renders text and icons together</li>
+              <li>pomo-link: pin socket ctime to avoid unlinking a replacement daemon</li>
+              <li>pomo-link: harden daemon socket, stale status, pairing errors</li>
+              <li>pomo-link: do not fake a live socket after WS connect timeout</li>
+              <li>Update Gradle Wrapper from 8.14 to 8.14.1</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Loading (first ever fetch) -->
+        <div class="group" data-rel-states="loading" style="display:none;">
+          <div class="card" style="padding: var(--sp-m);">
+            <div class="release-label" style="margin-top: 0;">First open, fetching notes…</div>
+            <div class="release-mono-body">GET /repos/Snehit70/pomo/releases
+→ 200 OK · parsing release list</div>
+          </div>
+        </div>
+
+        <!-- No cache + offline (corner case) -->
+        <div class="group" data-rel-states="nocache" style="display:none;">
+          <div class="card" style="padding: var(--sp-m);">
+            <div class="row-title">No saved notes yet</div>
+            <div class="release-body-plain">You're offline and this phone hasn't fetched release notes before. They'll appear here after the first successful fetch and stay readable offline from then on.</div>
+            <button class="btn tonal compact" style="margin-top: 14px; padding: 0 16px;">Retry</button>
+          </div>
+        </div>
+
+        <!-- Version without a GitHub release -->
+        <div class="group" data-rel-states="notfound" style="display:none;">
+          <div class="card" style="padding: var(--sp-m);">
+            <div class="row-title">No notes for 2.19.1</div>
+            <div class="release-body-plain">This build has no matching GitHub release yet. If you just bumped the version, publish the release and retry.</div>
+            <button class="btn tonal compact" style="margin-top: 14px; padding: 0 16px;">Retry</button>
+          </div>
+        </div>
+
+        <!-- Earlier releases (changelog) -->
+        <div class="group" data-rel-states="fresh cached">
+          <div class="section-header">Earlier releases</div>
+          <div class="card">
+            <div class="rel-hist">
+              <div class="rel-hist-head">
+                <span class="rel-hist-ver">2.19.0</span>
+                <span class="rel-hist-date">Aug 30, 2026</span>
+                <span class="msr">expand_more</span>
+              </div>
+              <div class="rel-hist-body">
+                <ul class="release-list">
+                  <li>New Waybar output: hybrid instrument mode joining text and icons</li>
+                  <li>Paired-desktop status now survives daemon restarts</li>
+                </ul>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="rel-hist">
+              <div class="rel-hist-head">
+                <span class="rel-hist-ver">2.18.0</span>
+                <span class="rel-hist-date">Aug 12, 2026</span>
+                <span class="msr">expand_more</span>
+              </div>
+              <div class="rel-hist-body">
+                <ul class="release-list">
+                  <li>Session tags: label work blocks and see the split in stats</li>
+                  <li>Backup and restore history, crews, and identity as JSON</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="group" data-rel-states="fresh cached">
+          <div class="rel-full-changelog" data-toast="Opening full changelog on GitHub">
+            Full changelog on GitHub <span class="msr">open_in_new</span>
+          </div>
+        </div>
+
+        <div style="height: 32px;"></div>
+      </div>
+    </div>
+
+    <!-- ================= PAGE 4: ABOUT ================= -->
+    <div class="page" id="page-about">
+      <div class="page-header" style="align-self: flex-start;">
+        <button class="back-btn" id="about-back" aria-label="Back to settings"><span class="msr">arrow_back</span></button>
+      </div>
+
+      <div class="page-body" style="display: flex; flex-direction: column; align-items: center; padding: 0 24px;">
+        <svg class="about-icon" viewBox="0 0 120 120" aria-hidden="true">
+          <defs>
+            <linearGradient id="about-ring-grad" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#B73826"/>
+              <stop offset="1" stop-color="#F26957"/>
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="27" fill="rgba(232,74,54,.14)"/>
+          <circle cx="60" cy="60" r="13" fill="#fff"/>
+          <circle cx="60" cy="60" r="44" fill="none" stroke="url(#about-ring-grad)" stroke-width="17"
+                  stroke-linecap="round" stroke-dasharray="232 45" transform="rotate(-85 60 60)"/>
+        </svg>
+        <div class="about-name">Pomo</div>
+        <button class="about-version" id="about-version" title="Copy version info">Version 2.19.1 <span class="msr">content_copy</span></button>
+        <p class="about-tagline">A focus timer that lives on your phone. No account, no cloud. Optional control from your desktop.</p>
+        <div class="card" style="align-self: stretch;">
+          <div class="row">
+            <span class="msr lead-icon">emoji_events</span>
+            <div class="row-text">
+              <div class="row-title">Achievements</div>
+              <div class="row-summary">Focus ladders from your first hour to 5,000</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="row">
+            <span class="msr lead-icon">groups</span>
+            <div class="row-text">
+              <div class="row-title">Crews</div>
+              <div class="row-summary">Private leaderboards with friends over relays</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="row">
+            <span class="msr lead-icon">pie_chart</span>
+            <div class="row-text">
+              <div class="row-title">Stats &amp; tags</div>
+              <div class="row-summary">Every session counted, labeled, and charted</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="row">
+            <span class="msr lead-icon">terminal</span>
+            <div class="row-text">
+              <div class="row-title">Desktop control</div>
+              <div class="row-summary">Start, pause, and skip from pomo-link or Waybar</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="align-self: stretch; margin-top: var(--sp-m);">
+          <div class="row" data-toast="Opening github.com/Snehit70/pomo">
+            <span class="msr lead-icon">code</span>
+            <div class="row-text">
+              <div class="row-title">GitHub repository</div>
+              <div class="row-summary">Source, releases, and readme</div>
+            </div>
+            <span class="msr chevron">open_in_new</span>
+          </div>
+          <div class="divider"></div>
+          <div class="row" data-toast="Opening github.com/Snehit70/pomo/issues">
+            <span class="msr lead-icon">bug_report</span>
+            <div class="row-text">
+              <div class="row-title">Report an issue</div>
+              <div class="row-summary">Found a bug? File it on GitHub</div>
+            </div>
+            <span class="msr chevron">open_in_new</span>
+          </div>
+        </div>
+        <div class="about-credit" style="margin-top: 32px;">Created by Snehit</div>
+        <div class="about-credit-sub" data-toast="Opening github.com/Snehit70">Made with ❤️ and Kotlin</div>
+        <div style="height: 16px;"></div>
+      </div>
+    </div>
+
+    <!-- ===== Pair desktop client bottom sheet ===== -->
+    <div class="sheet-scrim" id="pair-scrim"></div>
+    <div class="sheet" id="pair-sheet">
+      <div class="grabber"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">Pairing</div>
+        <button class="sheet-close" id="pair-close" aria-label="Close"><span class="msr" style="font-size: 20px;">close</span></button>
+      </div>
+      <p class="sheet-sub">On your desktop, run the command below, or copy the setup code.</p>
+      <div class="pair-status" id="pair-status"><div class="dot"></div><span id="pair-status-text">Waiting for a desktop to connect…</span></div>
+      <div class="code-block">
+        <pre id="cmd-text"></pre>
+        <button class="copy-btn" data-copy="Command copied" aria-label="Copy command"><span class="msr">content_copy</span></button>
+      </div>
+      <div class="copy-row">
+        <span class="msr" style="font-size: 20px; color: var(--faint); flex: none;">link</span>
+        <div class="copy-text">
+          <div class="copy-label">URL</div>
+          <div class="copy-value">http://192.168.1.24:9876</div>
+        </div>
+        <button class="copy-btn" data-copy="URL copied" aria-label="Copy URL"><span class="msr">content_copy</span></button>
+      </div>
+      <div class="copy-row">
+        <span class="msr" style="font-size: 20px; color: var(--faint); flex: none;">key</span>
+        <div class="copy-text">
+          <div class="copy-label">Token</div>
+          <div class="copy-value" id="token-value"></div>
+        </div>
+        <button class="copy-btn" id="token-eye" aria-label="Show token"><span class="msr">visibility</span></button>
+        <button class="copy-btn" data-copy="Token copied" aria-label="Copy token"><span class="msr">content_copy</span></button>
+      </div>
+      <div class="sheet-actions">
+        <button class="btn tonal" style="flex: 1;" data-copy="Setup code copied"><span class="msr">content_copy</span>Copy setup code</button>
+        <button class="btn ghost" id="pair-share" style="color: var(--muted);"><span class="msr">share</span>Share</button>
+      </div>
+      <div class="sheet-more">
+        <div class="sheet-row" id="sheet-scan">
+          <span class="msr lead-icon">qr_code_scanner</span>
+          <div class="row-text"><div class="row-title">Scan a pairing QR</div></div>
+          <span class="msr chevron">chevron_right</span>
+        </div>
+        <div class="sheet-row" id="sheet-rotate">
+          <span class="msr lead-icon">autorenew</span>
+          <div class="row-text">
+            <div class="row-title">Rotate pairing token…</div>
+            <div class="row-summary">Disconnects every paired desktop</div>
+          </div>
+          <span class="msr chevron">chevron_right</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Session tags manager sheet ===== -->
+    <div class="sheet-scrim" id="tags-scrim"></div>
+    <div class="sheet" id="tags-sheet">
+      <div class="grabber"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">Session tags</div>
+        <button class="sheet-close" id="tags-close" aria-label="Close"><span class="msr" style="font-size: 20px;">close</span></button>
+      </div>
+      <p class="sheet-sub">Tags label focus blocks in history and stats. Tap a tag to rename it.</p>
+      <div id="tags-list"></div>
+      <button class="add-tag-btn" id="tag-add"><span class="msr">add</span>Add tag</button>
+    </div>
+
+    <!-- ===== Default tag picker sheet ===== -->
+    <div class="sheet-scrim" id="default-tag-scrim"></div>
+    <div class="sheet" id="default-tag-sheet">
+      <div class="grabber"></div>
+      <div class="sheet-header">
+        <div class="sheet-title">Default tag</div>
+        <button class="sheet-close" id="default-tag-close" aria-label="Close"><span class="msr" style="font-size: 20px;">close</span></button>
+      </div>
+      <p class="sheet-sub">Applied to new focus blocks unless you pick another tag on the timer.</p>
+      <div id="default-tag-list"></div>
+    </div>
+
+    <!-- ===== Tag add/rename dialog ===== -->
+    <div class="overlay" id="tag-edit-overlay" style="z-index: 30;">
+      <div class="dialog">
+        <div class="dialog-title" id="tag-edit-title">Add tag</div>
+        <div class="num-field-wrap">
+          <input class="text-field" id="tag-edit-input" autocomplete="off" placeholder="Tag name" maxlength="24">
+        </div>
+        <div class="step-hint" id="tag-edit-hint"></div>
+        <div class="dialog-actions">
+          <button class="btn ghost compact" id="tag-edit-cancel" style="color: var(--muted);">Cancel</button>
+          <button class="btn tonal compact" id="tag-edit-ok" style="padding: 0 16px;">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Tag delete confirm ===== -->
+    <div class="overlay" id="tag-delete-overlay" style="z-index: 30;">
+      <div class="dialog">
+        <div class="dialog-title">Delete tag?</div>
+        <p class="dialog-body">Past sessions tagged “<span id="tag-delete-name"></span>” keep their tag in history and stats.</p>
+        <div class="dialog-actions">
+          <button class="btn ghost compact" id="tag-delete-cancel" style="color: var(--muted);">Cancel</button>
+          <button class="btn ghost compact" id="tag-delete-ok" style="color: var(--signal);">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Rotate token confirm ===== -->
+    <div class="overlay" id="rotate-overlay" style="z-index: 26;">
+      <div class="dialog">
+        <div class="dialog-title">Rotate pairing token?</div>
+        <p class="dialog-body">Existing desktop clients will stop working until paired again.</p>
+        <div class="dialog-actions">
+          <button class="btn ghost compact" id="rotate-cancel" style="color: var(--muted);">Cancel</button>
+          <button class="btn filled compact" id="rotate-confirm" style="padding: 0 16px;">Rotate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Number editor dialog ===== -->
+    <div class="overlay" id="num-overlay">
+      <div class="dialog">
+        <div class="dialog-title" id="num-title">Focus duration</div>
+        <div class="num-field-wrap">
+          <input class="num-field" id="num-input" inputmode="numeric" autocomplete="off">
+          <span class="num-suffix" id="num-suffix">min</span>
+          <button class="field-icon-btn" id="num-random" style="display: none;" aria-label="Random port"><span class="msr">casino</span></button>
+        </div>
+        <div class="chip-row" id="num-chips"></div>
+        <div class="step-hint" id="num-hint"></div>
+        <div class="dialog-actions">
+          <button class="btn ghost compact" id="num-cancel" style="color: var(--muted);">Cancel</button>
+          <button class="btn tonal compact" id="num-ok" style="padding: 0 16px;">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="snackbar" id="snackbar"></div>
+  </div>
+
+<script>
+  // Switches
+  document.querySelectorAll("[data-toggle] .switch").forEach(sw => {
+    const row = sw.closest(".row");
+    row.addEventListener("click", () => {
+      sw.classList.toggle("on");
+      if (typeof updateCueDeps === "function") updateCueDeps();
+    });
+  });
+
+  // Segmented toggles
+  document.querySelectorAll("[data-seg]").forEach(seg => {
+    seg.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        seg.querySelectorAll("button").forEach(b => b.classList.remove("selected"));
+        btn.classList.add("selected");
+      });
+    });
+  });
+
+  // Toast-style actions
+  let toastTimer;
+  function toast(msg) {
+    const el = document.getElementById("snackbar");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2000);
+  }
+  document.querySelectorAll("[data-toast]").forEach(el => {
+    el.addEventListener("click", () => toast(el.dataset.toast));
+  });
+
+  // Number editor dialog, typing first-class, preset chips for counts,
+  // random-fill chip for the port, live range validation.
+  const numOverlay = document.getElementById("num-overlay");
+  const numInput = document.getElementById("num-input");
+  const numSuffix = document.getElementById("num-suffix");
+  const numChips = document.getElementById("num-chips");
+  const numHint = document.getElementById("num-hint");
+  const numOk = document.getElementById("num-ok");
+  let numConfig = null;
+
+  const suffixFor = unit => unit === "minutes" ? "min" : unit === "blocks a day" ? "blocks" : "";
+  function validateNum() {
+    const v = numInput.value.trim();
+    const n = Number(v);
+    const ok = v !== "" && Number.isInteger(n) && n >= numConfig.min && n <= numConfig.max;
+    numOk.disabled = !ok;
+    numHint.textContent = ok ? "" : "Between " + numConfig.min + " and " + numConfig.max;
+    numHint.classList.toggle("invalid", !ok);
+    numChips.querySelectorAll(".chip[data-preset]").forEach(c =>
+      c.classList.toggle("selected", v !== "" && Number(c.dataset.preset) === n));
+    return ok;
+  }
+  function commitNum() {
+    if (!validateNum()) return;
+    numConfig.target.querySelector(".val").textContent = numInput.value;
+    numOverlay.classList.remove("open");
+    toast("Saved · " + numInput.value + (numConfig.unit ? " " + numConfig.unit : ""));
+  }
+  document.querySelectorAll("[data-num]").forEach(row => {
+    row.addEventListener("click", () => {
+      const presets = row.dataset.presets ? row.dataset.presets.split(",").map(Number) : null;
+      numConfig = {
+        min: +row.dataset.min, max: +row.dataset.max,
+        unit: row.dataset.unit, target: row.querySelector(".row-value"),
+      };
+      document.getElementById("num-title").textContent = row.querySelector(".row-title").textContent;
+      numSuffix.textContent = suffixFor(numConfig.unit);
+      numHint.textContent = "";
+      numHint.classList.remove("invalid");
+      numInput.value = numConfig.target.querySelector(".val").textContent;
+      numChips.innerHTML = "";
+      const randomBtn = document.getElementById("num-random");
+      if (presets) {
+        randomBtn.style.display = "none";
+        numChips.style.display = "";
+        presets.forEach(p => {
+          const b = document.createElement("button");
+          b.className = "chip"; b.dataset.preset = p; b.textContent = p;
+          b.addEventListener("click", () => { numInput.value = p; commitNum(); });
+          numChips.appendChild(b);
+        });
+      } else {
+        numChips.style.display = "none";
+        randomBtn.style.display = "flex";
+      }
+      validateNum();
+      numOverlay.classList.add("open");
+      numInput.focus();
+      numInput.select();
+    });
+  });
+  numInput.addEventListener("input", () => {
+    numInput.value = numInput.value.replace(/\D/g, "");
+    validateNum();
+  });
+  numInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") commitNum();
+  });
+  document.getElementById("num-random").addEventListener("click", () => {
+    numInput.value = numConfig.min + Math.floor(Math.random() * (numConfig.max - numConfig.min + 1));
+    validateNum();
+  });
+  document.getElementById("num-cancel").addEventListener("click", () => numOverlay.classList.remove("open"));
+  numOk.addEventListener("click", commitNum);
+  numOverlay.addEventListener("click", e => { if (e.target === numOverlay) numOverlay.classList.remove("open"); });
+
+  // Updates row state machine (demo: check → up-to-date → check again → available → downloading → installing)
+  const updatesStatus = document.getElementById("updates-status");
+  const updatesTrailing = document.getElementById("updates-trailing");
+  const updatesProgress = document.getElementById("updates-progress");
+  function trailingCheck(label) {
+    updatesTrailing.innerHTML = '<button class="btn ghost compact" style="min-height: 40px; padding: 0 10px;" onclick="' + label + '()">' + (label === "updatesCheck" ? "Check" : "Again") + '</button>';
+  }
+  function updatesIdle() {
+    updatesStatus.textContent = "You're on version 2.19.1";
+    updatesStatus.classList.remove("emph");
+    updatesProgress.style.display = "none";
+    trailingCheck("updatesCheck");
+  }
+  function updatesCheck() {
+    updatesStatus.textContent = "Checking for updates…";
+    updatesStatus.classList.remove("emph");
+    updatesTrailing.innerHTML = '<span class="spinner"></span>';
+    setTimeout(() => {
+      updatesStatus.textContent = "You're on the latest version (2.19.1)";
+      updatesTrailing.innerHTML = '<button class="btn ghost compact" style="min-height: 40px; padding: 0 10px;" onclick="updatesAvailable()">Again</button>';
+    }, 1200);
+  }
+  function updatesAvailable() {
+    updatesStatus.textContent = "Version 2.20.0 is available";
+    updatesStatus.classList.add("emph");
+    updatesTrailing.innerHTML = '<button class="btn filled compact" style="min-height: 40px; padding: 0 14px;" onclick="updatesDownload()">Update</button>';
+  }
+  function updatesDownload() {
+    updatesTrailing.innerHTML = "";
+    updatesProgress.style.display = "block";
+    updatesStatus.classList.remove("emph");
+    let pct = 0;
+    const iv = setInterval(() => {
+      pct += 8 + Math.random() * 14;
+      if (pct >= 100) {
+        clearInterval(iv);
+        document.getElementById("dl-fill").style.width = "100%";
+        updatesStatus.textContent = "Opening the installer…";
+        setTimeout(() => { updatesProgress.style.display = "none"; updatesIdle(); }, 1200);
+      } else {
+        document.getElementById("dl-fill").style.width = pct + "%";
+        updatesStatus.textContent = "Downloading version 2.20.0… " + Math.floor(pct) + "%";
+      }
+    }, 300);
+  }
+  updatesIdle();
+
+  // Pair desktop client bottom sheet
+  let PAIR_TOKEN = "b7e2c41a9d834f5eaf6c0712d93b8e44c5f6a7b8";
+  const pairSheet = document.getElementById("pair-sheet");
+  const pairScrim = document.getElementById("pair-scrim");
+  const tokenValue = document.getElementById("token-value");
+  let tokenShown = false;
+  function renderToken() {
+    tokenValue.textContent = tokenShown ? PAIR_TOKEN : "••••••••••••" + PAIR_TOKEN.slice(-4);
+    document.querySelector("#token-eye .msr").textContent = tokenShown ? "visibility_off" : "visibility";
+  }
+  function renderCommand() {
+    const shown = tokenShown ? PAIR_TOKEN : "••••••••••••" + PAIR_TOKEN.slice(-4);
+    document.getElementById("cmd-text").innerHTML =
+      '<span>pomo-link pair-json</span> <span class="cmd-args">\'{"url":"http://192.168.1.24:9876","token":"' + shown + '"}\'</span>';
+  }
+  function pairStatusWaiting() {
+    const st = document.getElementById("pair-status");
+    st.classList.remove("connected");
+    document.getElementById("pair-status-text").textContent = "Waiting for a desktop to connect…";
+  }
+  let pairTimer;
+  function openPairing() {
+    renderToken(); renderCommand(); pairStatusWaiting();
+    pairScrim.classList.add("open"); pairSheet.classList.add("open");
+    clearTimeout(pairTimer);
+    pairTimer = setTimeout(() => {
+      const st = document.getElementById("pair-status");
+      st.classList.add("connected");
+      document.getElementById("pair-status-text").textContent = "Desk connected ✓";
+      pairTimer = setTimeout(() => { closePairing(); toast("Desk paired"); }, 1400);
+    }, 4000);
+  }
+  function closePairing() { clearTimeout(pairTimer); pairScrim.classList.remove("open"); pairSheet.classList.remove("open"); }
+  document.getElementById("open-pairing").addEventListener("click", openPairing);
+  pairScrim.addEventListener("click", closePairing);
+  document.getElementById("pair-close").addEventListener("click", closePairing);
+  document.getElementById("token-eye").addEventListener("click", () => { tokenShown = !tokenShown; renderToken(); renderCommand(); });
+  document.getElementById("pair-share").addEventListener("click", () => toast("Share sheet would open"));
+  document.querySelectorAll("[data-copy]").forEach(el =>
+    el.addEventListener("click", () => toast(el.dataset.copy)));
+  document.getElementById("sheet-scan").addEventListener("click", () => {
+    closePairing();
+    toast("QR scanner would launch");
+  });
+  document.getElementById("sheet-rotate").addEventListener("click", () =>
+    document.getElementById("rotate-overlay").classList.add("open"));
+  document.getElementById("rotate-cancel").addEventListener("click", () =>
+    document.getElementById("rotate-overlay").classList.remove("open"));
+  document.getElementById("rotate-confirm").addEventListener("click", () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(20));
+    PAIR_TOKEN = [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+    tokenShown = false;
+    renderToken();
+    renderCommand();
+    document.getElementById("rotate-overlay").classList.remove("open");
+    toast("Pairing token rotated");
+  });
+
+  // Session tags, manager sheet, default-tag picker, add/rename dialog, delete confirm.
+  // Mirrors TagStore: color slots per tag, default tag falls back to the first tag on delete.
+  const TAG_PALETTE = ["#64B5F6","#81C784","#FFB74D","#F06292","#BA68C8","#4DD0E1","#FF8A65","#90A4AE","#AED581","#7986CB"];
+  let tags = ["Work", "Study", "Personal", "Exercise"];
+  let defaultTag = "Work";
+  // Stable tag-to-slot assignments: rename transfers the slot, delete frees it,
+  // mirroring TagStore.getColorSlots so colors survive list edits.
+  let tagSlots = {};
+  function assignSlot(name) {
+    if (tagSlots[name] !== undefined) return;
+    const used = Object.values(tagSlots);
+    tagSlots[name] = [0,1,2,3,4,5,6,7,8,9].find(slot => !used.includes(slot)) ?? 0;
+  }
+  tags.forEach(assignSlot);
+  let tagEditTarget; // undefined = add, string = rename
+  let tagDeleteTarget = null;
+  const tagsSheet = document.getElementById("tags-sheet");
+  const tagsScrim = document.getElementById("tags-scrim");
+  const defaultTagSheet = document.getElementById("default-tag-sheet");
+  const defaultTagScrim = document.getElementById("default-tag-scrim");
+  const tagEditOverlay = document.getElementById("tag-edit-overlay");
+  const tagEditInput = document.getElementById("tag-edit-input");
+  const tagEditHint = document.getElementById("tag-edit-hint");
+  const tagEditOk = document.getElementById("tag-edit-ok");
+  const tagDeleteOverlay = document.getElementById("tag-delete-overlay");
+
+  const tagColor = name => TAG_PALETTE[(tagSlots[name] ?? 0) % TAG_PALETTE.length];
+
+  function validateTagEdit() {
+    const name = tagEditInput.value.trim();
+    let error = "";
+    if (!name) error = "Enter a name";
+    else if (name !== tagEditTarget && tags.some(t => t.toLowerCase() === name.toLowerCase()))
+      error = "Tag already exists";
+    tagEditHint.textContent = error;
+    tagEditHint.classList.toggle("invalid", !!error);
+    tagEditOk.disabled = !!error;
+    return !error;
+  }
+
+  function renderTags() {
+    document.getElementById("tags-summary").textContent = tags.join(" · ");
+    const list = document.getElementById("tags-list");
+    list.innerHTML = "";
+    tags.forEach(tag => {
+      const row = document.createElement("div");
+      row.className = "tag-row";
+      row.innerHTML =
+        '<span class="tag-dot" style="background:' + tagColor(tag) + '"></span>' +
+        '<span class="tag-name"></span>' +
+        '<button class="icon-btn" aria-label="Rename"><span class="msr">edit</span></button>' +
+        '<button class="icon-btn danger" aria-label="Delete"><span class="msr">delete</span></button>';
+      row.querySelector(".tag-name").textContent = tag;
+      row.querySelector(".icon-btn:not(.danger)").addEventListener("click", () => openTagEdit(tag));
+      row.querySelector(".icon-btn.danger").addEventListener("click", () => openTagDelete(tag));
+      list.appendChild(row);
+    });
+    renderDefaultTagList();
+  }
+
+  function renderDefaultTagList() {
+    document.getElementById("default-tag-value").textContent = defaultTag;
+    const list = document.getElementById("default-tag-list");
+    list.innerHTML = "";
+    tags.forEach(opt => {
+      const selected = defaultTag === opt;
+      const row = document.createElement("div");
+      row.className = "pick-row";
+      row.innerHTML =
+        '<span class="tag-dot" style="background:' + tagColor(opt) + '"></span>' +
+        '<span class="tag-name"' + (selected ? ' style="color:#6BD98C"' : '') + '></span>' +
+        (selected ? '<span class="msr pick-check">check</span>' : '');
+      row.querySelector(".tag-name").textContent = opt;
+      row.addEventListener("click", () => {
+        defaultTag = opt;
+        renderDefaultTagList();
+        closeDefaultTag();
+        toast("Default tag · " + opt);
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function openTags() { renderTags(); tagsScrim.classList.add("open"); tagsSheet.classList.add("open"); }
+  function closeTags() { tagsScrim.classList.remove("open"); tagsSheet.classList.remove("open"); }
+  function openDefaultTag() { renderDefaultTagList(); defaultTagScrim.classList.add("open"); defaultTagSheet.classList.add("open"); }
+  function closeDefaultTag() { defaultTagScrim.classList.remove("open"); defaultTagSheet.classList.remove("open"); }
+
+  function openTagEdit(tag) {
+    tagEditTarget = tag;
+    document.getElementById("tag-edit-title").textContent = tag ? "Rename tag" : "Add tag";
+    tagEditInput.value = tag || "";
+    tagEditHint.textContent = "";
+    tagEditHint.classList.remove("invalid");
+    tagEditOk.disabled = !tag;
+    tagEditOverlay.classList.add("open");
+    tagEditInput.focus();
+    if (tag) tagEditInput.select();
+  }
+  function closeTagEdit() { tagEditOverlay.classList.remove("open"); }
+
+  function openTagDelete(tag) {
+    tagDeleteTarget = tag;
+    document.getElementById("tag-delete-name").textContent = tag;
+    tagDeleteOverlay.classList.add("open");
+  }
+
+  document.getElementById("open-tags").addEventListener("click", openTags);
+  document.getElementById("tags-close").addEventListener("click", closeTags);
+  tagsScrim.addEventListener("click", closeTags);
+  document.getElementById("open-default-tag").addEventListener("click", openDefaultTag);
+  document.getElementById("default-tag-close").addEventListener("click", closeDefaultTag);
+  defaultTagScrim.addEventListener("click", closeDefaultTag);
+  document.getElementById("tag-add").addEventListener("click", () => openTagEdit(undefined));
+  document.getElementById("tag-edit-cancel").addEventListener("click", closeTagEdit);
+  tagEditInput.addEventListener("input", validateTagEdit);
+  tagEditInput.addEventListener("keydown", e => { if (e.key === "Enter" && validateTagEdit()) tagEditOk.click(); });
+  tagEditOk.addEventListener("click", () => {
+    if (tagEditOk.disabled) return;
+    const name = tagEditInput.value.trim();
+    if (tagEditTarget) {
+      if (defaultTag === tagEditTarget) defaultTag = name;
+      tagSlots[name] = tagSlots[tagEditTarget];
+      delete tagSlots[tagEditTarget];
+      tags = tags.map(t => (t === tagEditTarget ? name : t));
+      toast("Tag renamed");
+    } else {
+      tags = [...tags, name];
+      toast("Tag added · " + name);
+    }
+    closeTagEdit();
+    renderTags();
+  });
+  document.getElementById("tag-delete-cancel").addEventListener("click", () => tagDeleteOverlay.classList.remove("open"));
+  document.getElementById("tag-delete-ok").addEventListener("click", () => {
+    tags = tags.filter(t => t !== tagDeleteTarget);
+    delete tagSlots[tagDeleteTarget];
+    if (defaultTag === tagDeleteTarget) defaultTag = tags[0] ?? null;
+    tagDeleteOverlay.classList.remove("open");
+    renderTags();
+    toast("Tag deleted");
+  });
+
+  // State cues, dependent rows follow the master toggles; previews reflect availability.
+  // Grounded in StateCueEngine: ring_sound is only consumed while "Ring until dismissed" is on.
+  function updateCueDeps() {
+    const on = id => document.querySelector("#" + id + " .switch").classList.contains("on");
+    const vib = on("row-vibration"), snd = on("row-sound");
+    const any = vib || snd;
+    ["row-stronger", "row-ring-until", "row-cue-previews"].forEach(id =>
+      document.getElementById(id).classList.toggle("disabled", !any));
+    const showRingSound = any && on("row-ring-until");
+    document.getElementById("row-ring-sound").style.display = showRingSound ? "" : "none";
+    document.getElementById("ring-sound-divider").style.display = showRingSound ? "" : "none";
+    document.querySelectorAll(".cue-btn-audio").forEach(b => b.disabled = !snd);
+    document.querySelectorAll(".cue-btn-haptic").forEach(b => b.disabled = !vib);
+    document.querySelectorAll(".cue-btn-preview").forEach(b => b.disabled = !snd && !vib);
+    document.querySelectorAll(".cue-status").forEach(s => {
+      s.textContent = "Next completion: " + s.dataset.variant +
+        " · Sound " + (snd ? "on" : "off") + " · Vibration " + (vib ? "on" : "off");
+    });
+  }
+  updateCueDeps();
+
+  // Page navigation
+  document.getElementById("row-cue-previews").addEventListener("click", () => {
+    document.getElementById("page-settings").classList.remove("active");
+    document.getElementById("page-previews").classList.add("active");
+  });
+  document.getElementById("previews-back").addEventListener("click", () => {
+    document.getElementById("page-previews").classList.remove("active");
+    document.getElementById("page-settings").classList.add("active");
+  });
+  document.getElementById("open-release").addEventListener("click", () => {
+    document.getElementById("page-settings").classList.remove("active");
+    document.getElementById("page-release").classList.add("active");
+  });
+  document.getElementById("release-back").addEventListener("click", () => {
+    document.getElementById("page-release").classList.remove("active");
+    document.getElementById("page-settings").classList.add("active");
+  });
+  document.getElementById("open-about").addEventListener("click", () => {
+    document.getElementById("page-settings").classList.remove("active");
+    document.getElementById("page-about").classList.add("active");
+  });
+  document.getElementById("about-back").addEventListener("click", () => {
+    document.getElementById("page-about").classList.remove("active");
+    document.getElementById("page-settings").classList.add("active");
+  });
+
+  // Release notes, demo state switcher (stale-while-revalidate model) + expandable history rows
+  document.querySelectorAll("[data-rel-state]").forEach(chip =>
+    chip.addEventListener("click", () => {
+      document.querySelectorAll("[data-rel-state]").forEach(c => c.classList.remove("selected"));
+      chip.classList.add("selected");
+      const state = chip.dataset.relState;
+      document.querySelectorAll("[data-rel-states]").forEach(p =>
+        p.style.display = p.dataset.relStates.split(" ").includes(state) ? "" : "none");
+    }));
+  document.querySelectorAll(".rel-hist-head").forEach(head =>
+    head.addEventListener("click", () => head.parentElement.classList.toggle("open")));
+
+  // About, tap version to copy build info
+  document.getElementById("about-version").addEventListener("click", () => {
+    navigator.clipboard?.writeText("Pomo 2.19.1");
+    toast("Version copied · Pomo 2.19.1");
+  });
+
+  // Settings search (proposed feature, demo)
+  const searchBar = document.getElementById("search-bar");
+  const searchInput = document.getElementById("search-input");
+  const searchClear = document.getElementById("search-clear");
+  const searchToggle = document.getElementById("search-toggle");
+  const noResults = document.getElementById("no-results");
+  const settingsGroups = document.querySelectorAll("#page-settings .group");
+
+  function applyFilter(q) {
+    q = q.trim().toLowerCase();
+    searchClear.classList.toggle("visible", q.length > 0);
+    let total = 0;
+    settingsGroups.forEach(group => {
+      const pieces = group.querySelectorAll(".row, .row-stack, .note-row");
+      let visible = 0;
+      pieces.forEach(piece => {
+        const match = !q || piece.textContent.toLowerCase().includes(q);
+        piece.style.display = match ? "" : "none";
+        if (match) visible++;
+      });
+      group.querySelector(".card")?.classList.toggle("filtering", q.length > 0);
+      group.style.display = (!q || visible > 0) ? "" : "none";
+      total += visible;
+    });
+    noResults.style.display = (q && total === 0) ? "block" : "none";
+  }
+  searchToggle.addEventListener("click", () => {
+    const opening = !searchBar.classList.contains("open");
+    searchBar.classList.toggle("open", opening);
+    searchToggle.classList.toggle("active", opening);
+    if (opening) {
+      searchInput.focus();
+    } else {
+      searchInput.value = "";
+      applyFilter("");
+    }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (tagDeleteOverlay.classList.contains("open")) {
+      tagDeleteOverlay.classList.remove("open");
+    } else if (tagEditOverlay.classList.contains("open")) {
+      closeTagEdit();
+    } else if (defaultTagSheet.classList.contains("open")) {
+      closeDefaultTag();
+    } else if (tagsSheet.classList.contains("open")) {
+      closeTags();
+    } else if (document.getElementById("rotate-overlay").classList.contains("open")) {
+      document.getElementById("rotate-overlay").classList.remove("open");
+    } else if (numOverlay.classList.contains("open")) {
+      numOverlay.classList.remove("open");
+    } else if (pairSheet.classList.contains("open")) {
+      closePairing();
+    } else if (searchBar.classList.contains("open")) {
+      searchToggle.click();
+    }
+  });
+  searchInput.addEventListener("input", () => applyFilter(searchInput.value));
+  searchClear.addEventListener("click", () => {
+    searchInput.value = "";
+    applyFilter("");
+    searchInput.focus();
+  });
+</script>
+</body>
+</html>
