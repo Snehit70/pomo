@@ -860,7 +860,7 @@ private fun CompletionCuePreviewRow(
         Text(
             text =
                 buildString {
-                    append(context.getString(R.string.state_cues_preview_next_up, nextVariantNumber))
+                    append(context.getString(R.string.state_cues_preview_next_completion, nextVariantNumber))
                     append(" · ")
                     append(
                         context.getString(
@@ -885,16 +885,19 @@ private fun CompletionCuePreviewRow(
             PomoButton(
                 onClick = { preview(CuePreviewChannel.Combined) },
                 variant = PomoButtonVariant.Tonal,
+                enabled = soundEnabled || (vibrationEnabled && vibrationAvailable),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             ) { Text(context.getString(R.string.state_cues_preview_button)) }
             PomoButton(
                 onClick = { preview(CuePreviewChannel.AudioOnly) },
                 variant = PomoButtonVariant.Ghost,
+                enabled = soundEnabled,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             ) { Text(context.getString(R.string.state_cues_preview_audio)) }
             PomoButton(
                 onClick = { preview(CuePreviewChannel.HapticOnly) },
                 variant = PomoButtonVariant.Ghost,
+                enabled = vibrationEnabled && vibrationAvailable,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             ) { Text(context.getString(R.string.state_cues_preview_haptic)) }
         }
@@ -945,6 +948,7 @@ private fun ManualHapticPreviewRow(
                 }
             },
             variant = PomoButtonVariant.Tonal,
+            enabled = vibrationEnabled && vibrationAvailable,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) { Text(context.getString(R.string.state_cues_preview_haptic_button)) }
     }

@@ -116,6 +116,7 @@
     <string name="state_cues_variant_2">Variant 2</string>
     <string name="state_cues_variant_3">Variant 3</string>
     <string name="state_cues_preview_next_up">Next up: Variant %1$d</string>
+    <string name="state_cues_preview_next_completion">Next completion: Variant %1$d</string>
     <string name="state_cues_preview_sound_on">Sound on</string>
     <string name="state_cues_preview_sound_off_inline">Sound off</string>
     <string name="state_cues_preview_vibration_on">Vibration on</string>
