@@ -1,7 +1,9 @@
 package com.pomo.ui.screens
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -218,11 +220,20 @@ private fun LoadedNotes(
         }
     }
 
-    val installed =
-        state.releases.firstOrNull { it.versionName == BuildConfig.VERSION_NAME }
-            ?: state.releases.firstOrNull()
-    if (installed != null) {
-        val isInstalledVersion = installed.versionName == BuildConfig.VERSION_NAME
+    val installedMatch = state.releases.firstOrNull { it.versionName == BuildConfig.VERSION_NAME }
+    // When the installed build has no matching release (too old, or unpublished),
+    // the latest release takes the primary card under a Latest chip instead.
+    val primary = installedMatch ?: state.releases.firstOrNull()
+    if (primary != null) {
+        val installed = primary
+        val chipText =
+            stringResource(
+                if (installedMatch != null) {
+                    R.string.release_notes_installed_chip
+                } else {
+                    R.string.release_notes_latest_chip
+                },
+            )
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(PomoRadius.Lg),
@@ -237,21 +248,19 @@ private fun LoadedNotes(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    if (isInstalledVersion) {
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            stringResource(R.string.release_notes_installed_chip).uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier =
-                                Modifier
-                                    .background(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                        CircleShape,
-                                    )
-                                    .padding(horizontal = 10.dp, vertical = 3.dp),
-                        )
-                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        chipText.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier =
+                            Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    CircleShape,
+                                )
+                                .padding(horizontal = 10.dp, vertical = 3.dp),
+                    )
                 }
                 installed.publishedAt?.let { iso ->
                     Spacer(Modifier.height(6.dp))
@@ -302,7 +311,7 @@ private fun LoadedNotes(
         }
     }
 
-    val earlier = state.releases.filter { it != installed }
+    val earlier = state.releases.filter { it != primary }
     if (earlier.isNotEmpty()) {
         Spacer(Modifier.height(20.dp))
         Text(
@@ -494,7 +503,11 @@ private fun formatDate(iso: String): String =
     }.getOrDefault("")
 
 private fun openChangelog(context: android.content.Context) {
-    context.startActivity(
-        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/${com.pomo.update.GithubUpdateChecker.DEFAULT_REPO}/releases")),
-    )
+    val intent =
+        Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/${com.pomo.update.GithubUpdateChecker.DEFAULT_REPO}/releases"))
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(context, R.string.link_unavailable, Toast.LENGTH_SHORT).show()
+    }
 }

@@ -213,7 +213,9 @@
     <string name="release_notes_released">Released %1$s</string>
     <string name="release_notes_whats_changed">What\'s changed</string>
     <string name="release_notes_no_notes">This build has no published release notes yet.</string>
-    <string name="release_notes_earlier">Earlier releases</string>
+    <string name="release_notes_earlier">Other releases</string>
+    <string name="release_notes_latest_chip">Latest</string>
+    <string name="link_unavailable">No app is available to open this link</string>
     <string name="release_notes_full_changelog">Full changelog on GitHub</string>
     <string name="about_title">About</string>
     <string name="about_summary">Version info &amp; credits</string>

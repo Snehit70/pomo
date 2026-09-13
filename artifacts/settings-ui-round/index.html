@@ -1411,6 +1411,15 @@
   const TAG_PALETTE = ["#64B5F6","#81C784","#FFB74D","#F06292","#BA68C8","#4DD0E1","#FF8A65","#90A4AE","#AED581","#7986CB"];
   let tags = ["Work", "Study", "Personal", "Exercise"];
   let defaultTag = "Work";
+  // Stable tag-to-slot assignments: rename transfers the slot, delete frees it,
+  // mirroring TagStore.getColorSlots so colors survive list edits.
+  let tagSlots = {};
+  function assignSlot(name) {
+    if (tagSlots[name] !== undefined) return;
+    const used = Object.values(tagSlots);
+    tagSlots[name] = [0,1,2,3,4,5,6,7,8,9].find(slot => !used.includes(slot)) ?? 0;
+  }
+  tags.forEach(assignSlot);
   let tagEditTarget; // undefined = add, string = rename
   let tagDeleteTarget = null;
   const tagsSheet = document.getElementById("tags-sheet");
@@ -1423,7 +1432,7 @@
   const tagEditOk = document.getElementById("tag-edit-ok");
   const tagDeleteOverlay = document.getElementById("tag-delete-overlay");
 
-  const tagColor = name => TAG_PALETTE[Math.max(tags.indexOf(name), 0) % TAG_PALETTE.length];
+  const tagColor = name => TAG_PALETTE[(tagSlots[name] ?? 0) % TAG_PALETTE.length];
 
   function validateTagEdit() {
     const name = tagEditInput.value.trim();
@@ -1458,25 +1467,23 @@
   }
 
   function renderDefaultTagList() {
-    document.getElementById("default-tag-value").textContent = defaultTag ?? "Untagged";
+    document.getElementById("default-tag-value").textContent = defaultTag;
     const list = document.getElementById("default-tag-list");
     list.innerHTML = "";
-    [null, ...tags].forEach(opt => {
-      const selected = (defaultTag ?? null) === opt;
+    tags.forEach(opt => {
+      const selected = defaultTag === opt;
       const row = document.createElement("div");
       row.className = "pick-row";
       row.innerHTML =
-        (opt
-          ? '<span class="tag-dot" style="background:' + tagColor(opt) + '"></span>'
-          : '<span class="msr" style="font-size:20px;color:var(--muted)">label_off</span>') +
+        '<span class="tag-dot" style="background:' + tagColor(opt) + '"></span>' +
         '<span class="tag-name"' + (selected ? ' style="color:#6BD98C"' : '') + '></span>' +
         (selected ? '<span class="msr pick-check">check</span>' : '');
-      row.querySelector(".tag-name").textContent = opt ?? "Untagged";
+      row.querySelector(".tag-name").textContent = opt;
       row.addEventListener("click", () => {
         defaultTag = opt;
         renderDefaultTagList();
         closeDefaultTag();
-        toast("Default tag · " + (opt ?? "Untagged"));
+        toast("Default tag · " + opt);
       });
       list.appendChild(row);
     });
@@ -1521,6 +1528,8 @@
     const name = tagEditInput.value.trim();
     if (tagEditTarget) {
       if (defaultTag === tagEditTarget) defaultTag = name;
+      tagSlots[name] = tagSlots[tagEditTarget];
+      delete tagSlots[tagEditTarget];
       tags = tags.map(t => (t === tagEditTarget ? name : t));
       toast("Tag renamed");
     } else {
@@ -1533,6 +1542,7 @@
   document.getElementById("tag-delete-cancel").addEventListener("click", () => tagDeleteOverlay.classList.remove("open"));
   document.getElementById("tag-delete-ok").addEventListener("click", () => {
     tags = tags.filter(t => t !== tagDeleteTarget);
+    delete tagSlots[tagDeleteTarget];
     if (defaultTag === tagDeleteTarget) defaultTag = tags[0] ?? null;
     tagDeleteOverlay.classList.remove("open");
     renderTags();

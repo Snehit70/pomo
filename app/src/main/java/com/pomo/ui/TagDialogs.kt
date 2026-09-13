@@ -286,18 +286,21 @@ internal fun TagPickerSheet(
     currentTag: String?,
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit,
+    showUntagged: Boolean = true,
 ) {
     val context = LocalContext.current
     val tagStore = remember { TagStore(context) }
 
     PomoSheet(title = stringResource(R.string.session_tags_title), onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-            PickerRow(
-                label = stringResource(R.string.session_tags_untagged_picker),
-                color = null,
-                selected = currentTag == null,
-                onClick = { onSelect(null) },
-            )
+            if (showUntagged) {
+                PickerRow(
+                    label = stringResource(R.string.session_tags_untagged_picker),
+                    color = null,
+                    selected = currentTag == null,
+                    onClick = { onSelect(null) },
+                )
+            }
             tags.forEach { tag ->
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                 PickerRow(

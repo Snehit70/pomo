@@ -345,7 +345,7 @@ private fun SettingsGroupCard(
                             }
                         is SettingsItem.ChoicePref ->
                             GatedRow(prefs, item.enabledWhen, item.enabledPrefKeys) {
-                                ChoicePrefRow(prefs, item)
+                                ChoicePrefRow(prefs, item, it)
                             }
                         is SettingsItem.SegmentedPref -> SegmentedPrefRow(prefs, item)
                         is SettingsItem.Action ->
@@ -564,6 +564,7 @@ private fun NumberEditorDialog(
 private fun ChoicePrefRow(
     prefs: SharedPreferences,
     item: SettingsItem.ChoicePref,
+    enabled: Boolean = true,
 ) {
     var current by remember(item.key) {
         mutableStateOf(prefs.getString(item.key, item.default) ?: item.default)
@@ -618,6 +619,7 @@ private fun ChoicePrefRow(
                     prefs.edit().putString(item.key, value).apply()
                 },
                 modifier = Modifier.fillMaxWidth(),
+                enabled = enabled,
             )
         }
         return
@@ -630,6 +632,7 @@ private fun ChoicePrefRow(
         valueText = currentLabel,
         onClick = { editing = true },
         leadingIcon = item.icon,
+        enabled = enabled,
     )
 
     if (editing) {
@@ -775,10 +778,15 @@ private fun BoolPrefRow(
         }
         Switch(
             checked = checked,
-            onCheckedChange = {
-                checked = it
-                prefs.edit().putBoolean(item.key, it).apply()
-            },
+            onCheckedChange =
+                if (enabled) {
+                    { next ->
+                        checked = next
+                        prefs.edit().putBoolean(item.key, next).apply()
+                    }
+                } else {
+                    null
+                },
             colors =
                 SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,

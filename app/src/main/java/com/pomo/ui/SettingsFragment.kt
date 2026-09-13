@@ -245,6 +245,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                                 defaultTagPicker.value = false
                             },
                             onDismiss = { defaultTagPicker.value = false },
+                            showUntagged = false,
                         )
                     }
                 }

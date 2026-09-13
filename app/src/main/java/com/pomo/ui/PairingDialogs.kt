@@ -96,10 +96,7 @@ internal fun PairingSheet(
                     )
                 }
                 IconButton(
-                    onClick = {
-                        tokenShown = !tokenShown
-                        onCopy(buildCommand(data.url, data.token))
-                    },
+                    onClick = { tokenShown = !tokenShown },
                     modifier = Modifier.align(Alignment.End),
                 ) {
                     Icon(
