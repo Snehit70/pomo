@@ -63,3 +63,13 @@ internal sealed interface DownloadOutcome {
 
     data object Failed : DownloadOutcome
 }
+
+internal sealed interface ReleasesResult {
+    data class Success(val releases: List<ReleaseEntry>) : ReleasesResult
+
+    data object Offline : ReleasesResult
+
+    data object RateLimited : ReleasesResult
+
+    data object MalformedMetadata : ReleasesResult
+}

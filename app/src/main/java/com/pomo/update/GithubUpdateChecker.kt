@@ -14,6 +14,7 @@ internal data class ReleasePayload(
     val tagName: String?,
     val releaseNotes: String,
     val assets: List<ReleaseAsset>,
+    val publishedAt: String? = null,
 )
 
 /**
@@ -104,21 +105,71 @@ internal class GithubUpdateChecker(
 
     private fun parseRelease(json: String): ReleasePayload? =
         try {
-            val root = JsonParser.parseString(json).asJsonObject
-            val tag = root.get("tag_name")?.takeUnless { it.isJsonNull }?.asString
-            val notes = root.get("body")?.takeUnless { it.isJsonNull }?.asString.orEmpty()
-            val assets =
-                root.getAsJsonArray("assets")?.mapNotNull { element ->
-                    val obj = element.asJsonObject
-                    val name = obj.get("name")?.takeUnless { it.isJsonNull }?.asString ?: return@mapNotNull null
-                    val url =
-                        obj.get("browser_download_url")?.takeUnless { it.isJsonNull }?.asString
-                            ?: return@mapNotNull null
-                    ReleaseAsset(name, url)
-                }.orEmpty()
-            ReleasePayload(tagName = tag, releaseNotes = notes, assets = assets)
+            parseReleaseObject(JsonParser.parseString(json).asJsonObject)
         } catch (_: Exception) {
             null
+        }
+
+    private fun parseReleaseObject(root: com.google.gson.JsonObject): ReleasePayload {
+        val tag = root.get("tag_name")?.takeUnless { it.isJsonNull }?.asString
+        val notes = root.get("body")?.takeUnless { it.isJsonNull }?.asString.orEmpty()
+        val publishedAt = root.get("published_at")?.takeUnless { it.isJsonNull }?.asString
+        val assets =
+            root.getAsJsonArray("assets")?.mapNotNull { element ->
+                val obj = element.asJsonObject
+                val name = obj.get("name")?.takeUnless { it.isJsonNull }?.asString ?: return@mapNotNull null
+                val url =
+                    obj.get("browser_download_url")?.takeUnless { it.isJsonNull }?.asString
+                        ?: return@mapNotNull null
+                ReleaseAsset(name, url)
+            }.orEmpty()
+        return ReleasePayload(tagName = tag, releaseNotes = notes, assets = assets, publishedAt = publishedAt)
+    }
+
+    /** Recent releases, newest first, for the changelog screen. */
+    suspend fun releases(): ReleasesResult =
+        withContext(Dispatchers.IO) {
+            val request =
+                Request.Builder()
+                    .url("https://api.github.com/repos/$repo/releases?per_page=10")
+                    .header("Accept", "application/vnd.github+json")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .header("User-Agent", USER_AGENT)
+                    .build()
+
+            try {
+                client.newCall(request).execute().use { response ->
+                    val rateLimited =
+                        response.code == 429 ||
+                            (
+                                response.code == 403 &&
+                                    (
+                                        response.header("X-RateLimit-Remaining") == "0" ||
+                                            response.header("Retry-After") != null
+                                    )
+                            )
+                    if (rateLimited) return@use ReleasesResult.RateLimited
+                    if (!response.isSuccessful) return@use ReleasesResult.MalformedMetadata
+                    val body = response.body?.string() ?: return@use ReleasesResult.MalformedMetadata
+                    val entries =
+                        try {
+                            JsonParser.parseString(body).asJsonArray.mapNotNull { element ->
+                                val payload = parseReleaseObject(element.asJsonObject)
+                                val tag = payload.tagName ?: return@mapNotNull null
+                                ReleaseEntry(
+                                    versionName = tag.trim().removePrefix("v").removePrefix("V"),
+                                    releaseNotes = payload.releaseNotes,
+                                    publishedAt = payload.publishedAt,
+                                )
+                            }
+                        } catch (_: Exception) {
+                            return@use ReleasesResult.MalformedMetadata
+                        }
+                    if (entries.isEmpty()) ReleasesResult.MalformedMetadata else ReleasesResult.Success(entries)
+                }
+            } catch (_: IOException) {
+                ReleasesResult.Offline
+            }
         }
 
     internal companion object {
