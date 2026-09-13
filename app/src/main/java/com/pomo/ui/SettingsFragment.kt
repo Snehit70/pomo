@@ -16,6 +16,30 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material.icons.outlined.Autorenew
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.Coffee
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lan
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.QrCode2
+import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.Snooze
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.Upload
+import androidx.compose.material.icons.outlined.Vibration
+import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material.icons.outlined.WifiTethering
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
@@ -42,6 +67,7 @@ import com.pomo.backup.BackupRepository
 import com.pomo.backup.PomoBackup
 import com.pomo.cues.CompletionCueFamily
 import com.pomo.cues.StateCueEvent
+import com.pomo.tags.TagStore
 import com.pomo.ui.screens.SettingsItem
 import com.pomo.ui.screens.SettingsScreen
 import com.pomo.ui.theme.PomoTheme
@@ -213,6 +239,18 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                             onDismiss = { tagManagerDialog.value = false },
                         )
                     }
+                    if (defaultTagPicker.value) {
+                        val tagStore = remember { TagStore(requireContext()) }
+                        TagPickerSheet(
+                            tags = tagStore.getTags(),
+                            currentTag = tagStore.getDefaultTag(),
+                            onSelect = { tag ->
+                                if (tag != null) tagStore.setDefaultTag(tag)
+                                defaultTagPicker.value = false
+                            },
+                            onDismiss = { defaultTagPicker.value = false },
+                        )
+                    }
                 }
             }
         }
@@ -227,6 +265,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.phone_api_enabled_title),
                     summary = getString(R.string.phone_api_enabled_summary),
                     default = true,
+                    icon = Icons.Outlined.WifiTethering,
                 ),
             )
             add(
@@ -235,6 +274,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.phone_api_wifi_only_title),
                     summary = getString(R.string.phone_api_wifi_only_summary),
                     default = true,
+                    icon = Icons.Outlined.Wifi,
                 ),
             )
             add(
@@ -243,6 +283,10 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.phone_api_port_title),
                     summary = getString(R.string.phone_api_port_summary),
                     default = 9876,
+                    min = 1024,
+                    max = 65535,
+                    allowRandom = true,
+                    icon = Icons.Outlined.Lan,
                 ),
             )
             add(
@@ -250,6 +294,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.pair_desktop_title),
                     summary = getString(R.string.pair_desktop_summary),
                     onClick = ::onPairingClick,
+                    icon = Icons.Outlined.QrCode2,
                 ),
             )
             add(
@@ -257,6 +302,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.rotate_pairing_token_title),
                     summary = getString(R.string.rotate_pairing_token_summary),
                     onClick = { rotateConfirm.value = true },
+                    icon = Icons.Outlined.Autorenew,
                 ),
             )
             add(
@@ -264,6 +310,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.scan_pairing_qr_title),
                     summary = getString(R.string.scan_pairing_qr_summary),
                     onClick = ::launchQrScanner,
+                    icon = Icons.Outlined.QrCodeScanner,
                 ),
             )
 
@@ -272,24 +319,39 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                 SettingsItem.IntPref(
                     key = "pomodoro_duration",
                     title = getString(R.string.pomodoro_duration_title),
-                    summary = getString(R.string.pomodoro_duration_summary),
+                    summary = "",
                     default = 25,
+                    min = 1,
+                    max = 180,
+                    unit = "minutes",
+                    presets = listOf(15, 25, 45, 60),
+                    icon = Icons.Outlined.Timer,
                 ),
             )
             add(
                 SettingsItem.IntPref(
                     key = "short_break_duration",
                     title = getString(R.string.short_break_title),
-                    summary = getString(R.string.short_break_summary),
+                    summary = "",
                     default = 5,
+                    min = 1,
+                    max = 60,
+                    unit = "minutes",
+                    presets = listOf(5, 10, 15, 20),
+                    icon = Icons.Outlined.Coffee,
                 ),
             )
             add(
                 SettingsItem.IntPref(
                     key = "long_break_duration",
                     title = getString(R.string.long_break_title),
-                    summary = getString(R.string.long_break_summary),
+                    summary = "",
                     default = 15,
+                    min = 1,
+                    max = 120,
+                    unit = "minutes",
+                    presets = listOf(15, 30, 45, 60),
+                    icon = Icons.Outlined.Snooze,
                 ),
             )
 
@@ -299,6 +361,16 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.session_tags_title),
                     summary = getString(R.string.session_tags_summary),
                     onClick = ::showTagManager,
+                    icon = Icons.AutoMirrored.Outlined.Label,
+                ),
+            )
+            add(
+                SettingsItem.Action(
+                    title = getString(R.string.default_tag_title),
+                    summary = getString(R.string.default_tag_summary),
+                    onClick = { defaultTagPicker.value = true },
+                    icon = Icons.Outlined.Bookmark,
+                    valueProvider = { TagStore(requireContext()).getDefaultTag() },
                 ),
             )
 
@@ -309,17 +381,27 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.daily_goal_title),
                     summary = getString(R.string.daily_goal_summary),
                     default = 8,
+                    min = 0,
+                    max = 50,
+                    unit = "blocks a day",
+                    presets = listOf(4, 8, 12),
+                    icon = Icons.Outlined.Flag,
                 ),
             )
 
             add(SettingsItem.Section(getString(R.string.category_state_cues)))
             add(SettingsItem.Note(getString(R.string.state_cues_note)))
+            val cueChannelsOn: (SharedPreferences) -> Boolean = { prefs ->
+                prefs.getBoolean("vibrate_enabled", true) || prefs.getBoolean("sound_enabled", true)
+            }
+            val cueChannelKeys = listOf("vibrate_enabled", "sound_enabled")
             add(
                 SettingsItem.BoolPref(
                     key = "vibrate_enabled",
                     title = getString(R.string.vibrate_title),
                     summary = getString(R.string.vibrate_summary),
                     default = true,
+                    icon = Icons.Outlined.Vibration,
                 ),
             )
             add(
@@ -328,6 +410,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.sound_title),
                     summary = getString(R.string.sound_summary),
                     default = true,
+                    icon = Icons.AutoMirrored.Outlined.VolumeUp,
                 ),
             )
             add(
@@ -336,6 +419,9 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.state_cues_stronger_title),
                     summary = getString(R.string.state_cues_stronger_summary),
                     default = false,
+                    icon = Icons.Outlined.Bolt,
+                    enabledWhen = cueChannelsOn,
+                    enabledPrefKeys = cueChannelKeys,
                 ),
             )
             add(
@@ -344,6 +430,9 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.ring_until_dismissed_title),
                     summary = getString(R.string.ring_until_dismissed_summary),
                     default = false,
+                    icon = Icons.Outlined.NotificationsActive,
+                    enabledWhen = cueChannelsOn,
+                    enabledPrefKeys = cueChannelKeys,
                 ),
             )
             add(
@@ -363,6 +452,11 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                                 getString(R.string.ring_sound_pomo),
                             ),
                         ),
+                    icon = Icons.Outlined.MusicNote,
+                    enabledWhen = { prefs ->
+                        cueChannelsOn(prefs) && prefs.getBoolean("ring_until_dismissed", false)
+                    },
+                    enabledPrefKeys = listOf("vibrate_enabled", "sound_enabled", "ring_until_dismissed"),
                 ),
             )
             add(
@@ -370,6 +464,9 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.state_cues_previews_title),
                     summary = getString(R.string.state_cues_previews_summary),
                     onClick = onCuePreviewsClick,
+                    icon = Icons.Outlined.GraphicEq,
+                    enabledWhen = cueChannelsOn,
+                    enabledPrefKeys = cueChannelKeys,
                 ),
             )
 
@@ -377,6 +474,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
             add(
                 SettingsItem.SegmentedPref(
                     key = THEME_MODE_PREF_KEY,
+                    icon = Icons.Outlined.Palette,
                     title = getString(R.string.theme_mode_title),
                     summary = getString(R.string.theme_mode_summary),
                     default = ThemeMode.System.preferenceValue,
@@ -395,6 +493,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.backup_export_title),
                     summary = getString(R.string.backup_export_summary),
                     onClick = ::launchBackupExport,
+                    icon = Icons.Outlined.Download,
                 ),
             )
             add(
@@ -402,6 +501,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.backup_restore_title),
                     summary = getString(R.string.backup_restore_summary),
                     onClick = ::launchBackupImport,
+                    icon = Icons.Outlined.Upload,
                 ),
             )
 
@@ -410,7 +510,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                 SettingsItem.Action(
                     title = getString(R.string.release_notes_title),
                     summary = getString(R.string.release_notes_summary, BuildConfig.VERSION_NAME),
-                    iconRes = R.drawable.ic_info,
+                    icon = Icons.AutoMirrored.Outlined.Article,
                     onClick = {
                         runCatching { findNavController().navigate(R.id.navigation_release_notes) }
                     },
@@ -420,7 +520,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                 SettingsItem.Action(
                     title = getString(R.string.about_title),
                     summary = getString(R.string.about_summary),
-                    iconRes = R.drawable.ic_info,
+                    icon = Icons.Outlined.Info,
                     onClick = {
                         runCatching { findNavController().navigate(R.id.navigation_about) }
                     },
@@ -506,6 +606,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
     }
 
     private val tagManagerDialog = mutableStateOf(false)
+    private val defaultTagPicker = mutableStateOf(false)
 
     private fun showTagManager() {
         tagManagerDialog.value = true

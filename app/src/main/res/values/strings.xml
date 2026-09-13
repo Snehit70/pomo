@@ -21,6 +21,11 @@
     <string name="pref_stronger_completion_cues">stronger_completion_cues</string>
     
     <string name="settings_title">Settings</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_empty">No settings match your search</string>
+    <string name="number_editor_random">Random value</string>
+    <string name="number_editor_range">Between %1$d and %2$d</string>
+    <string name="number_editor_ok">OK</string>
     <string name="category_connection">Connection</string>
     <string name="category_notifications">Notifications</string>
     <string name="category_state_cues">State Cues</string>
@@ -143,6 +148,8 @@
     <string name="session_tags_edit_done">Tag renamed</string>
     <string name="session_tags_delete_done">Tag deleted</string>
     <string name="session_tags_untagged">untagged</string>
+    <string name="default_tag_title">Default tag</string>
+    <string name="default_tag_summary">Applied to new focus blocks</string>
 
     <!-- Goals -->
     <string name="category_goals">Goals</string>
