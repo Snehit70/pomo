@@ -151,6 +151,10 @@
     <string name="session_tags_edit_done">Tag renamed</string>
     <string name="session_tags_delete_done">Tag deleted</string>
     <string name="session_tags_untagged">untagged</string>
+    <string name="session_tags_sheet_sub">Tags label focus blocks in history and stats. Tap a tag to rename it.</string>
+    <string name="session_tags_duplicate">Tag \"%1$s\" already exists</string>
+    <string name="session_tags_error_empty">Enter a name</string>
+    <string name="session_tags_untagged_picker">Untagged</string>
     <string name="default_tag_title">Default tag</string>
     <string name="default_tag_summary">Applied to new focus blocks</string>
 
