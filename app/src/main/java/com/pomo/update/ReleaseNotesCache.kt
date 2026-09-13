@@ -6,7 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 /** One cached release entry as shown on the release notes screen. */
-data class ReleaseEntry(
+internal data class ReleaseEntry(
     val versionName: String,
     val releaseNotes: String,
     val publishedAt: String?,
