@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Edit
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.LabelOff
@@ -201,7 +201,7 @@ private fun TagRow(
         )
         IconButton(onClick = onEdit) {
             Icon(
-                Icons.AutoMirrored.Outlined.Edit,
+                Icons.Outlined.Edit,
                 contentDescription = stringResource(R.string.session_tags_edit),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -287,7 +287,8 @@ internal fun TagPickerSheet(
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val tagStore = remember { TagStore(LocalContext.current) }
+    val context = LocalContext.current
+    val tagStore = remember { TagStore(context) }
 
     PomoSheet(title = stringResource(R.string.session_tags_title), onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {

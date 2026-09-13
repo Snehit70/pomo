@@ -17,18 +17,19 @@ data class ReleaseEntry(
  * screen renders from this cache first and refreshes in the background. Prefs-backed
  * JSON, matching the TagStore persistence style; no Room needed for a changelog.
  */
-internal class ReleaseNotesCache(context: Context) {
+internal class ReleaseNotesCache internal constructor(context: Context) {
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
     private val gson = Gson()
 
-    public fun get(): List<ReleaseEntry> =
-        try {
-            val json = prefs.getString(PREF_KEY, null) ?: return emptyList()
+    public fun get(): List<ReleaseEntry> {
+        val json = prefs.getString(PREF_KEY, null) ?: return emptyList()
+        return try {
             val type = object : TypeToken<List<ReleaseEntry>>() {}.type
             gson.fromJson(json, type) ?: emptyList()
         } catch (_: Exception) {
             emptyList()
         }
+    }
 
     public fun putAll(entries: List<ReleaseEntry>) {
         prefs.edit().putString(PREF_KEY, gson.toJson(entries)).apply()
