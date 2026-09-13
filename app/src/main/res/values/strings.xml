@@ -217,9 +217,21 @@
     <string name="release_notes_full_changelog">Full changelog on GitHub</string>
     <string name="about_title">About</string>
     <string name="about_summary">Version info &amp; credits</string>
-    <string name="about_subtitle">A mobile-first Pomodoro timer with optional desktop control.</string>
-    <string name="about_features_title">Features</string>
-    <string name="about_features">• Phone-owned timer state\n• Local session history\n• Paired desktop API\n• Detailed statistics &amp; analytics\n• Home screen widget</string>
+    <string name="about_tagline">A focus timer that lives on your phone. No account, no cloud. Optional control from your desktop.</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_version_copied">Version copied</string>
+    <string name="about_feature_achievements">Achievements</string>
+    <string name="about_feature_achievements_summary">Focus ladders from your first hour to 5,000</string>
+    <string name="about_feature_crews">Crews</string>
+    <string name="about_feature_crews_summary">Private leaderboards with friends over relays</string>
+    <string name="about_feature_stats">Stats &amp; tags</string>
+    <string name="about_feature_stats_summary">Every session counted, labeled, and charted</string>
+    <string name="about_feature_desktop">Desktop control</string>
+    <string name="about_feature_desktop_summary">Start, pause, and skip from pomo-link or Waybar</string>
+    <string name="about_github_repo">GitHub repository</string>
+    <string name="about_github_repo_summary">Source, releases, and readme</string>
+    <string name="about_report_issue">Report an issue</string>
+    <string name="about_report_issue_summary">Found a bug? File it on GitHub</string>
     <string name="about_created_by">Created by Snehit</string>
     <string name="about_made_with">Made with ❤️ and Kotlin</string>
 
