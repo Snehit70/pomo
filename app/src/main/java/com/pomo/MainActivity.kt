@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.view.View
 import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -94,6 +95,12 @@ public class MainActivity : AppCompatActivity() {
         navView.setupWithNavController(navController)
         val bottomNavDestinationIds =
             (0 until navView.menu.size()).map { index -> navView.menu.getItem(index).itemId }.toSet()
+        // Detail pages (Settings, Release notes, About, Achievements) hide the bar;
+        // they are tasks with a back exit, not top-level destinations.
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            navView.visibility =
+                if (destination.id in bottomNavDestinationIds) View.VISIBLE else View.GONE
+        }
         navView.setOnItemSelectedListener { item ->
             val changedTab = navController.currentDestination?.id != item.itemId
             if (changedTab) {
