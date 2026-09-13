@@ -30,3 +30,8 @@ public val tagPaletteLight: List<Color> =
         Color(0xFF558B2F),
         Color(0xFF3949AB),
     )
+
+/** Success green from the UI-round mock (Installed chip, picker check, connected dot). */
+public val SuccessGreenDark: Color = Color(0xFF6BD98C)
+
+public val SuccessGreenLight: Color = Color(0xFF2E7D32)

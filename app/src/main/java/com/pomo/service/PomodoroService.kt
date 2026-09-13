@@ -670,6 +670,9 @@ public class PomodoroService : Service(), TimerObserver {
         }
     }
 
+    /** Desktops holding an open WebSocket session to the phone API. */
+    public fun connectedClientCount(): Int = if (::phoneServer.isInitialized) phoneServer.connectedSessionCount() else 0
+
     public fun rotatePairingToken(): String {
         val token = prefs.rotatePairingToken()
         // Force a full stop+start so existing WebSocket clients are disconnected and

@@ -18,20 +18,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
-import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Bookmark
+import androidx.compose.material.icons.outlined.BrightnessAuto
 import androidx.compose.material.icons.outlined.Coffee
+import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lan
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PauseCircle
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.QrCode2
-import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.material.icons.outlined.Snooze
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Upload
@@ -203,6 +207,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                                 launchQrScanner()
                             },
                             onDismiss = { pairingDialog.value = null },
+                            connectedProvider = { (activity as? MainActivity)?.service?.connectedClientCount() ?: 0 },
                         )
                     }
                     if (rotateConfirm.value) {
@@ -246,6 +251,8 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                             },
                             onDismiss = { defaultTagPicker.value = false },
                             showUntagged = false,
+                            title = getString(R.string.default_tag_title),
+                            subtitle = getString(R.string.default_tag_picker_sub),
                         )
                     }
                 }
@@ -294,23 +301,6 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     icon = Icons.Outlined.QrCode2,
                 ),
             )
-            add(
-                SettingsItem.Action(
-                    title = getString(R.string.rotate_pairing_token_title),
-                    summary = getString(R.string.rotate_pairing_token_summary),
-                    onClick = { rotateConfirm.value = true },
-                    icon = Icons.Outlined.Autorenew,
-                ),
-            )
-            add(
-                SettingsItem.Action(
-                    title = getString(R.string.scan_pairing_qr_title),
-                    summary = getString(R.string.scan_pairing_qr_summary),
-                    onClick = ::launchQrScanner,
-                    icon = Icons.Outlined.QrCodeScanner,
-                ),
-            )
-
             add(SettingsItem.Section(getString(R.string.category_timer)))
             add(
                 SettingsItem.IntPref(
@@ -342,7 +332,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                 SettingsItem.IntPref(
                     key = "long_break_duration",
                     title = getString(R.string.long_break_title),
-                    summary = "",
+                    summary = getString(R.string.long_break_interval_summary),
                     default = 15,
                     min = 1,
                     max = 120,
@@ -356,7 +346,11 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
             add(
                 SettingsItem.Action(
                     title = getString(R.string.session_tags_title),
-                    summary = getString(R.string.session_tags_summary),
+                    summary = "",
+                    summaryProvider = {
+                        val tags = TagStore(requireContext()).getTags()
+                        if (tags.isEmpty()) getString(R.string.session_tags_summary) else tags.joinToString(" · ")
+                    },
                     onClick = ::showTagManager,
                     icon = Icons.AutoMirrored.Outlined.Label,
                 ),
@@ -366,7 +360,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     title = getString(R.string.default_tag_title),
                     summary = getString(R.string.default_tag_summary),
                     onClick = { defaultTagPicker.value = true },
-                    icon = Icons.Outlined.Bookmark,
+                    icon = Icons.Outlined.Flag,
                     valueProvider = { TagStore(requireContext()).getDefaultTag() },
                 ),
             )
@@ -450,7 +444,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                             ),
                         ),
                     icon = Icons.Outlined.MusicNote,
-                    enabledWhen = { prefs ->
+                    visibleWhen = { prefs ->
                         cueChannelsOn(prefs) && prefs.getBoolean("ring_until_dismissed", false)
                     },
                     enabledPrefKeys = listOf("vibrate_enabled", "sound_enabled", "ring_until_dismissed"),
@@ -477,9 +471,21 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     default = ThemeMode.System.preferenceValue,
                     choices =
                         listOf(
-                            SettingsItem.Choice(ThemeMode.System.preferenceValue, ThemeMode.System.displayName),
-                            SettingsItem.Choice(ThemeMode.Light.preferenceValue, ThemeMode.Light.displayName),
-                            SettingsItem.Choice(ThemeMode.Dark.preferenceValue, ThemeMode.Dark.displayName),
+                            SettingsItem.Choice(
+                                ThemeMode.System.preferenceValue,
+                                ThemeMode.System.displayName,
+                                icon = Icons.Outlined.BrightnessAuto,
+                            ),
+                            SettingsItem.Choice(
+                                ThemeMode.Light.preferenceValue,
+                                ThemeMode.Light.displayName,
+                                icon = Icons.Outlined.LightMode,
+                            ),
+                            SettingsItem.Choice(
+                                ThemeMode.Dark.preferenceValue,
+                                ThemeMode.Dark.displayName,
+                                icon = Icons.Outlined.DarkMode,
+                            ),
                         ),
                 ),
             )
@@ -569,6 +575,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                 event = StateCueEvent.StartOrResumeTapped,
                 title = getString(R.string.state_cues_start_resume_title),
                 summary = getString(R.string.state_cues_start_resume_summary),
+                icon = Icons.Outlined.PlayCircle,
                 serviceProvider = { (activity as? MainActivity)?.service },
                 onFeedback = ::showMessage,
             ),
@@ -578,6 +585,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                 event = StateCueEvent.PauseTapped,
                 title = getString(R.string.state_cues_pause_title),
                 summary = getString(R.string.state_cues_pause_summary),
+                icon = Icons.Outlined.PauseCircle,
                 serviceProvider = { (activity as? MainActivity)?.service },
                 onFeedback = ::showMessage,
             ),
@@ -587,6 +595,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                 event = StateCueEvent.SkipTapped,
                 title = getString(R.string.state_cues_skip_title),
                 summary = getString(R.string.state_cues_skip_summary),
+                icon = Icons.Outlined.SkipNext,
                 serviceProvider = { (activity as? MainActivity)?.service },
                 onFeedback = ::showMessage,
             ),
@@ -596,6 +605,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                 event = StateCueEvent.ResetTapped,
                 title = getString(R.string.state_cues_reset_title),
                 summary = getString(R.string.state_cues_reset_summary),
+                icon = Icons.Outlined.RestartAlt,
                 serviceProvider = { (activity as? MainActivity)?.service },
                 onFeedback = ::showMessage,
             ),

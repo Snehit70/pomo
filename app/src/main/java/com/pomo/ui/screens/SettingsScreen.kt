@@ -7,6 +7,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -19,16 +20,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Casino
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -114,6 +120,8 @@ public sealed interface SettingsItem {
         val icon: ImageVector? = null,
         val enabledWhen: ((SharedPreferences) -> Boolean)? = null,
         val enabledPrefKeys: List<String> = emptyList(),
+        /** When set, the row is removed from the card entirely unless the predicate holds. */
+        val visibleWhen: ((SharedPreferences) -> Boolean)? = null,
     ) : SettingsItem
 
     public data class SegmentedPref(
@@ -131,6 +139,8 @@ public sealed interface SettingsItem {
         val onClick: () -> Unit,
         val icon: ImageVector? = null,
         val valueProvider: (() -> String?)? = null,
+        /** When set, re-evaluated on recomposition to replace the static summary. */
+        val summaryProvider: (() -> String?)? = null,
         val enabledWhen: ((SharedPreferences) -> Boolean)? = null,
         val enabledPrefKeys: List<String> = emptyList(),
     ) : SettingsItem
@@ -147,6 +157,7 @@ public sealed interface SettingsItem {
         val event: StateCueEvent,
         val title: String,
         val summary: String,
+        val icon: ImageVector? = null,
         val serviceProvider: () -> PomodoroService?,
         val onFeedback: (Int) -> Unit,
     ) : SettingsItem
@@ -154,6 +165,7 @@ public sealed interface SettingsItem {
     public data class Choice(
         val value: String,
         val label: String,
+        val icon: ImageVector? = null,
     )
 }
 
@@ -242,16 +254,61 @@ public fun SettingsScreen(
             }
         }
         if (searchOpen) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = { Text(stringResource(R.string.settings_search_hint)) },
-                singleLine = true,
+            Row(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 4.dp),
-            )
+                        .padding(horizontal = 20.dp, vertical = 4.dp)
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PomoRadius.Md))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            RoundedCornerShape(PomoRadius.Md),
+                        )
+                        .padding(start = 12.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Outlined.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle =
+                        MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .wrapContentHeight(Alignment.CenterVertically),
+                    decorationBox = { innerField ->
+                        if (query.isEmpty()) {
+                            Text(
+                                stringResource(R.string.settings_search_hint),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            )
+                        }
+                        innerField()
+                    },
+                )
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = stringResource(R.string.settings_search_clear),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
         val trimmedQuery = query.trim()
         val visibleGroups =
@@ -266,16 +323,27 @@ public fun SettingsScreen(
                 }
             }
             items(visibleGroups, key = { it.title ?: "_" }) { group ->
-                SettingsGroupCard(group, sharedPreferences)
+                SettingsGroupCard(group, sharedPreferences, filtering = trimmedQuery.isNotEmpty())
             }
             if (visibleGroups.isEmpty()) {
                 item {
-                    Text(
-                        stringResource(R.string.settings_search_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 32.dp),
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                    ) {
+                        Icon(
+                            Icons.Outlined.SearchOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(36.dp),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            stringResource(R.string.settings_search_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             item { Spacer(Modifier.height(32.dp)) }
@@ -315,11 +383,37 @@ private fun settingsItemMatches(
 private fun SettingsGroupCard(
     group: SettingsGroup,
     prefs: SharedPreferences,
+    filtering: Boolean,
 ) {
     Column {
         if (group.title != null) {
             SectionHeader(group.title, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
         }
+        // Bumped whenever a tracked preference changes so visibleWhen rows re-evaluate.
+        var prefEpoch by remember { mutableStateOf(0) }
+        val trackedKeys =
+            remember(group) {
+                group.items.flatMap { item ->
+                    when (item) {
+                        is SettingsItem.BoolPref -> item.enabledPrefKeys
+                        is SettingsItem.ChoicePref -> item.enabledPrefKeys
+                        is SettingsItem.Action -> item.enabledPrefKeys
+                        else -> emptyList()
+                    }
+                }.toSet()
+            }
+        DisposableEffect(prefs, trackedKeys) {
+            val listener =
+                SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> prefEpoch++ }
+            prefs.registerOnSharedPreferenceChangeListener(listener)
+            onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        }
+        val visibleItems =
+            remember(group.items, prefEpoch) {
+                group.items.filter { item ->
+                    (item as? SettingsItem.ChoicePref)?.visibleWhen?.invoke(prefs) ?: true
+                }
+            }
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(PomoRadius.Lg),
@@ -327,8 +421,9 @@ private fun SettingsGroupCard(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
         ) {
             Column {
-                group.items.forEachIndexed { i, item ->
-                    if (i > 0) {
+                visibleItems.forEachIndexed { i, item ->
+                    // While search filters a card, the mock drops dividers between hits.
+                    if (i > 0 && !filtering) {
                         HorizontalDivider(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                             thickness = 1.dp,
@@ -533,14 +628,13 @@ private fun NumberEditorDialog(
                 if (presets != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 10.dp)) {
                         presets.forEach { preset ->
-                            PomoButton(
+                            EditorChip(
+                                label = preset.toString(),
                                 onClick = {
                                     text = preset.toString()
                                     onConfirm(preset)
                                 },
-                                variant = PomoButtonVariant.Tonal,
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            ) { Text(preset.toString()) }
+                            )
                         }
                     }
                 }
@@ -558,6 +652,25 @@ private fun NumberEditorDialog(
             ) { Text(stringResource(R.string.number_editor_ok)) }
         },
     )
+}
+
+/** Mock-style preset chip: 32dp tall, 8dp radius outline, commits on tap. */
+@Composable
+private fun EditorChip(
+    label: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .height(32.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(PomoRadius.Sm))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+    }
 }
 
 @Composable
@@ -612,7 +725,7 @@ private fun ChoicePrefRow(
             }
             Spacer(Modifier.height(12.dp))
             SegmentedToggle(
-                options = item.choices.map { SegmentedToggleOption(it.value, it.label) },
+                options = item.choices.map { SegmentedToggleOption(it.value, it.label, icon = it.icon) },
                 selectedValue = current,
                 onSelectedValueChange = { value ->
                     current = value
@@ -715,7 +828,7 @@ private fun SegmentedPrefRow(
         }
         Spacer(Modifier.height(12.dp))
         SegmentedToggle(
-            options = item.choices.map { SegmentedToggleOption(it.value, it.label) },
+            options = item.choices.map { SegmentedToggleOption(it.value, it.label, icon = it.icon) },
             selectedValue = current,
             onSelectedValueChange = { value ->
                 current = value
@@ -802,9 +915,10 @@ private fun ActionRow(
     enabled: Boolean = true,
 ) {
     val providedValue = item.valueProvider?.invoke()
+    val summary = item.summaryProvider?.invoke() ?: item.summary
     PrefRow(
         title = item.title,
-        summary = item.summary,
+        summary = summary,
         valueText = providedValue,
         onClick = item.onClick,
         leadingIcon = item.icon,
@@ -922,30 +1036,32 @@ private fun ManualHapticPreviewRow(
     val vibrationEnabled = rememberPrefBoolean(prefs, "vibrate_enabled", true)
     val vibrationAvailable = remember(context) { context.hasVibratorCapability() }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-        Text(
-            item.title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            item.summary,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text =
-                when {
-                    !vibrationEnabled -> context.getString(R.string.state_cues_preview_vibration_off_inline)
-                    !vibrationAvailable -> context.getString(R.string.state_cues_preview_vibration_unavailable_inline)
-                    else -> context.getString(R.string.state_cues_preview_vibration_on)
-                },
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(10.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (item.icon != null) {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 12.dp),
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                item.summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
         PomoButton(
             onClick = {
                 val service = serviceProvider()
@@ -955,10 +1071,10 @@ private fun ManualHapticPreviewRow(
                     item.onFeedback(R.string.state_cues_preview_service_unavailable)
                 }
             },
-            variant = PomoButtonVariant.Tonal,
+            variant = PomoButtonVariant.Ghost,
             enabled = vibrationEnabled && vibrationAvailable,
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        ) { Text(context.getString(R.string.state_cues_preview_haptic_button)) }
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        ) { Text(stringResource(R.string.state_cues_preview_haptic_button)) }
     }
 }
 

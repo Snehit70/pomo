@@ -6,6 +6,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,8 +54,12 @@ import com.pomo.BuildConfig
 import com.pomo.R
 import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
+import com.pomo.ui.components.SectionHeader
 import com.pomo.ui.theme.JetBrainsMono
 import com.pomo.ui.theme.PomoRadius
+import com.pomo.ui.theme.PomoTokens
+import com.pomo.ui.theme.SuccessGreenDark
+import com.pomo.ui.theme.SuccessGreenLight
 import com.pomo.update.GithubUpdateChecker
 import com.pomo.update.ReleaseEntry
 import com.pomo.update.ReleaseNotesCache
@@ -241,6 +246,7 @@ private fun LoadedNotes(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
         ) {
             Column(Modifier.padding(16.dp)) {
+                val successGreen = if (PomoTokens.colors.isDark) SuccessGreenDark else SuccessGreenLight
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         installed.versionName,
@@ -252,13 +258,11 @@ private fun LoadedNotes(
                     Text(
                         chipText.uppercase(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = successGreen,
                         modifier =
                             Modifier
-                                .background(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    CircleShape,
-                                )
+                                .background(successGreen.copy(alpha = 0.12f), CircleShape)
+                                .border(1.dp, successGreen.copy(alpha = 0.35f), CircleShape)
                                 .padding(horizontal = 10.dp, vertical = 3.dp),
                     )
                 }
@@ -314,10 +318,8 @@ private fun LoadedNotes(
     val earlier = state.releases.filter { it != primary }
     if (earlier.isNotEmpty()) {
         Spacer(Modifier.height(20.dp))
-        Text(
-            stringResource(R.string.release_notes_earlier).uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
+        SectionHeader(
+            stringResource(R.string.release_notes_earlier),
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp),
         )
         Card(

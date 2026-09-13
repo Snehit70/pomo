@@ -39,6 +39,9 @@ public class PhoneServer(
     public val isRunning: Boolean
         get() = engine != null
 
+    /** Live desktop WebSocket sessions right now; drives the pairing sheet status line. */
+    public fun connectedSessionCount(): Int = synchronized(sessionsLock) { sessions.size }
+
     public fun start() {
         if (engine != null) return
 
