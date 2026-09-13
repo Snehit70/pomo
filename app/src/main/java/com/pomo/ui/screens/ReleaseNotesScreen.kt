@@ -52,9 +52,9 @@ import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
 import com.pomo.ui.theme.JetBrainsMono
 import com.pomo.ui.theme.PomoRadius
+import com.pomo.update.GithubUpdateChecker
 import com.pomo.update.ReleaseEntry
 import com.pomo.update.ReleaseNotesCache
-import com.pomo.update.GithubUpdateChecker
 import com.pomo.update.ReleasesResult
 import okhttp3.OkHttpClient
 import java.time.LocalDate

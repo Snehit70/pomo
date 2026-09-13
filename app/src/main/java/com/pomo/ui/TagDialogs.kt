@@ -42,9 +42,9 @@ import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
 import com.pomo.ui.components.PomoDialog
 import com.pomo.ui.components.PomoSheet
+import com.pomo.ui.theme.PomoTokens
 import com.pomo.ui.theme.tagPalette
 import com.pomo.ui.theme.tagPaletteLight
-import com.pomo.ui.theme.PomoTokens
 
 @Composable
 internal fun TagManagerDialog(onDismiss: () -> Unit) {
