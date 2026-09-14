@@ -371,29 +371,29 @@ private fun LoadedNotes(
     }
 
     if (state.releases.isNotEmpty()) {
-    Spacer(Modifier.height(12.dp))
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpenChangelog)
-                .padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            stringResource(R.string.release_notes_full_changelog),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.width(6.dp))
-        Icon(
-            Icons.AutoMirrored.Outlined.OpenInNew,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(16.dp),
-        )
-    }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenChangelog)
+                    .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.release_notes_full_changelog),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                Icons.AutoMirrored.Outlined.OpenInNew,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 
