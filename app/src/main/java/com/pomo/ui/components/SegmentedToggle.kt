@@ -2,7 +2,6 @@ package com.pomo.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -55,7 +57,7 @@ public fun SegmentedToggle(
 ) {
     val tokens = PomoTokens.colors
     val last = options.lastIndex
-    Row(modifier = modifier.height(40.dp)) {
+    Row(modifier = modifier.height(40.dp).selectableGroup()) {
         options.forEachIndexed { index, option ->
             val selected = option.value == selectedValue
             val shape: Shape =
@@ -75,11 +77,14 @@ public fun SegmentedToggle(
                         .clip(shape)
                         .background(if (selected) tokens.focus.copy(alpha = 0.18f) else Color.Transparent)
                         .border(1.dp, tokens.outline, shape)
-                        .clickable(
+                        .selectable(
+                            selected = selected,
                             enabled = enabled,
+                            role = Role.RadioButton,
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                        ) { onSelectedValueChange(option.value) }
+                            onClick = { onSelectedValueChange(option.value) },
+                        )
                         .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {

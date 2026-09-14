@@ -4,11 +4,11 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -47,17 +47,13 @@ public fun PomoSwitch(
                 .clip(RoundedCornerShape(PomoRadius.Pill))
                 .background(trackColor)
                 .border(2.dp, borderColor, RoundedCornerShape(PomoRadius.Pill))
-                .then(
-                    if (onCheckedChange != null && enabled) {
-                        Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            role = Role.Switch,
-                            onClick = { onCheckedChange(!checked) },
-                        )
-                    } else {
-                        Modifier
-                    },
+                .toggleable(
+                    value = checked,
+                    enabled = enabled && onCheckedChange != null,
+                    role = Role.Switch,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onValueChange = { onCheckedChange?.invoke(it) },
                 ),
         contentAlignment = Alignment.CenterStart,
     ) {

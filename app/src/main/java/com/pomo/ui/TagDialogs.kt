@@ -269,7 +269,7 @@ private fun TagInputDialog(
             duplicate -> stringResource(R.string.session_tags_error_duplicate)
             else -> ""
         }
-    val valid = error.isEmpty()
+    val valid = name.isNotEmpty() && !duplicate
 
     PomoDialog(
         onDismissRequest = onDismiss,
