@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.pomo.ui.theme.PomoTheme
+import com.pomo.ui.theme.PomoTokens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +37,7 @@ public fun PomoSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = PomoTokens.colors.surfaceElevated,
         // Disable M3's tonal-elevation overlay; it blends the red surfaceTint into the
         // sheet and produces a maroon wash. Sheets read as flat slate instead.
         tonalElevation = 0.dp,
@@ -56,7 +57,7 @@ public fun PomoSheet(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             IconButton(onClick = onDismissRequest) {
-                Icon(Icons.Default.Close, contentDescription = "Close")
+                Icon(Icons.Outlined.Close, contentDescription = "Close")
             }
         }
         androidx.compose.foundation.layout.Column(

@@ -41,9 +41,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,12 +54,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.pomo.R
@@ -71,14 +67,17 @@ import com.pomo.cues.CuePreviewChannel
 import com.pomo.cues.CueVariant
 import com.pomo.cues.StateCueEvent
 import com.pomo.service.PomodoroService
+import com.pomo.ui.components.CompactEditorField
 import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
 import com.pomo.ui.components.PomoDialog
+import com.pomo.ui.components.PomoSwitch
 import com.pomo.ui.components.SectionHeader
 import com.pomo.ui.components.SegmentedToggle
 import com.pomo.ui.components.SegmentedToggleOption
 import com.pomo.ui.theme.JetBrainsMono
 import com.pomo.ui.theme.PomoRadius
+import com.pomo.ui.theme.PomoTokens
 import kotlin.random.Random
 
 public sealed interface SettingsItem {
@@ -203,6 +202,7 @@ public fun SettingsScreen(
     backContentDescription: String = "Back",
     searchContentDescription: String = "Search settings",
     showUpdateSection: Boolean = false,
+    showSearch: Boolean = true,
     onBack: (() -> Unit)? = null,
 ) {
     val groups = remember(items) { groupSettings(items) }
@@ -237,23 +237,25 @@ public fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = {
-                searchOpen = !searchOpen
-                if (!searchOpen) query = ""
-            }) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = searchContentDescription,
-                    tint =
-                        if (searchOpen) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                )
+            if (showSearch) {
+                IconButton(onClick = {
+                    searchOpen = !searchOpen
+                    if (!searchOpen) query = ""
+                }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = searchContentDescription,
+                        tint =
+                            if (searchOpen) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                    )
+                }
             }
         }
-        if (searchOpen) {
+        if (showSearch && searchOpen) {
             Row(
                 modifier =
                     Modifier
@@ -262,7 +264,7 @@ public fun SettingsScreen(
                         .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PomoRadius.Md))
                         .border(
                             1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            MaterialTheme.colorScheme.outline,
                             RoundedCornerShape(PomoRadius.Md),
                         )
                         .padding(start = 12.dp, end = 4.dp),
@@ -310,14 +312,22 @@ public fun SettingsScreen(
                 }
             }
         }
-        val trimmedQuery = query.trim()
+        val trimmedQuery = if (showSearch) query.trim() else ""
         val visibleGroups =
             remember(groups, trimmedQuery) { filterGroups(groups, trimmedQuery) }
+        val updatesQueryHit =
+            trimmedQuery.isEmpty() ||
+                listOf(
+                    stringResource(R.string.updates_title),
+                    stringResource(R.string.updates_check_title),
+                    stringResource(R.string.updates_idle_summary, ""),
+                    stringResource(R.string.updates_check_action),
+                ).any { it.lowercase().contains(trimmedQuery.lowercase()) }
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            if (showUpdateSection && trimmedQuery.isEmpty()) {
+            if (showUpdateSection && updatesQueryHit) {
                 item(key = "updates") {
                     UpdateSection()
                 }
@@ -325,7 +335,7 @@ public fun SettingsScreen(
             items(visibleGroups, key = { it.title ?: "_" }) { group ->
                 SettingsGroupCard(group, sharedPreferences, filtering = trimmedQuery.isNotEmpty())
             }
-            if (visibleGroups.isEmpty()) {
+            if (visibleGroups.isEmpty() && !(showUpdateSection && updatesQueryHit)) {
                 item {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -335,7 +345,7 @@ public fun SettingsScreen(
                             Icons.Outlined.SearchOff,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(40.dp),
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
@@ -374,7 +384,13 @@ private fun settingsItemMatches(
         is SettingsItem.BoolPref -> item.title.lowercase().contains(q) || item.summary.lowercase().contains(q)
         is SettingsItem.ChoicePref -> item.title.lowercase().contains(q) || item.summary.lowercase().contains(q)
         is SettingsItem.SegmentedPref -> item.title.lowercase().contains(q) || item.summary.lowercase().contains(q)
-        is SettingsItem.Action -> item.title.lowercase().contains(q) || item.summary.lowercase().contains(q)
+        is SettingsItem.Action -> {
+            val summary = item.summaryProvider?.invoke() ?: item.summary
+            val value = item.valueProvider?.invoke().orEmpty()
+            item.title.lowercase().contains(q) ||
+                summary.lowercase().contains(q) ||
+                value.lowercase().contains(q)
+        }
         is SettingsItem.CompletionCuePreview -> item.title.lowercase().contains(q) || item.summary.lowercase().contains(q)
         is SettingsItem.ManualHapticPreview -> item.title.lowercase().contains(q) || item.summary.lowercase().contains(q)
     }
@@ -418,14 +434,14 @@ private fun SettingsGroupCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(PomoRadius.Lg),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         ) {
             Column {
                 visibleItems.forEachIndexed { i, item ->
                     // While search filters a card, the mock drops dividers between hits.
                     if (i > 0 && !filtering) {
                         HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
                             thickness = 1.dp,
                             modifier = Modifier.padding(start = 16.dp),
                         )
@@ -581,22 +597,19 @@ private fun NumberEditorDialog(
         title = { Text(title) },
         body = {
             Column {
-                OutlinedTextField(
+                CompactEditorField(
                     value = text,
                     onValueChange = { text = it.filter(Char::isDigit).take(9) },
+                    suffix = suffix.ifEmpty { null },
+                    mono = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    isError = !valid,
-                    trailingIcon = {
-                        if (suffix.isNotEmpty()) {
-                            Text(
-                                suffix,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                    onConfirm = { if (valid) onConfirm(parsed!!) },
+                    trailing = {
                         if (allowRandom) {
-                            IconButton(onClick = { text = Random.nextInt(min, max + 1).toString() }) {
+                            IconButton(
+                                onClick = { text = Random.nextInt(min, max + 1).toString() },
+                                modifier = Modifier.size(32.dp),
+                            ) {
                                 Icon(
                                     Icons.Outlined.Casino,
                                     contentDescription = stringResource(R.string.number_editor_random),
@@ -605,24 +618,13 @@ private fun NumberEditorDialog(
                             }
                         }
                     },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .onPreviewKeyEvent { event ->
-                                if (event.key == Key.Enter && valid) {
-                                    onConfirm(parsed!!)
-                                    true
-                                } else {
-                                    false
-                                }
-                            },
                 )
                 if (!valid) {
                     Text(
                         stringResource(R.string.number_editor_range, min, max),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 6.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 10.dp),
                     )
                 }
                 if (presets != null) {
@@ -630,6 +632,7 @@ private fun NumberEditorDialog(
                         presets.forEach { preset ->
                             EditorChip(
                                 label = preset.toString(),
+                                selected = parsed == preset,
                                 onClick = {
                                     text = preset.toString()
                                     onConfirm(preset)
@@ -641,13 +644,14 @@ private fun NumberEditorDialog(
             }
         },
         actions = {
-            PomoButton(onClick = onDismiss, variant = PomoButtonVariant.Ghost) {
+            PomoButton(onClick = onDismiss, variant = PomoButtonVariant.Ghost, compact = true) {
                 Text(stringResource(android.R.string.cancel))
             }
             PomoButton(
                 onClick = { parsed?.let(onConfirm) },
                 variant = PomoButtonVariant.Tonal,
                 enabled = valid,
+                compact = true,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             ) { Text(stringResource(R.string.number_editor_ok)) }
         },
@@ -658,18 +662,33 @@ private fun NumberEditorDialog(
 @Composable
 private fun EditorChip(
     label: String,
+    selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val tokens = PomoTokens.colors
     Box(
         modifier =
             Modifier
                 .height(32.dp)
-                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(PomoRadius.Sm))
+                .background(
+                    if (selected) tokens.focus.copy(alpha = 0.18f) else Color.Transparent,
+                    RoundedCornerShape(PomoRadius.Sm),
+                )
+                .border(
+                    1.dp,
+                    if (selected) Color.Transparent else tokens.outline,
+                    RoundedCornerShape(PomoRadius.Sm),
+                )
                 .clickable(onClick = onClick)
                 .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selected) tokens.focus else tokens.onSurface,
+        )
     }
 }
 
@@ -889,7 +908,7 @@ private fun BoolPrefRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Switch(
+        PomoSwitch(
             checked = checked,
             onCheckedChange =
                 if (enabled) {
@@ -900,11 +919,7 @@ private fun BoolPrefRow(
                 } else {
                     null
                 },
-            colors =
-                SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                ),
+            enabled = enabled,
         )
     }
 }
@@ -1008,18 +1023,21 @@ private fun CompletionCuePreviewRow(
                 onClick = { preview(CuePreviewChannel.Combined) },
                 variant = PomoButtonVariant.Tonal,
                 enabled = soundEnabled || (vibrationEnabled && vibrationAvailable),
+                compact = true,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             ) { Text(context.getString(R.string.state_cues_preview_button)) }
             PomoButton(
                 onClick = { preview(CuePreviewChannel.AudioOnly) },
                 variant = PomoButtonVariant.Ghost,
                 enabled = soundEnabled,
+                compact = true,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             ) { Text(context.getString(R.string.state_cues_preview_audio)) }
             PomoButton(
                 onClick = { preview(CuePreviewChannel.HapticOnly) },
                 variant = PomoButtonVariant.Ghost,
                 enabled = vibrationEnabled && vibrationAvailable,
+                compact = true,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             ) { Text(context.getString(R.string.state_cues_preview_haptic)) }
         }
@@ -1073,6 +1091,7 @@ private fun ManualHapticPreviewRow(
             },
             variant = PomoButtonVariant.Ghost,
             enabled = vibrationEnabled && vibrationAvailable,
+            compact = true,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) { Text(stringResource(R.string.state_cues_preview_haptic_button)) }
     }
@@ -1113,12 +1132,14 @@ private fun PrefRow(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (summary.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         if (valueText != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1136,8 +1157,8 @@ private fun PrefRow(
                     Spacer(Modifier.width(4.dp))
                     Text(
                         valueUnit,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = PomoTokens.colors.onSurfaceFaint,
                     )
                 }
             }

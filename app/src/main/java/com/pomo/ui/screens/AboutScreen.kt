@@ -7,7 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -29,7 +29,6 @@ import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.Card
@@ -42,8 +41,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,14 +66,11 @@ public fun AboutScreen(onBack: () -> Unit) {
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .verticalScroll(scroll)
-                .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+                .background(MaterialTheme.colorScheme.background),
     ) {
         IconButton(
             onClick = onBack,
-            modifier = Modifier.align(Alignment.Start),
+            modifier = Modifier.padding(start = 8.dp, top = 12.dp),
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -77,12 +78,16 @@ public fun AboutScreen(onBack: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Spacer(Modifier.height(8.dp))
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier.size(120.dp),
-        )
+        AboutMark()
         Spacer(Modifier.height(16.dp))
         Text(
             text = stringResource(R.string.app_name),
@@ -98,7 +103,13 @@ public fun AboutScreen(onBack: () -> Unit) {
                     cm.setPrimaryClip(
                         ClipData.newPlainText(
                             context.getString(R.string.app_name),
-                            "${context.getString(R.string.app_name)} ${BuildConfig.VERSION_NAME}",
+                            context.getString(
+                                R.string.about_build_info,
+                                context.getString(R.string.app_name),
+                                BuildConfig.VERSION_NAME,
+                                BuildConfig.VERSION_CODE,
+                                BuildConfig.APPLICATION_ID,
+                            ),
                         ),
                     )
                     Toast.makeText(context, R.string.about_version_copied, Toast.LENGTH_SHORT).show()
@@ -132,19 +143,19 @@ public fun AboutScreen(onBack: () -> Unit) {
                 title = stringResource(R.string.about_feature_achievements),
                 summary = stringResource(R.string.about_feature_achievements_summary),
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
             AboutFeatureRow(
                 icon = Icons.Outlined.Groups,
                 title = stringResource(R.string.about_feature_crews),
                 summary = stringResource(R.string.about_feature_crews_summary),
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
             AboutFeatureRow(
                 icon = Icons.Outlined.PieChart,
                 title = stringResource(R.string.about_feature_stats),
                 summary = stringResource(R.string.about_feature_stats_summary),
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
             AboutFeatureRow(
                 icon = Icons.Outlined.Terminal,
                 title = stringResource(R.string.about_feature_desktop),
@@ -160,7 +171,7 @@ public fun AboutScreen(onBack: () -> Unit) {
                 summary = stringResource(R.string.about_github_repo_summary),
                 onClick = { openUrl(context, REPO_URL) },
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
             AboutLinkRow(
                 icon = Icons.Outlined.BugReport,
                 title = stringResource(R.string.about_report_issue),
@@ -186,6 +197,26 @@ public fun AboutScreen(onBack: () -> Unit) {
             )
         }
         Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun AboutMark() {
+    Canvas(modifier = Modifier.size(120.dp)) {
+        val stroke = 17.dp.toPx()
+        val ringRadius = 44.dp.toPx()
+        drawCircle(color = Color(0x24E84A36), radius = 27.dp.toPx())
+        drawCircle(color = Color.White, radius = 13.dp.toPx())
+        drawArc(
+            brush = Brush.linearGradient(listOf(Color(0xFFB73826), Color(0xFFF26957))),
+            startAngle = -85f,
+            sweepAngle = 303f,
+            useCenter = false,
+            topLeft = Offset(center.x - ringRadius, center.y - ringRadius),
+            size = Size(ringRadius * 2, ringRadius * 2),
+            style = Stroke(width = stroke, cap = StrokeCap.Round),
+        )
     }
 }
 
@@ -197,7 +228,7 @@ private fun AboutCard(content: @Composable () -> Unit) {
         border =
             androidx.compose.foundation.BorderStroke(
                 1.dp,
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                MaterialTheme.colorScheme.outline,
             ),
     ) {
         Column { content() }

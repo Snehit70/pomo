@@ -11,13 +11,15 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -142,14 +144,14 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(PomoRadius.Lg),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    Icons.Outlined.Download,
+                    Icons.Outlined.SystemUpdate,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(end = 12.dp),
@@ -213,13 +215,18 @@ internal fun UpdateSection(modifier: Modifier = Modifier) {
                     UpdateUiState.Idle ->
                         UpdateActionButton(stringResource(R.string.updates_check_action)) { check() }
                     UpdateUiState.Checking ->
-                        UpdateActionButton(stringResource(R.string.updates_checking_action), enabled = false) {}
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     UpdateUiState.UpToDate ->
                         UpdateActionButton(stringResource(R.string.updates_again_action)) { check() }
                     is UpdateUiState.Available ->
                         PomoButton(
                             onClick = { install(s.release) },
                             variant = PomoButtonVariant.Filled,
+                            compact = true,
                             contentPadding =
                                 PaddingValues(
                                     horizontal = 14.dp,
@@ -252,6 +259,7 @@ private fun UpdateActionButton(
         onClick = onClick,
         variant = PomoButtonVariant.Ghost,
         enabled = enabled,
+        compact = true,
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
     ) { Text(label) }
 }

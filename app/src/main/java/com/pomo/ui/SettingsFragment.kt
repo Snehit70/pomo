@@ -184,6 +184,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                                 getString(R.string.back_to_profile)
                             },
                         showUpdateSection = !showCuePreviews && BuildConfig.APPLICATION_ID == "com.pomo",
+                        showSearch = !showCuePreviews,
                         onBack = {
                             if (showCuePreviews) {
                                 showCuePreviews = false
@@ -536,6 +537,7 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
             add(SettingsItem.Section(getString(R.string.state_cues_completion_section)))
             addCompletionCueItems()
             add(SettingsItem.Section(getString(R.string.state_cues_manual_section)))
+            add(SettingsItem.Note(getString(R.string.state_cues_manual_note)))
             addManualHapticItems()
         }
 

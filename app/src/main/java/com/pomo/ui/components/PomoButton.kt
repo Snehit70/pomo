@@ -31,6 +31,7 @@ public fun PomoButton(
     variant: PomoButtonVariant = PomoButtonVariant.Filled,
     enabled: Boolean = true,
     loading: Boolean = false,
+    compact: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
     content: @Composable RowScope.() -> Unit,
 ) {
@@ -40,7 +41,8 @@ public fun PomoButton(
         onClick()
     }
     val phaseColor = MaterialTheme.colorScheme.primary
-    val minSize = modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+    val minHeight = if (compact) 40.dp else 48.dp
+    val minSize = modifier.defaultMinSize(minWidth = 48.dp, minHeight = minHeight)
     val interactionSource = remember { MutableInteractionSource() }
 
     when (variant) {
@@ -79,7 +81,8 @@ public fun PomoButton(
                     ),
                 content = { ButtonContent(loading, phaseColor, content) },
             )
-        PomoButtonVariant.Ghost ->
+        PomoButtonVariant.Ghost -> {
+            val ghostColor = MaterialTheme.colorScheme.onSurfaceVariant
             TextButton(
                 onClick = clickWithHaptic,
                 modifier = minSize,
@@ -88,11 +91,12 @@ public fun PomoButton(
                 contentPadding = contentPadding,
                 colors =
                     ButtonDefaults.textButtonColors(
-                        contentColor = phaseColor,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        contentColor = ghostColor,
+                        disabledContentColor = ghostColor.copy(alpha = 0.38f),
                     ),
-                content = { ButtonContent(loading, phaseColor, content) },
+                content = { ButtonContent(loading, ghostColor, content) },
             )
+        }
     }
 }
 

@@ -4,6 +4,11 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,7 +32,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -42,6 +46,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -160,17 +166,27 @@ public fun ReleaseNotesScreen(onBack: () -> Unit) {
                 ReleaseNotesUiState.FirstFetch -> {
                     NotesCard {
                         Text(
-                            stringResource(R.string.release_notes_first_fetch_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            stringResource(R.string.release_notes_first_fetch_title).uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = PomoTokens.colors.onSurfaceFaint,
                         )
                         Spacer(Modifier.height(10.dp))
+                        val pulse = rememberInfiniteTransition(label = "notes-fetch")
+                        val pulseAlpha by pulse.animateFloat(
+                            initialValue = 1f,
+                            targetValue = 0.3f,
+                            animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
+                            label = "notes-fetch-alpha",
+                        )
                         Text(
-                            stringResource(R.string.release_notes_first_fetch_body),
-                            style = MaterialTheme.typography.bodyMedium,
+                            stringResource(
+                                R.string.release_notes_first_fetch_body,
+                                GithubUpdateChecker.DEFAULT_REPO,
+                            ),
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMono),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 22.sp,
+                            modifier = Modifier.alpha(pulseAlpha),
                         )
                     }
                 }
@@ -188,7 +204,12 @@ public fun ReleaseNotesScreen(onBack: () -> Unit) {
                         onRetry = { reloadKey++ },
                     )
                 }
-                is ReleaseNotesUiState.Loaded -> LoadedNotes(s, onOpenChangelog = { openChangelog(context) })
+                is ReleaseNotesUiState.Loaded ->
+                    LoadedNotes(
+                        s,
+                        onOpenChangelog = { openChangelog(context) },
+                        onRetry = { reloadKey++ },
+                    )
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -199,6 +220,7 @@ public fun ReleaseNotesScreen(onBack: () -> Unit) {
 private fun LoadedNotes(
     state: ReleaseNotesUiState.Loaded,
     onOpenChangelog: () -> Unit,
+    onRetry: () -> Unit,
 ) {
     if (state.fromCache) {
         Row(
@@ -206,7 +228,15 @@ private fun LoadedNotes(
                 Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp)
-                    .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium)
+                    .background(
+                        MaterialTheme.colorScheme.surface,
+                        androidx.compose.foundation.shape.RoundedCornerShape(PomoRadius.Md),
+                    )
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline,
+                        androidx.compose.foundation.shape.RoundedCornerShape(PomoRadius.Md),
+                    )
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -226,42 +256,41 @@ private fun LoadedNotes(
     }
 
     val installedMatch = state.releases.firstOrNull { it.versionName == BuildConfig.VERSION_NAME }
-    // When the installed build has no matching release (too old, or unpublished),
-    // the latest release takes the primary card under a Latest chip instead.
-    val primary = installedMatch ?: state.releases.firstOrNull()
-    if (primary != null) {
+    val primary = installedMatch
+    if (primary == null) {
+        RetryCard(
+            title = stringResource(R.string.release_notes_notfound_title, BuildConfig.VERSION_NAME),
+            body = stringResource(R.string.release_notes_notfound_body),
+            onRetry = onRetry,
+        )
+    } else {
         val installed = primary
-        val chipText =
-            stringResource(
-                if (installedMatch != null) {
-                    R.string.release_notes_installed_chip
-                } else {
-                    R.string.release_notes_latest_chip
-                },
-            )
+        val chipText = stringResource(R.string.release_notes_installed_chip)
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(PomoRadius.Lg),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         ) {
             Column(Modifier.padding(16.dp)) {
                 val successGreen = if (PomoTokens.colors.isDark) SuccessGreenDark else SuccessGreenLight
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         installed.versionName,
-                        style = MaterialTheme.typography.headlineSmall.copy(fontFamily = JetBrainsMono),
+                        fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        chipText.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
+                        chipText,
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp),
+                        fontWeight = FontWeight.SemiBold,
                         color = successGreen,
                         modifier =
                             Modifier
-                                .background(successGreen.copy(alpha = 0.12f), CircleShape)
+                                .background(Color.Transparent, CircleShape)
                                 .border(1.dp, successGreen.copy(alpha = 0.35f), CircleShape)
                                 .padding(horizontal = 10.dp, vertical = 3.dp),
                     )
@@ -326,7 +355,7 @@ private fun LoadedNotes(
             modifier = Modifier.fillMaxWidth(),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(PomoRadius.Lg),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         ) {
             Column {
                 earlier.forEachIndexed { index, entry ->
@@ -341,6 +370,7 @@ private fun LoadedNotes(
         }
     }
 
+    if (state.releases.isNotEmpty()) {
     Spacer(Modifier.height(12.dp))
     Row(
         modifier =
@@ -363,6 +393,7 @@ private fun LoadedNotes(
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp),
         )
+    }
     }
 }
 
@@ -433,7 +464,7 @@ private fun NotesCard(content: @Composable () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(PomoRadius.Lg),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
         Column(Modifier.padding(16.dp)) { content() }
     }
@@ -460,7 +491,7 @@ private fun RetryCard(
             lineHeight = 22.sp,
         )
         Spacer(Modifier.height(14.dp))
-        PomoButton(onClick = onRetry, variant = PomoButtonVariant.Tonal) {
+        PomoButton(onClick = onRetry, variant = PomoButtonVariant.Tonal, compact = true) {
             Text(stringResource(R.string.release_notes_retry))
         }
     }
