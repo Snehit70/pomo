@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.pomo.R
 import com.pomo.tags.TagStore
+import com.pomo.ui.components.CompactEditorField
 import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
 import com.pomo.ui.components.PomoDialog
@@ -83,7 +84,7 @@ internal fun TagManagerDialog(onDismiss: () -> Unit) {
             }
             tags.forEachIndexed { index, tag ->
                 if (index > 0) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
                 }
                 TagRow(
                     tag = tag,
@@ -131,6 +132,7 @@ internal fun TagManagerDialog(onDismiss: () -> Unit) {
         TagInputDialog(
             title = stringResource(R.string.session_tags_add),
             initial = "",
+            existingNames = tags,
             onConfirm = { name ->
                 tags = tagStore.addTag(name)
                 showAddDialog = false
@@ -144,6 +146,7 @@ internal fun TagManagerDialog(onDismiss: () -> Unit) {
         TagInputDialog(
             title = stringResource(R.string.session_tags_edit),
             initial = oldName,
+            existingNames = tags.filter { it != oldName },
             onConfirm = { newName ->
                 when (val result = tagStore.renameTag(oldName, newName)) {
                     is TagStore.RenameResult.Success -> {
@@ -167,10 +170,10 @@ internal fun TagManagerDialog(onDismiss: () -> Unit) {
     deletingTag?.let { tagName ->
         PomoDialog(
             onDismissRequest = { deletingTag = null },
-            title = { Text(stringResource(R.string.session_tags_delete)) },
+            title = { Text(stringResource(R.string.session_tags_delete_title)) },
             body = { Text(stringResource(R.string.session_tags_delete_confirm, tagName)) },
             actions = {
-                PomoButton(onClick = { deletingTag = null }, variant = PomoButtonVariant.Ghost) {
+                PomoButton(onClick = { deletingTag = null }, variant = PomoButtonVariant.Ghost, compact = true) {
                     Text(stringResource(android.R.string.cancel))
                 }
                 PomoButton(
@@ -180,6 +183,7 @@ internal fun TagManagerDialog(onDismiss: () -> Unit) {
                         Toast.makeText(context, R.string.session_tags_delete_done, Toast.LENGTH_SHORT).show()
                     },
                     variant = PomoButtonVariant.Ghost,
+                    compact = true,
                 ) {
                     Text(
                         stringResource(R.string.session_tags_delete),
@@ -212,16 +216,20 @@ private fun TagRow(
             tag,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f).padding(start = 12.dp),
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp)
+                    .clickable(onClick = onEdit),
         )
-        IconButton(onClick = onEdit) {
+        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
             Icon(
                 Icons.Outlined.Edit,
                 contentDescription = stringResource(R.string.session_tags_edit),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        IconButton(onClick = onDelete) {
+        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
             Icon(
                 Icons.Outlined.Delete,
                 contentDescription = stringResource(R.string.session_tags_delete),
@@ -247,49 +255,55 @@ private fun tagColorSlot(
 private fun TagInputDialog(
     title: String,
     initial: String,
+    existingNames: List<String>,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(initial) }
-    var submitted by remember { mutableStateOf(false) }
     val name = text.trim()
-    val valid = name.isNotEmpty()
+    val duplicate =
+        existingNames.any { it.equals(name, ignoreCase = true) }
+    val error =
+        when {
+            name.isEmpty() && text.isNotEmpty() -> stringResource(R.string.session_tags_error_empty)
+            duplicate -> stringResource(R.string.session_tags_error_duplicate)
+            else -> ""
+        }
+    val valid = name.isNotEmpty() && !duplicate
 
     PomoDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         body = {
             Column {
-                OutlinedTextField(
+                CompactEditorField(
                     value = text,
-                    onValueChange = { text = it },
-                    label = { Text(stringResource(R.string.session_tags_add_hint)) },
-                    singleLine = true,
-                    isError = submitted && !valid,
-                    modifier = Modifier.fillMaxWidth(),
+                    onValueChange = { text = it.take(24) },
+                    placeholder = stringResource(R.string.session_tags_add_hint),
+                    onConfirm = { if (valid) onConfirm(name) },
                 )
-                if (submitted && !valid) {
+                if (error.isNotEmpty()) {
                     Text(
-                        stringResource(R.string.session_tags_error_empty),
+                        error,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 6.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 10.dp),
                     )
                 }
             }
         },
         actions = {
-            PomoButton(onClick = onDismiss, variant = PomoButtonVariant.Ghost) {
+            PomoButton(onClick = onDismiss, variant = PomoButtonVariant.Ghost, compact = true) {
                 Text(stringResource(android.R.string.cancel))
             }
             PomoButton(
-                onClick = {
-                    if (valid) onConfirm(name) else submitted = true
-                },
+                onClick = { if (valid) onConfirm(name) },
                 variant = PomoButtonVariant.Tonal,
-                enabled = true,
+                enabled = valid,
+                compact = true,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                Text(stringResource(android.R.string.ok))
+                Text(stringResource(R.string.session_tags_save))
             }
         },
     )
@@ -326,11 +340,13 @@ internal fun TagPickerSheet(
                     onClick = { onSelect(null) },
                 )
             }
-            tags.forEach { tag ->
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            tags.forEachIndexed { index, tag ->
+                if (showUntagged || index > 0) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+                }
                 PickerRow(
                     label = tag,
-                    color = tagColorSlot(tag, tags.indexOf(tag), tagStore),
+                    color = tagColorSlot(tag, index, tagStore),
                     selected = currentTag == tag,
                     onClick = { onSelect(tag) },
                 )

@@ -23,9 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,8 +44,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.pomo.R
 import com.pomo.ui.components.PomoButton
@@ -140,20 +147,24 @@ internal fun PairingSheet(
                         },
                 )
             }
+            val commandBg = if (PomoTokens.colors.isDark) Color(0xFF0E0F12) else PomoTokens.colors.surface
+            val masked = maskedToken(data.token, tokenShown)
             Box(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PomoRadius.Md))
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                            RoundedCornerShape(PomoRadius.Md),
-                        ),
+                        .background(commandBg, RoundedCornerShape(PomoRadius.Md))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(PomoRadius.Md)),
             ) {
                 SelectionContainer {
                     Text(
-                        text = buildCommand(data.url, maskedToken(data.token, tokenShown)),
+                        text =
+                            buildAnnotatedString {
+                                append("pomo-link pair-json ")
+                                withStyle(SpanStyle(color = PomoTokens.colors.onSurfaceMuted)) {
+                                    append("'{\"url\":\"${data.url}\",\"token\":\"$masked\"}'")
+                                }
+                            },
                         style = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMono),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 14.dp, top = 12.dp, end = 44.dp, bottom = 12.dp),
@@ -161,7 +172,7 @@ internal fun PairingSheet(
                 }
                 IconButton(
                     onClick = { onCopy(buildCommand(data.url, data.token)) },
-                    modifier = Modifier.align(Alignment.TopEnd),
+                    modifier = Modifier.align(Alignment.TopEnd).size(32.dp),
                 ) {
                     Icon(
                         Icons.Outlined.ContentCopy,
@@ -170,47 +181,49 @@ internal fun PairingSheet(
                     )
                 }
             }
+            CopyRow(
+                icon = Icons.Outlined.Link,
+                label = stringResource(R.string.pairing_url_label),
+                value = data.url,
+                canToggle = false,
+                revealed = true,
+                onToggle = {},
+                onCopy = { onCopy(data.url) },
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+            CopyRow(
+                icon = Icons.Outlined.Key,
+                label = stringResource(R.string.pairing_token_label),
+                value = masked,
+                canToggle = true,
+                revealed = tokenShown,
+                onToggle = { tokenShown = !tokenShown },
+                onCopy = { onCopy(data.token) },
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PomoButton(
                     onClick = { onCopy(data.payload) },
                     variant = PomoButtonVariant.Tonal,
+                    compact = true,
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(Icons.Outlined.ContentCopy, contentDescription = null)
                     Text(stringResource(R.string.pairing_copy_code))
                 }
-                PomoButton(onClick = onShare, variant = PomoButtonVariant.Ghost) {
+                PomoButton(onClick = onShare, variant = PomoButtonVariant.Ghost, compact = true) {
                     Icon(Icons.Outlined.Share, contentDescription = null)
                     Text(stringResource(R.string.pairing_share))
                 }
             }
         }
 
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-            CopyRow(
-                label = stringResource(R.string.pairing_url_label),
-                value = data.url,
-                shown = true,
-                onToggle = {},
-                onCopy = { onCopy(data.url) },
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-            CopyRow(
-                label = stringResource(R.string.pairing_token_label),
-                value = maskedToken(data.token, tokenShown),
-                shown = tokenShown,
-                onToggle = { tokenShown = !tokenShown },
-                onCopy = { onCopy(data.token) },
-            )
-        }
-
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp).padding(top = 16.dp)) {
             SheetActionRow(
                 icon = Icons.Outlined.QrCodeScanner,
                 title = stringResource(R.string.scan_pairing_qr_title),
                 onClick = onScan,
             )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
             SheetActionRow(
                 icon = Icons.Outlined.Autorenew,
                 title = stringResource(R.string.rotate_pairing_token_title),
@@ -223,21 +236,30 @@ internal fun PairingSheet(
 
 @Composable
 private fun CopyRow(
+    icon: ImageVector,
     label: String,
     value: String,
-    shown: Boolean,
+    canToggle: Boolean,
+    revealed: Boolean,
     onToggle: () -> Unit,
     onCopy: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = PomoTokens.colors.onSurfaceFaint,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = PomoTokens.colors.onSurfaceFaint,
             )
             SelectionContainer {
                 Text(
@@ -248,16 +270,16 @@ private fun CopyRow(
                 )
             }
         }
-        if (!shown) {
-            IconButton(onClick = onToggle) {
+        if (canToggle) {
+            IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
                 Icon(
-                    Icons.Outlined.Visibility,
+                    if (revealed) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                     contentDescription = stringResource(R.string.pairing_toggle_token),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        IconButton(onClick = onCopy) {
+        IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) {
             Icon(
                 Icons.Outlined.ContentCopy,
                 contentDescription = stringResource(R.string.pairing_copy),
@@ -320,10 +342,10 @@ internal fun RotateTokenConfirmDialog(
         title = { Text(stringResource(R.string.rotate_pairing_token_title)) },
         body = { Text(stringResource(R.string.rotate_pairing_token_confirm)) },
         actions = {
-            PomoButton(onClick = onDismiss, variant = PomoButtonVariant.Ghost) {
+            PomoButton(onClick = onDismiss, variant = PomoButtonVariant.Ghost, compact = true) {
                 Text(stringResource(android.R.string.cancel))
             }
-            PomoButton(onClick = onConfirm, variant = PomoButtonVariant.Filled) {
+            PomoButton(onClick = onConfirm, variant = PomoButtonVariant.Filled, compact = true) {
                 Text(stringResource(R.string.rotate_pairing_token_action))
             }
         },

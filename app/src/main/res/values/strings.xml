@@ -73,8 +73,8 @@
     <string name="rotate_pairing_token_confirm">Existing desktop clients will stop working until paired again.</string>
     <string name="rotate_pairing_token_action">Rotate</string>
     <string name="rotate_pairing_token_done">Pairing token rotated</string>
-    <string name="pairing_url_label">Phone URL</string>
-    <string name="pairing_token_label">Pairing token</string>
+    <string name="pairing_url_label">URL</string>
+    <string name="pairing_token_label">Token</string>
     <string name="pairing_payload_label">Pairing payload</string>
     <string name="pairing_copy">Copy</string>
     <string name="pairing_sheet_instructions">On your desktop, run the command below, or copy the setup code.</string>
@@ -85,7 +85,7 @@
     <string name="pairing_copied">Pairing payload copied</string>
     <string name="pairing_share_title">Share Pomo pairing</string>
     <string name="pairing_status_waiting">Waiting for a desktop to connect…</string>
-    <string name="pairing_status_connected">Desktop connected</string>
+    <string name="pairing_status_connected">Desk connected ✓</string>
     <string name="scan_pairing_qr_title">Scan a pairing QR</string>
     <string name="scan_pairing_qr_summary">Read a Pomo pairing QR from another screen</string>
     <string name="scan_pairing_qr_missing">No QR scanner app is installed.</string>
@@ -114,6 +114,7 @@
     <string name="ring_notification_start">Start %1$s</string>
     <string name="state_cues_completion_section">Completion cues</string>
     <string name="state_cues_manual_section">Manual haptics</string>
+    <string name="state_cues_manual_note">Fired from the timer controls. Pick a row to feel it</string>
     <string name="state_cues_previews_title">Cue previews</string>
     <string name="state_cues_previews_summary">Preview completion cues and manual haptics</string>
     <string name="back_to_settings">Back to settings</string>
@@ -172,9 +173,12 @@
     <string name="session_tags_manage">Manage Tags</string>
     <string name="session_tags_add">Add tag</string>
     <string name="session_tags_add_hint">Tag name</string>
-    <string name="session_tags_edit">Edit tag</string>
+    <string name="session_tags_edit">Rename tag</string>
+    <string name="session_tags_save">Save</string>
     <string name="session_tags_delete">Delete</string>
-    <string name="session_tags_delete_confirm">Delete tag \"%1$s\"? Sessions with this tag will become untagged.</string>
+    <string name="session_tags_delete_title">Delete tag?</string>
+    <string name="session_tags_delete_confirm">Past sessions tagged \"%1$s\" keep their tag in history and stats.</string>
+    <string name="session_tags_error_duplicate">Tag already exists</string>
     <string name="session_tags_empty">No tags yet. Add one to start labeling sessions.</string>
     <string name="session_tags_add_done">Tag added</string>
     <string name="session_tags_edit_done">Tag renamed</string>
@@ -210,7 +214,7 @@
     <string name="release_notes_retry">Try again</string>
     <string name="release_notes_cache_hint">Saved notes. Reconnect to refresh</string>
     <string name="release_notes_first_fetch_title">First open, fetching notes…</string>
-    <string name="release_notes_first_fetch_body">Release notes are fetched from GitHub once, then kept on the phone for offline reading.</string>
+    <string name="release_notes_first_fetch_body">GET /repos/%1$s/releases\n→ 200 OK · parsing release list</string>
     <string name="release_notes_nocache_offline_title">No saved notes yet</string>
     <string name="release_notes_nocache_offline_body">You\'re offline and this phone hasn\'t fetched release notes before. They\'ll appear here after the first successful fetch and stay readable offline from then on.</string>
     <string name="release_notes_nocache_error_title">Couldn\'t load release notes</string>
@@ -219,7 +223,9 @@
     <string name="release_notes_released">Released %1$s</string>
     <string name="release_notes_whats_changed">What\'s changed</string>
     <string name="release_notes_no_notes">This build has no published release notes yet.</string>
-    <string name="release_notes_earlier">Other releases</string>
+    <string name="release_notes_earlier">Earlier releases</string>
+    <string name="release_notes_notfound_title">No notes for %1$s</string>
+    <string name="release_notes_notfound_body">This build has no matching GitHub release yet. If you just bumped the version, publish the release and retry.</string>
     <string name="release_notes_latest_chip">Latest</string>
     <string name="link_unavailable">No app is available to open this link</string>
     <string name="release_notes_full_changelog">Full changelog on GitHub</string>
@@ -228,6 +234,7 @@
     <string name="about_tagline">A focus timer that lives on your phone. No account, no cloud. Optional control from your desktop.</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_version_copied">Version copied</string>
+    <string name="about_build_info">%1$s %2$s (%3$d)\n%4$s</string>
     <string name="about_feature_achievements">Achievements</string>
     <string name="about_feature_achievements_summary">Focus ladders from your first hour to 5,000</string>
     <string name="about_feature_crews">Crews</string>
