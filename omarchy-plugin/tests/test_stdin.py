@@ -34,6 +34,12 @@ class StubWS:
     def send_text(self, text):
         pass
 
+    def try_send_text(self, text):
+        return self.send_text(text)
+
+    def try_send_ping(self):
+        pass
+
     def recv_ready(self, timeout=0.0):
         return False
 

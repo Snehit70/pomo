@@ -31,6 +31,12 @@ class FailingConnectWS:
     def send_text(self, text):
         pass
 
+    def try_send_text(self, text):
+        return self.send_text(text)
+
+    def try_send_ping(self):
+        pass
+
 
 class PingStubWS:
     connected = True
@@ -42,6 +48,12 @@ class PingStubWS:
 
     def send_ping(self):
         self.pings += 1
+
+    def try_send_ping(self):
+        return self.send_ping()
+
+    def try_send_text(self, text):
+        del text
 
     def recv_ready(self, timeout=0.0):
         return False
@@ -119,6 +131,12 @@ class FailedConnectTest(unittest.TestCase):
             def send_text(self, text):
                 self.sent.append(text)
 
+            def try_send_text(self, text):
+                return self.send_text(text)
+
+            def try_send_ping(self):
+                pass
+
             def close(self):
                 pass
 
@@ -161,7 +179,7 @@ class PingTest(unittest.TestCase):
         def boom():
             raise WebSocketError("send timeout")
 
-        self.client.ws.send_ping = boom
+        self.client.ws.try_send_ping = boom
         self.client.on_websocket_disconnected = lambda: events.append("dc")
         self.client.tick_ws_ping()
         self.assertEqual(events, ["dc"])
@@ -300,7 +318,7 @@ class SendTimeoutTest(unittest.TestCase):
             def settimeout(self, value):
                 pass
 
-            def sendall(self, data):
+            def send(self, data):
                 raise OSError("broken pipe")
 
             def close(self):

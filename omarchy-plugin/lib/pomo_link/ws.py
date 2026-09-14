@@ -112,6 +112,7 @@ def _decode_frames(buf):
 
 class Rfc6455Client:
     SEND_TIMEOUT_S = 5.0
+    SEND_NOWAIT_TIMEOUT_S = 0.05
 
     def __init__(self):
         self.sock = None
@@ -226,6 +227,44 @@ class Rfc6455Client:
                 except OSError:
                     pass
 
+    def _send_nowait(self, frame):
+        """Send from the select loop without waiting on a dead peer."""
+        if not self.connected or self.sock is None:
+            raise WebSocketError("not connected")
+        sock = self.sock
+        try:
+            sock.settimeout(0.0)
+        except OSError as exc:
+            self._teardown_socket()
+            raise WebSocketError("send failed") from exc
+        deadline = time.monotonic() + self.SEND_NOWAIT_TIMEOUT_S
+        view = memoryview(bytes(frame))
+        while view:
+            try:
+                sent = sock.send(view)
+            except BlockingIOError as exc:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise WebSocketError("send would block") from exc
+                try:
+                    _, writable, _ = select.select([], [sock], [], remaining)
+                except (OSError, ValueError) as sel_exc:
+                    self._teardown_socket()
+                    raise WebSocketError("send failed") from sel_exc
+                if not writable:
+                    raise WebSocketError("send would block") from exc
+                continue
+            except socket.timeout as exc:
+                self._teardown_socket()
+                raise WebSocketError("send would block") from exc
+            except OSError as exc:
+                self._teardown_socket()
+                raise WebSocketError("send failed") from exc
+            if sent == 0:
+                self._teardown_socket()
+                raise WebSocketError("send failed")
+            view = view[sent:]
+
     def _teardown_socket(self):
         self.connected = False
         sock = self.sock
@@ -246,11 +285,17 @@ class Rfc6455Client:
     def send_ping(self):
         self._send_all(encode_frame(b"", opcode=0x9))
 
+    def try_send_text(self, text):
+        self._send_nowait(encode_frame(text, opcode=1))
+
+    def try_send_ping(self):
+        self._send_nowait(encode_frame(b"", opcode=0x9))
+
     def send_pong(self, payload=b""):
         if not self.connected or self.sock is None:
             return
         try:
-            self._send_all(encode_frame(payload, opcode=0xA))
+            self._send_nowait(encode_frame(payload, opcode=0xA))
         except (WebSocketError, OSError):
             # Pong is best-effort; a dead send path is handled by the
             # next recv/ping cycle.
