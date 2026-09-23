@@ -306,10 +306,12 @@ Panel {
 
             Text {
               width: parent.width
+              // Pairing hint reuses existing service props only (host/port/
+              // hasToken/mode): pinned host:port vs discovering, no new props.
               text: root.hasSavedPairing
                 ? ("Token saved" + (root.pomo.host
-                    ? " · " + root.pomo.host + ":" + root.pomo.port
-                    : " · discovering phone"))
+                    ? " · " + root.pomo.host + ":" + root.pomo.port + " (pinned)"
+                    : " · discovering phone" + (root.pomo.mode ? " (" + root.pomo.mode + ")" : "")))
                 : "No token saved"
               color: root.dim
               font.family: root.contentFontFamily

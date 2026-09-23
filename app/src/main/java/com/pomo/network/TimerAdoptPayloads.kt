@@ -7,10 +7,12 @@ import com.pomo.timer.TimerState
  * Parse and validate `POST /api/timer/adopt` bodies so the desk can hand a live offline
  * (or shorter) timer to the phone.
  *
- * **Least-remaining rule:** when both phone and desk have a live timer (running or paused)
- * on different sessions, the phone adopts the desk payload only if desk remaining is
- * strictly less than phone remaining. Otherwise the phone keeps its clock (HTTP 409).
- * Phone STOPPED always adopts; same session always refreshes.
+ * **Focus-over-break precedence:** when both phone and desk have a live timer (running
+ * or paused) on different sessions, the work side wins across classes — desk work vs
+ * phone break always adopts (any remaining); desk break vs phone work never adopts
+ * (HTTP 409, desk snaps to phone). Same class (both work, or both break including
+ * short-vs-long) falls back to strict least-remaining. Phone STOPPED always adopts;
+ * same session always refreshes.
  */
 public object TimerAdoptPayloads {
     private val gson = Gson()
@@ -122,8 +124,13 @@ public object TimerAdoptPayloads {
      *
      * - Phone [TimerState.STATUS_STOPPED] → always true.
      * - Same session ([isSameSession]) → true (desk refresh).
-     * - Both sides live (running or paused) on different sessions → true only when
-     *   `payload.remaining < current.remaining` (strict least-remaining).
+     * - Both sides live (running or paused) on different sessions, different
+     *   classes (work vs short/long break) → work side wins: desk work vs
+     *   phone break is true regardless of remaining; desk break vs phone
+     *   work is false (HTTP 409 `timer_busy`, desk snaps to phone).
+     * - Both sides live, same class (both work, or both break including
+     *   short-vs-long) → true only when `payload.remaining < current.remaining`
+     *   (strict least-remaining).
      * - Otherwise false; caller should respond HTTP 409 `timer_busy`.
      */
     public fun canAdopt(
@@ -133,6 +140,14 @@ public object TimerAdoptPayloads {
         if (current.status == TimerState.STATUS_STOPPED) return true
         if (isSameSession(current, payload)) return true
         if (!isLiveStatus(current.status) || !isLiveStatus(payload.status)) return false
+        // Phase classes: work vs break. Non-work counts as break so short-vs-long
+        // stays in the same class and falls through to least-remaining.
+        val currentWork = current.phase == TimerState.PHASE_WORK
+        val payloadWork = payload.phase == TimerState.PHASE_WORK
+        if (currentWork != payloadWork) {
+            // Focus overrides break: only the work side wins.
+            return payloadWork
+        }
         return payload.remaining < current.remaining
     }
 

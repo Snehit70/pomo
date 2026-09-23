@@ -10,6 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import pomo_link.client as client_module
+from pomo_link.adopt import can_adopt
 from pomo_link.main import Engine
 
 from test_stdin import FakeWorker, StubRest, StubWS, run_pending_jobs
@@ -158,6 +159,108 @@ class AdoptPipelineTest(EnterSyncBase):
         run_pending_jobs(self.client)
         self.assertEqual(self.client.mode, "SYNCED")
         self.assertEqual(self.client.model.start_time, 2222.0)
+
+
+class AdoptFocusPrecedenceTest(EnterSyncBase):
+    """Pipeline always POSTs when desk is live; the phone's focus-over-break
+    rule (adopt.can_adopt, mirrored in Kotlin) decides 200 vs 409."""
+
+    def _desk_live_work(self):
+        self.client.enter_offline("test")
+        self.client.model.set_config(45, 5, 15, 4, 8)
+        self.client.model.toggle()
+        self.client.model.set_start_time(1710000000.0)
+        self.assertEqual(self.client.model.phase, "work")
+
+    def _desk_live_break(self):
+        self._desk_live_work()
+        # work running -> skip to break idle -> toggle to break running.
+        self.client.model.skip()
+        self.assertEqual(self.client.model.phase, "short")
+        self.client.model.toggle()
+        self.client.model.set_start_time(1720000000.0)
+        self.assertEqual(self.client.model.phase, "short")
+        self.assertTrue(self.client.model.is_live())
+
+    def test_can_adopt_work_vs_break_both_directions(self):
+        phone_break = {
+            "status": "running", "phase": "short", "remaining": 300.0,
+            "start_time": 1.0,
+        }
+        desk_work = {
+            "status": "running", "phase": "work", "remaining": 1400.0,
+            "start_time": 2.0,
+        }
+        self.assertTrue(can_adopt(phone_break, desk_work))
+        phone_work = {
+            "status": "running", "phase": "work", "remaining": 1400.0,
+            "start_time": 1.0,
+        }
+        desk_break = {
+            "status": "running", "phase": "short", "remaining": 100.0,
+            "start_time": 2.0,
+        }
+        self.assertFalse(can_adopt(phone_work, desk_break))
+
+    def test_can_adopt_same_class_least_remaining(self):
+        phone_work = {"status": "running", "phase": "work", "remaining": 900.0, "start_time": 1.0}
+        self.assertTrue(can_adopt(phone_work, {
+            "status": "paused", "phase": "work", "remaining": 899.0, "start_time": 2.0,
+        }))
+        self.assertFalse(can_adopt(phone_work, {
+            "status": "running", "phase": "work", "remaining": 900.0, "start_time": 2.0,
+        }))
+        phone_long = {"status": "running", "phase": "long", "remaining": 600.0, "start_time": 1.0}
+        self.assertTrue(can_adopt(phone_long, {
+            "status": "running", "phase": "short", "remaining": 599.0, "start_time": 2.0,
+        }))
+        self.assertFalse(can_adopt(phone_long, {
+            "status": "paused", "phase": "short", "remaining": 600.0, "start_time": 2.0,
+        }))
+
+    def test_desk_work_vs_phone_break_posts_adopt_and_200_wins(self):
+        self._desk_live_work()
+        now = int(time.time())
+        desk_start = 1710000000.0
+        adopted_state = {
+            "status": "running", "phase": "work", "remaining": 1400.0,
+            "duration": 2700.0, "completed": 0, "daily_goal": 8,
+            "start_time": desk_start, "server_time": now,
+        }
+        self.client.rest = StubRest(results=[(200, json.dumps({
+            "success": True, "state": adopted_state,
+        }))])
+        self.connect_ready()
+        # Phone is on a break; desk work must still POST (focus wins on phone).
+        self.client.on_websocket_text(state_frame(now - 3, 250.0, 1111.0, status="running", phase="short", duration=300.0))
+        self.assertEqual(len(self.client.worker.jobs), 1)
+        self.assertEqual(self.client.worker.jobs[0][0], "adopt")
+        run_pending_jobs(self.client)
+        self.assertEqual(self.client.mode, "SYNCED")
+        self.assertEqual(self.client.model.phase, "work")
+        self.assertEqual(self.client.model.start_time, desk_start)
+
+    def test_desk_break_vs_phone_work_409_snaps_to_phone(self):
+        self._desk_live_break()
+        now = int(time.time())
+        phone_state = {
+            "status": "running", "phase": "work", "remaining": 1400.0,
+            "duration": 2700.0, "completed": 2, "daily_goal": 8,
+            "start_time": 9999.0, "server_time": now,
+        }
+        self.client.rest = StubRest(results=[(409, json.dumps({"state": phone_state}))])
+        self.connect_ready()
+        self.client.on_websocket_text(state_frame(now - 3, 1400.0, 9999.0, status="running", phase="work", duration=2700.0))
+        self.assertEqual(self.client.worker.jobs[0][0], "adopt")
+        run_pending_jobs(self.client)
+        self.assertEqual(self.client.mode, "SYNCED")
+        self.assertEqual(self.client.model.phase, "work")
+        self.assertEqual(self.client.model.start_time, 9999.0)
+
+    def test_data_dir_lock_wired_best_effort(self):
+        # paths.ensure_data_dir_lock handle lives on the client; None (held
+        # elsewhere) never raises and never breaks the pipeline.
+        self.assertTrue(hasattr(self.client, "_data_lock"))
 
 
 class GestureDuringPipelineTest(EnterSyncBase):

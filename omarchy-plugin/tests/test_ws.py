@@ -31,6 +31,12 @@ class FailingConnectWS:
     def send_text(self, text):
         pass
 
+    def try_send_text(self, text):
+        return self.send_text(text)
+
+    def try_send_ping(self):
+        pass
+
 
 class PingStubWS:
     connected = True
@@ -42,6 +48,12 @@ class PingStubWS:
 
     def send_ping(self):
         self.pings += 1
+
+    def try_send_ping(self):
+        return self.send_ping()
+
+    def try_send_text(self, text):
+        pass
 
     def recv_ready(self, timeout=0.0):
         return False
@@ -119,6 +131,12 @@ class FailedConnectTest(unittest.TestCase):
             def send_text(self, text):
                 self.sent.append(text)
 
+            def try_send_text(self, text):
+                return self.send_text(text)
+
+            def try_send_ping(self):
+                pass
+
             def close(self):
                 pass
 
@@ -162,6 +180,7 @@ class PingTest(unittest.TestCase):
             raise WebSocketError("send timeout")
 
         self.client.ws.send_ping = boom
+        self.client.ws.try_send_ping = boom
         self.client.on_websocket_disconnected = lambda: events.append("dc")
         self.client.tick_ws_ping()
         self.assertEqual(events, ["dc"])
@@ -175,7 +194,7 @@ class ContactTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
 
-    def test_idle_20s_with_fresh_pong_does_not_resync(self):
+    def test_idle_stale_with_fresh_pong_does_not_resync(self):
         now = time.monotonic()
         self.client.ws = PingStubWS()
         self.client.ws.last_peer_activity_mono = now
@@ -188,7 +207,7 @@ class ContactTest(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(self.client.last_socket_contact_at, now)
 
-    def test_idle_20s_without_activity_resyncs(self):
+    def test_idle_stale_without_activity_resyncs(self):
         now = time.monotonic()
         self.client.ws = PingStubWS()
         self.client.set_mode("SYNCED")
@@ -262,7 +281,7 @@ class SendTimeoutTest(unittest.TestCase):
             def settimeout(self, value):
                 self.timeout = value
 
-            def sendall(self, data):
+            def send(self, data):
                 raise socket.timeout("stalled peer")
 
             def close(self):
@@ -277,12 +296,32 @@ class SendTimeoutTest(unittest.TestCase):
         self.assertFalse(rc.connected)
         self.assertIsNone(rc.sock)
 
+    def test_send_would_block_maps_to_web_socket_error(self):
+        class WouldBlockSock:
+            def settimeout(self, value):
+                pass
+
+            def send(self, data):
+                raise BlockingIOError("would block")
+
+            def fileno(self):
+                return -1
+
+            def close(self):
+                pass
+
+        rc = Rfc6455Client()
+        rc.sock = WouldBlockSock()
+        rc.connected = True
+        with self.assertRaises(WebSocketError):
+            rc.send_text("hello")
+
     def test_send_oserror_tears_down_socket(self):
         class DeadSock:
             def settimeout(self, value):
                 pass
 
-            def sendall(self, data):
+            def send(self, data):
                 raise OSError("broken pipe")
 
             def close(self):
@@ -300,7 +339,7 @@ class SendTimeoutTest(unittest.TestCase):
             def settimeout(self, value):
                 pass
 
-            def sendall(self, data):
+            def send(self, data):
                 raise OSError("broken pipe")
 
             def close(self):
@@ -317,7 +356,7 @@ class SendTimeoutTest(unittest.TestCase):
             def settimeout(self, value):
                 pass
 
-            def sendall(self, data):
+            def send(self, data):
                 raise OSError("broken pipe")
 
             def close(self):

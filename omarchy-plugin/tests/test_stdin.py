@@ -25,6 +25,13 @@ class StubWS:
     connected = False
     sock = None
 
+    def __init__(self):
+        # Instance-level so would-block tests do not leak across engines.
+        self.connected = False
+        self.sock = None
+        self.sent = []
+        self.would_block_on_send = False
+
     def connect(self, *args, **kwargs):
         raise OSError("no network in test")
 
@@ -32,7 +39,25 @@ class StubWS:
         pass
 
     def send_text(self, text):
-        pass
+        self.sent.append(text)
+
+    def try_send_text(self, text):
+        # Tick-path hello uses the non-blocking send.
+        from pomo_link.ws import WebSocketError
+
+        if self.would_block_on_send:
+            raise WebSocketError("send would block")
+        self.sent.append(text)
+
+    def try_send_ping(self):
+        from pomo_link.ws import WebSocketError
+
+        if self.would_block_on_send:
+            raise WebSocketError("send would block")
+        self.sent.append("ping")
+
+    def send_ping(self):
+        self.try_send_ping()
 
     def recv_ready(self, timeout=0.0):
         return False
@@ -40,6 +65,7 @@ class StubWS:
 
 class ConnectedStubWS(StubWS):
     def __init__(self):
+        super().__init__()
         self.connected = False
         self.sock = None
         self.close_calls = 0
@@ -153,6 +179,9 @@ class GestureQueueTest(unittest.TestCase):
         shutil.rmtree(self.dir, ignore_errors=True)
 
     def test_three_toggles_coalesce_to_one(self):
+        # Fresh boot owns the local clock, so force the neither-owned hold to
+        # exercise stdin last-wins coalescing (boot gestures run locally).
+        self.engine.model.set_local_owner(False)
         for _ in range(3):
             self.engine.handle_line('{"cmd":"toggle"}')
         self.assertEqual(self.engine.pending_gesture, "toggle")
@@ -167,8 +196,9 @@ class GestureQueueTest(unittest.TestCase):
         self.assertIsNone(self.engine.pending_gesture)
 
     def test_gesture_held_while_busy(self):
-        self.engine.handle_line('{"cmd":"skip"}')
+        # Hold via busy: queue while the phone POST is in flight.
         self.engine.client.busy = True
+        self.engine.handle_line('{"cmd":"skip"}')
         applied = []
         self.engine.client.send_gesture = applied.append
         self.engine.client.host = "h"
@@ -180,8 +210,23 @@ class GestureQueueTest(unittest.TestCase):
         self.engine.drain_pending_gesture()
         self.assertEqual(applied, ["skip"])
 
-    def test_held_gesture_sets_waiting_message_then_applies_offline(self):
+    def test_boot_gesture_executes_locally_no_waiting_hint(self):
+        # Wave-1 boot-local: fresh boot owns the clock, so a toggle runs
+        # immediately instead of parking on "waiting to connect".
         engine = self.engine
+        self.assertTrue(engine.model.local_owner)
+        self.assertIsNone(engine.pending_gesture)
+        engine.handle_line('{"cmd":"toggle"}')
+        self.assertIsNone(engine.pending_gesture)
+        self.assertEqual(engine.model.status, "running")
+        self.assertNotEqual(engine.client.message, "waiting to connect")
+        self.assertFalse(engine.client.busy)
+
+    def test_neither_owned_gesture_held_then_applies_offline(self):
+        # Residual neither-owned hold (e.g. restored live snapshot before
+        # OFFLINE flips ownership): parks with the bounded waiting hint.
+        engine = self.engine
+        engine.model.set_local_owner(False)
         self.assertIsNone(engine.pending_gesture)
         engine.handle_line('{"cmd":"toggle"}')
         self.assertEqual(engine.client.message, "waiting to connect")
@@ -209,6 +254,8 @@ class GestureQueueTest(unittest.TestCase):
 
     def test_replaced_gesture_wins(self):
         engine = self.engine
+        # Force the hold so last-wins is observable (boot runs locally).
+        engine.model.set_local_owner(False)
         engine.handle_line('{"cmd":"toggle"}')
         engine.handle_line('{"cmd":"reset"}')
         self.assertEqual(engine.pending_gesture, "reset")
@@ -344,6 +391,53 @@ class GestureFailureTest(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("unreachable", errors[0])
 
+    def test_unreachable_gesture_while_synced_soft_resyncs(self):
+        self._synced()
+        engine = self.engine
+        engine.client.send_gesture("toggle")
+        run_pending_jobs(engine.client)
+        # Fast-offline: never dead-SYNCED; a reachability probe is in flight
+        # with busy cleared and a concise error surfaced.
+        self.assertFalse(engine.client.busy)
+        self.assertEqual(engine.client.mode, "SYNCED")
+        self.assertEqual([tag for tag, _func in engine.client.worker.jobs], ["soft_resync"])
+
+    def test_unreachable_gesture_when_clearly_unreachable_goes_offline(self):
+        engine = self.engine
+        engine.client.host = "h"
+        engine.client.token = "t"
+        engine.client.set_mode("DISCOVERING")
+        engine.client.model.set_local_owner(False)
+        engine.client.busy = True
+        engine.client._apply_gesture_result("toggle", (0, ""))
+        self.assertFalse(engine.client.busy)
+        self.assertEqual(engine.client.mode, "OFFLINE")
+        self.assertTrue(engine.model.local_owner)
+        errors = engine.client.drain_errors()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("unreachable", errors[0])
+
+    def test_gesture_401_goes_unpaired_keep_local_owner(self):
+        self._synced()
+        engine = self.engine
+        engine.client.rest = StubRest(results=[(401, "")])
+        engine.client.send_gesture("toggle")
+        run_pending_jobs(engine.client)
+        self.assertFalse(engine.client.busy)
+        self.assertEqual(engine.client.mode, "UNPAIRED")
+        self.assertTrue(engine.model.local_owner)
+
+    def test_gesture_other_http_logs_only(self):
+        self._synced(rest=StubRest(results=[(500, "oops")]))
+        engine = self.engine
+        engine.client.send_gesture("toggle")
+        run_pending_jobs(engine.client)
+        self.assertFalse(engine.client.busy)
+        self.assertEqual(engine.client.mode, "SYNCED")
+        errors = engine.client.drain_errors()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("http 500", errors[0])
+
     def test_success_without_state_schedules_resync(self):
         self._synced(rest=StubRest(results=[(200, '{"success": true}')]))
         engine = self.engine
@@ -375,6 +469,9 @@ class GestureFailureTest(unittest.TestCase):
         self.assertIn('"type":"error"', captured.getvalue())
         self.assertIn("unreachable", captured.getvalue())
         self.assertIsNone(engine.pending_gesture)
+        # Fast-offline: the failed toggle also kicked the reachability probe
+        # instead of leaving a dead SYNCED behind.
+        self.assertEqual([tag for tag, _func in engine.client.worker.jobs], ["soft_resync"])
 
     def test_busy_true_emitted_before_slow_post(self):
         import io

@@ -112,6 +112,9 @@ def _decode_frames(buf):
 
 class Rfc6455Client:
     SEND_TIMEOUT_S = 5.0
+    # Tick-path (select-loop) send budget. The loop must never block >~50ms;
+    # _send_all (5s, blocking) is worker-thread only (connect/hello path).
+    SEND_NOWAIT_TIMEOUT_S = 0.05
 
     def __init__(self):
         self.sock = None
@@ -205,9 +208,12 @@ class Rfc6455Client:
         return True
 
     def _send_all(self, frame):
-        """Send with a hard timeout. setblocking(True) has no timeout and a
-        stalled peer would freeze the engine forever; a timeout mid-frame
-        means a partial frame escaped, so the stream is dead — tear down."""
+        """Blocking send with a hard timeout — worker-thread only.
+
+        Used by the WS handshake/hello path running on RestWorker. Never
+        call from the select loop (client.tick_ws_ping / pump_websocket):
+        a stalled peer would freeze the engine for SEND_TIMEOUT_S. Tick
+        code must use try_send_ping()/try_send_text() (_send_nowait)."""
         if not self.connected or self.sock is None:
             raise WebSocketError("not connected")
         try:
@@ -226,6 +232,57 @@ class Rfc6455Client:
                 except OSError:
                     pass
 
+    def _send_nowait(self, frame):
+        """Non-blocking send for the select-loop tick path.
+
+        Sends on the (already non-blocking) socket, waiting at most
+        SEND_NOWAIT_TIMEOUT_S for writability. Maps WouldBlock/timeout to
+        WebSocketError so callers only handle one exception type. Tears
+        the socket down on hard errors. Never raises raw OSError into the
+        loop; unexpected exceptions are wrapped as WebSocketError."""
+        if not self.connected or self.sock is None:
+            raise WebSocketError("not connected")
+        sock = self.sock
+        try:
+            sock.settimeout(0.0)
+        except OSError as exc:
+            self._teardown_socket()
+            raise WebSocketError("send failed") from exc
+        deadline = time.monotonic() + self.SEND_NOWAIT_TIMEOUT_S
+        view = memoryview(bytes(frame))
+        while len(view) > 0:
+            try:
+                sent = sock.send(view)
+            except BlockingIOError as exc:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise WebSocketError("send would block") from exc
+                try:
+                    _, writable, _ = select.select([], [sock], [], remaining)
+                except (OSError, ValueError) as sel_exc:
+                    self._teardown_socket()
+                    raise WebSocketError("send failed") from sel_exc
+                except Exception as sel_exc:  # never leak into select loop
+                    self._teardown_socket()
+                    raise WebSocketError("send failed") from sel_exc
+                if not writable:
+                    raise WebSocketError("send would block") from exc
+                continue
+            except socket.timeout as exc:
+                self._teardown_socket()
+                raise WebSocketError("send would block") from exc
+            except OSError as exc:
+                self._teardown_socket()
+                raise WebSocketError("send failed") from exc
+            except Exception as exc:  # never leak raw errors into the loop
+                self._teardown_socket()
+                raise WebSocketError("send failed") from exc
+            if sent == 0:
+                self._teardown_socket()
+                raise WebSocketError("send failed")
+            view = view[sent:]
+        return True
+
     def _teardown_socket(self):
         self.connected = False
         sock = self.sock
@@ -241,19 +298,53 @@ class Rfc6455Client:
                 pass
 
     def send_text(self, text):
-        self._send_all(encode_frame(text, opcode=1))
+        # Tick-path safe: select-loop callers (hello in _apply_connect_result,
+        # command sends) must never block 5s. Delegates to non-blocking
+        # _send_nowait; raises only WebSocketError. _send_all is retained
+        # for worker-thread use only.
+        self.try_send_text(text)
 
     def send_ping(self):
-        self._send_all(encode_frame(b"", opcode=0x9))
+        # Same non-blocking guarantee as send_text: tick_ws_ping runs on
+        # the select loop, so a stalled peer must surface as WouldBlock
+        # (WebSocketError), never a 5s stall.
+        self.try_send_ping()
+
+    def try_send_text(self, text):
+        """Non-blocking text send for the select loop. Raises only
+        WebSocketError (including send-would-block); never blocks >~50ms."""
+        try:
+            frame = encode_frame(text, opcode=1)
+        except WebSocketError:
+            raise
+        except Exception as exc:
+            raise WebSocketError("encode failed") from exc
+        self._send_nowait(frame)
+
+    def try_send_ping(self):
+        """Non-blocking ping for client.tick_ws_ping. Raises only
+        WebSocketError; never blocks >~50ms. Client owner: call this (or
+        send_ping, now also non-blocking) from the select loop."""
+        try:
+            frame = encode_frame(b"", opcode=0x9)
+        except WebSocketError:
+            raise
+        except Exception as exc:
+            raise WebSocketError("encode failed") from exc
+        self._send_nowait(frame)
 
     def send_pong(self, payload=b""):
         if not self.connected or self.sock is None:
             return
         try:
-            self._send_all(encode_frame(payload, opcode=0xA))
+            self._send_nowait(encode_frame(payload, opcode=0xA))
         except (WebSocketError, OSError):
             # Pong is best-effort; a dead send path is handled by the
             # next recv/ping cycle.
+            pass
+        except Exception:
+            # Never leak unexpected errors from the read/pong path into
+            # the select loop.
             pass
 
     def recv_ready(self, timeout=0.0):
@@ -327,7 +418,7 @@ class Rfc6455Client:
             self.send_pong(payload)
         if not self.connected:
             # A failed pong tore the socket down mid-read; raise so the
-            # pump's error path reconnects now instead of at the 20s stale
+            # pump's error path reconnects now instead of at the stale
             # watchdog.
             raise WebSocketError("pong send failed")
         if close:

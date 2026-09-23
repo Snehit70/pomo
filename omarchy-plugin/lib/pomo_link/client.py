@@ -25,6 +25,7 @@ from .constants import (
     WS_PING_S,
 )
 from .discovery import browse_pomo
+from .paths import ensure_data_dir_lock
 from .rest import RestClient
 from .worker import RestWorker
 from .ws import Rfc6455Client, WebSocketError
@@ -143,6 +144,15 @@ class PomoClient:
         self.port = store.port or DEFAULT_PORT
         self.token = store.token
         self.rest.configure(self.host, self.port, self.token)
+
+        # Inter-process data-dir lock: single writer for config/timer state.
+        # Best-effort only — None (held elsewhere / cannot lock) never raises.
+        # The handle must stay alive on self for the process lifetime.
+        self._data_lock = None
+        try:
+            self._data_lock = ensure_data_dir_lock(self.store.directory)
+        except Exception:
+            self._data_lock = None
 
         self.ever_synced = False
         self.entering_sync = False
@@ -480,8 +490,28 @@ class PomoClient:
                 self.enter_offline("connect retries exhausted")
             return
         try:
-            self.ws.send_text(json.dumps({"type": "hello", "token": self.token}))
+            # Tick-path hello: non-blocking send, never a 5s stall on the loop.
+            self.ws.try_send_text(json.dumps({"type": "hello", "token": self.token}))
         except WebSocketError as exc:
+            if "would block" in str(exc).lower():
+                # Send budget hit: soft disconnect, not a crash. Count it like
+                # a connect failure, park on CONNECTING, then take the shared
+                # disconnect path (wsdrop probe) outside the boot probe.
+                self.log("hello send would block -> soft disconnect")
+                self.connect_failures += 1
+                self._note_pinned_failure()
+                self.last_socket_contact_at = 0.0
+                self.retry_started_at = time.monotonic()
+                self.retry_delay_s = RECONNECT_INTERVAL_S
+                if self.in_boot_probe():
+                    self.set_mode("DISCOVERING")
+                    return
+                self.set_mode("CONNECTING")
+                if self.connect_failures >= CONNECT_RETRY_MAX:
+                    self.enter_offline("connect retries exhausted")
+                    return
+                self.on_websocket_disconnected()
+                return
             self.log("hello send failed: %s" % exc)
             self.connect_failures += 1
             self._note_pinned_failure()
@@ -885,7 +915,9 @@ class PomoClient:
             return
         self.last_ping_at = now
         try:
-            self.ws.send_ping()
+            # Non-blocking tick ping: WouldBlock surfaces as WebSocketError
+            # and takes the soft-disconnect path, never a loop stall/crash.
+            self.ws.try_send_ping()
         except WebSocketError:
             self.on_websocket_disconnected()
 
@@ -1311,6 +1343,7 @@ class PomoClient:
         self.busy = False
         code, response = self._result_tuple(result)
         if code == 401:
+            # Token rejected: unpaired keeps local_owner True via set_mode.
             self.enter_unpaired(tag)
             return
         if code == 200:
@@ -1326,7 +1359,18 @@ class PomoClient:
                 self.resync_after_command = True
             return
         if code == 0:
+            # Transport failure: never stay dead-SYNCED after a failed toggle.
+            # busy is already cleared above. Soft-resync once when the socket
+            # was live (SYNCED/CONNECTING); otherwise go OFFLINE fast when
+            # clearly unreachable. Other HTTP codes below are log-only.
             self.note_error("%s failed: phone unreachable" % tag)
+            if self.mode in ("SYNCED", "CONNECTING"):
+                # soft_resync submits the reachability probe; on budget
+                # exhaustion / missing host it enters OFFLINE itself.
+                # Already-resyncing keeps the in-flight probe (once).
+                self.soft_resync("gesture transport fail")
+            else:
+                self.enter_offline("gesture transport fail")
             return
         self.note_error("%s failed: http %s" % (tag, code))
 

@@ -12,6 +12,7 @@ from pomo_link.constants import CONNECT_RETRY_MAX
 from pomo_link.queue import SessionQueue
 from pomo_link.store import ConfigStore
 from pomo_link.timer import TimerModel
+from pomo_link.ws import WebSocketError
 
 
 class FakeWs:
@@ -20,6 +21,7 @@ class FakeWs:
         self.connected = False
         self.sock = None
         self.sent = []
+        self.would_block_on_send = False
 
     def connect(self, *args, **kwargs):
         del args, kwargs
@@ -30,6 +32,21 @@ class FakeWs:
 
     def send_text(self, text):
         self.sent.append(text)
+
+    def try_send_text(self, text):
+        # Tick-path hello uses the non-blocking send; WouldBlock surfaces as
+        # WebSocketError("send would block") for the soft-disconnect path.
+        if self.would_block_on_send:
+            raise WebSocketError("send would block")
+        self.sent.append(text)
+
+    def try_send_ping(self):
+        if self.would_block_on_send:
+            raise WebSocketError("send would block")
+        self.sent.append("ping")
+
+    def send_ping(self):
+        self.try_send_ping()
 
     def close(self):
         self.connected = False
@@ -194,6 +211,83 @@ class ReconnectTest(unittest.TestCase):
         self.assertFalse(self.model.local_owner)
         self.assertEqual(self.client.mode, "CONNECTING")
         self.assertGreater(self.client.last_socket_contact_at, 0)
+
+    def test_hello_uses_try_send_text(self):
+        self.ws.fail = False
+        self.client.mode = "DISCOVERING"
+        self.client.probe_active = False
+        self.client.ever_synced = True
+        ok = self.client.begin_websocket("discovery")
+        self.assertTrue(ok)
+        self.worker.run_next(self.client)
+        self.assertEqual(self.client.mode, "CONNECTING")
+        self.assertTrue(self.ws.sent)
+        self.assertIn("hello", self.ws.sent[0])
+        self.assertIn("tok", self.ws.sent[0])
+
+    def test_hello_would_block_takes_soft_disconnect(self):
+        self.ws.fail = False
+        self.ws.would_block_on_send = True
+        self.client.mode = "DISCOVERING"
+        self.client.probe_active = False
+        self.client.ever_synced = True
+        ok = self.client.begin_websocket("discovery")
+        self.assertTrue(ok)
+        self.worker.run_next(self.client)
+        # Would-block hello must not crash: parks on CONNECTING and takes the
+        # shared disconnect path (wsdrop probe), not a dead stall.
+        self.assertEqual(self.client.mode, "CONNECTING")
+        self.assertEqual([tag for tag, _func in self.worker.jobs], ["wsdrop"])
+
+    def test_tick_ping_uses_try_send_and_would_block_disconnects(self):
+        self.client.set_mode("SYNCED")
+        self.ws.connected = True
+        self.ws.would_block_on_send = True
+        self.client.last_ping_at = 0.0
+        self.client.tick_ws_ping()
+        # Soft disconnect from SYNCED submits the reachability probe.
+        self.assertEqual([tag for tag, _func in self.worker.jobs], ["soft_resync"])
+
+    def test_gesture_transport_fail_while_synced_soft_resyncs(self):
+        self.client.ever_synced = True
+        self.client.set_mode("SYNCED")
+        self.client.busy = True
+        self.client._apply_gesture_result("toggle", (0, ""))
+        self.assertFalse(self.client.busy)
+        errors = self.client.drain_errors()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("unreachable", errors[0])
+        # Never stays dead-SYNCED: a reachability probe is in flight.
+        self.assertEqual([tag for tag, _func in self.worker.jobs], ["soft_resync"])
+        self.assertEqual(self.client.mode, "SYNCED")
+
+    def test_gesture_transport_fail_when_unreachable_goes_offline(self):
+        self.client.set_mode("DISCOVERING")
+        self.client.model.set_local_owner(False)
+        self.client.busy = True
+        self.client._apply_gesture_result("toggle", (0, ""))
+        self.assertFalse(self.client.busy)
+        self.assertEqual(self.client.mode, "OFFLINE")
+        self.assertTrue(self.model.local_owner)
+
+    def test_gesture_401_enters_unpaired_keeps_local_owner(self):
+        self.client.set_mode("SYNCED")
+        self.client.busy = True
+        self.client._apply_gesture_result("toggle", (401, ""))
+        self.assertFalse(self.client.busy)
+        self.assertEqual(self.client.mode, "UNPAIRED")
+        self.assertTrue(self.model.local_owner)
+
+    def test_gesture_other_http_logs_only_no_mode_change(self):
+        self.client.ever_synced = True
+        self.client.set_mode("SYNCED")
+        self.client.busy = True
+        self.client._apply_gesture_result("toggle", (500, "oops"))
+        self.assertFalse(self.client.busy)
+        self.assertEqual(self.client.mode, "SYNCED")
+        errors = self.client.drain_errors()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("http 500", errors[0])
 
 
 if __name__ == "__main__":

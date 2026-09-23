@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 
 
@@ -27,7 +28,19 @@ def parse_avahi_browse(text):
 
 
 def browse_pomo(timeout=4.0):
-    """One-shot resolved browse. Empty list if avahi is missing or finds nothing."""
+    """One-shot resolved browse. Empty list if avahi is missing or finds nothing.
+
+    Fast-miss when avahi-browse is absent (shutil.which pre-check, no spawn
+    hang). Total blocking is bounded by the caller's timeout (subprocess
+    timeout); callers cap total REST probe time, nothing extra blocks here.
+    """
+    try:
+        if shutil.which("avahi-browse") is None:
+            return []
+    except Exception:
+        # A broken PATH lookup must not fail discovery; fall through to the
+        # spawn attempt below, which handles its own OSError fast-miss.
+        pass
     try:
         proc = subprocess.run(
             ["avahi-browse", "-prt", "_pomo._tcp"],
@@ -37,6 +50,9 @@ def browse_pomo(timeout=4.0):
             check=False,
         )
     except FileNotFoundError:
+        return []
+    except OSError:
+        # Missing binary / noexec / spawn failure: fast miss, no raise.
         return []
     except subprocess.TimeoutExpired as exc:
         out = ""
