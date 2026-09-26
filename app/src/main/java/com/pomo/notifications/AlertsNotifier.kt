@@ -64,7 +64,7 @@ public class AlertsNotifier(private val context: Context) {
             }
         val notification =
             NotificationCompat.Builder(context, ACHIEVEMENT_CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(content)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(content))
@@ -79,7 +79,7 @@ public class AlertsNotifier(private val context: Context) {
     public fun notifyUpdate(versionName: String) {
         val notification =
             NotificationCompat.Builder(context, UPDATE_CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("Update available")
                 .setContentText("Version $versionName is ready to install.")
                 .setContentIntent(openApp(NAV_TARGET_UPDATE, requestCode = UPDATE_REQUEST_CODE))

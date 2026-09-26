@@ -89,7 +89,7 @@ public class NotificationHelper(private val context: Context) {
 
         val builder =
             NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(contentText)
                 .setOngoing(true)
@@ -187,7 +187,7 @@ public class NotificationHelper(private val context: Context) {
             )
 
         return NotificationCompat.Builder(context, RING_CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.ring_notification_title))
             .setContentText(context.getString(R.string.ring_notification_ready, phaseName))
             .setContentIntent(pendingOpenApp)

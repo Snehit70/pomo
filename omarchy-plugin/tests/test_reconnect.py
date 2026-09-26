@@ -195,6 +195,38 @@ class ReconnectTest(unittest.TestCase):
         self.assertEqual(self.client.mode, "CONNECTING")
         self.assertGreater(self.client.last_socket_contact_at, 0)
 
+    def test_soft_resync_synced_stale_socket_reconnects(self):
+        self.client.ever_synced = True
+        self.client.set_mode("SYNCED")
+        self.client.last_socket_contact_at = time.monotonic() - 30
+        self.client.last_contact_at = self.client.last_socket_contact_at
+        self.rest.code = 200
+        self.rest.body = (
+            '{"status":"running","phase":"work","remaining":100.0,'
+            '"duration":3000.0,"completed":7,"date":"2026-09-23",'
+            '"start_time":1790163708.0,"server_time":1790164321,"daily_goal":12}'
+        )
+        self.ws.fail = False
+        self.assertTrue(self.client.soft_resync("stale socket"))
+        self.assertEqual([tag for tag, _func in self.worker.jobs], ["soft_resync"])
+        self.worker.run_next(self.client)
+        self.assertEqual(self.client.mode, "SYNCED")
+        self.assertFalse(self.model.local_owner)
+        self.assertEqual(self.model.completed, 7)
+        self.assertEqual([tag for tag, _func in self.worker.jobs], ["connect"])
+        self.assertGreater(self.client.soft_resync_count, 0)
+
+    def test_soft_resync_synced_fresh_socket_is_noop(self):
+        self.client.ever_synced = True
+        self.client.set_mode("SYNCED")
+        self.client.last_socket_contact_at = time.monotonic()
+        self.rest.code = 200
+        self.assertTrue(self.client.soft_resync("spurious"))
+        self.worker.run_next(self.client)
+        self.assertEqual(self.client.mode, "SYNCED")
+        self.assertEqual(self.client.soft_resync_count, 0)
+        self.assertEqual([tag for tag, _func in self.worker.jobs], [])
+
 
 if __name__ == "__main__":
     unittest.main()

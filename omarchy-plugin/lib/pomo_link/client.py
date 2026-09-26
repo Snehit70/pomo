@@ -525,11 +525,14 @@ class PomoClient:
 
     def _apply_soft_resync_result(self, result):
         self.soft_resyncing = False
-        code, _body = self._result_tuple(result)
+        code, body = self._result_tuple(result)
         if self.mode == "SYNCED":
-            # The old socket delivered a state frame while we probed; the
-            # light path already re-synced us.
-            return
+            # A state frame during the probe already refreshed contact — the
+            # light path re-synced us. A dead/half-open socket leaves contact
+            # stale; fall through so we adopt REST state and reconnect.
+            now = time.monotonic()
+            if self.last_socket_contact_at and (now - self.last_socket_contact_at) < STALE_AFTER_S:
+                return
         if code == 401:
             self.enter_unpaired("soft resync 401")
             return
@@ -538,8 +541,29 @@ class PomoClient:
             self.enter_offline(self.soft_resync_reason or "soft resync unreachable")
             return
         self.soft_resync_count += 1
+        if self.soft_resync_count >= SOFT_RESYNC_MAX:
+            self.log("soft resync budget exhausted -> OFFLINE")
+            self.enter_offline("soft resync budget")
+            return
         self.entering_sync = False
         self.ws_dropped_during_enter = False
+        was_synced = self.mode == "SYNCED"
+        if was_synced:
+            # Adopt the phone snapshot now so the bar isn't stuck on a frozen
+            # local timer while the socket reconnects.
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                data = None
+            if isinstance(data, dict):
+                self.apply_phone_object(data, force=True)
+            self.model.set_local_owner(False)
+            self.log(
+                "soft resync #%s: %s (SYNCED socket stale -> reconnect)"
+                % (self.soft_resync_count, self.soft_resync_reason)
+            )
+            self.begin_websocket("stale socket while SYNCED")
+            return
         if self.model.local_owner:
             # OFFLINE already took the clock. Keep it so the first state frame
             # runs import+adopt instead of the light snap-to-phone path.
@@ -792,7 +816,9 @@ class PomoClient:
             if not isinstance(data, dict):
                 return
             if self.mode == "SYNCED":
-                self.apply_phone_object(data, force=False)
+                if self.apply_phone_object(data, force=False):
+                    # Healthy frames mean the resync budget can refill.
+                    self.soft_resync_count = 0
                 return
             if self.mode == "CONNECTING":
                 if self.entering_sync:
