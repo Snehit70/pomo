@@ -115,6 +115,10 @@ screen_*.png
 icon_*.png
 *.png
 
+# Accepted design references are the exception — they are the binding
+# visual identity (#42) and must ship with the repo.
+!design/reference/*.png
+
 # local recovery reference APK (do not commit)
 base.apk
 
