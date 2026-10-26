@@ -294,8 +294,8 @@ private fun TimerLandscapeLayout(
         }
         Spacer(Modifier.width(24.dp))
         Column(
-            modifier = Modifier.weight(1.2f),
-            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.weight(1.2f).fillMaxHeight(),
+            verticalArrangement = Arrangement.Bottom,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             StatsStrip(stats, sessionsOverride = state?.completed, onClick = onStatsClick)
