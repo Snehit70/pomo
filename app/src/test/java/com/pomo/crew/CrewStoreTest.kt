@@ -158,7 +158,6 @@ public class CrewStoreTest {
     private object TestCrewStoreCipher : CrewStoreCipher {
         override fun encryptString(plaintext: String): String = "test:$plaintext"
 
-        override fun decryptString(envelope: String): String? =
-            envelope.removePrefix("test:").takeIf { envelope.startsWith("test:") }
+        override fun decryptString(envelope: String): String? = envelope.removePrefix("test:").takeIf { envelope.startsWith("test:") }
     }
 }
