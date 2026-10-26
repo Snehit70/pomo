@@ -18,11 +18,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,13 +47,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
 import com.pomo.crew.CrewBoard
 import com.pomo.crew.CrewBoardRow
-import com.pomo.crew.CrewHiddenMember
 import com.pomo.crew.CrewJoinPreview
 import com.pomo.crew.CrewValidation
 import com.pomo.ui.components.PomoButton
@@ -60,6 +64,8 @@ import com.pomo.ui.components.SectionHeader
 import com.pomo.ui.theme.PomoTokens
 import java.util.Locale
 
+private val ManageCrewButtonShape = RoundedCornerShape(12.dp)
+
 @Composable
 internal fun ManageCrewScreen(
     board: CrewBoard,
@@ -67,7 +73,6 @@ internal fun ManageCrewScreen(
     onBack: () -> Unit,
     onCreateCrew: (String, String) -> Unit,
     onReviewJoin: (String) -> Unit,
-    onSwitchCrew: (String) -> Unit,
     onLeaveCrew: (String) -> Unit,
     onMemberHiddenChange: (String, Boolean) -> Unit,
     onExportRecovery: () -> Unit,
@@ -78,6 +83,7 @@ internal fun ManageCrewScreen(
     var joinCode by remember { mutableStateOf("") }
     var createRequest by remember(profileDisplayName) { mutableStateOf<CreateCrewRequest?>(null) }
     var pendingHide by remember { mutableStateOf<CrewBoardRow?>(null) }
+    var showLeaveConfirmation by remember { mutableStateOf(false) }
     val payload = remember(board.joinCode) { com.pomo.crew.CrewJoinCodeCodec.decode(board.joinCode) }
     val shareUri = payload?.let(com.pomo.crew.CrewJoinCodeCodec::encodeUri) ?: board.joinCode
     BackHandler(onBack = onBack)
@@ -118,7 +124,10 @@ internal fun ManageCrewScreen(
                 CrewQrCode(shareUri)
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     PomoButton(
                         onClick = {
                             context.startActivity(
@@ -131,6 +140,8 @@ internal fun ManageCrewScreen(
                                 ),
                             )
                         },
+                        modifier = Modifier.weight(1f),
+                        shape = ManageCrewButtonShape,
                     ) {
                         Icon(Icons.Outlined.Share, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
@@ -138,7 +149,9 @@ internal fun ManageCrewScreen(
                     }
                     PomoButton(
                         onClick = { clipboard.setText(AnnotatedString(board.joinCode)) },
+                        modifier = Modifier.weight(1f),
                         variant = PomoButtonVariant.Tonal,
+                        shape = ManageCrewButtonShape,
                     ) {
                         Icon(Icons.Outlined.ContentCopy, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
@@ -146,29 +159,33 @@ internal fun ManageCrewScreen(
                     }
                 }
             }
-            if (board.memberships.count { !it.isArchived } > 1) {
-                item { SectionHeader("Switch Crew") }
-                items(board.memberships.filterNot { it.isArchived }, key = { "switch-${it.crewId}" }) { membership ->
-                    PomoButton(
-                        onClick = { onSwitchCrew(membership.crewId) },
-                        variant = if (membership.isActive) PomoButtonVariant.Tonal else PomoButtonVariant.Ghost,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(membership.crewName) }
-                }
-            }
             val hideableMembers = board.rows.filterNot { it.isSelf }
             if (hideableMembers.isNotEmpty()) {
                 item { SectionHeader("Members") }
+                item { MemberTableHeader() }
                 items(hideableMembers, key = { "member-${it.identityPublicKey}" }) { row ->
-                    ActiveMemberRow(row = row, onHide = { pendingHide = row })
+                    MemberTableRow(
+                        displayName = row.displayName,
+                        focusMinutes = row.selectedFocusMinutes,
+                        identityPublicKey = row.identityPublicKey,
+                        isHidden = false,
+                        onToggleHidden = { pendingHide = row },
+                    )
+                    HorizontalDivider(color = PomoTokens.colors.outline)
                 }
             }
             if (board.hiddenMembers.isNotEmpty()) {
                 item { SectionHeader("Hidden members") }
+                item { MemberTableHeader() }
                 items(board.hiddenMembers, key = { "hidden-${it.identityPublicKey}" }) { member ->
-                    HiddenMemberRow(member = member, onUnhide = {
-                        onMemberHiddenChange(member.identityPublicKey, false)
-                    })
+                    MemberTableRow(
+                        displayName = member.displayName,
+                        focusMinutes = member.selectedFocusMinutes,
+                        identityPublicKey = member.identityPublicKey,
+                        isHidden = true,
+                        onToggleHidden = { onMemberHiddenChange(member.identityPublicKey, false) },
+                    )
+                    HorizontalDivider(color = PomoTokens.colors.outline)
                 }
             }
             if (board.memberships.any { it.isArchived }) {
@@ -190,12 +207,25 @@ internal fun ManageCrewScreen(
                 )
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PomoButton(onClick = onExportRecovery, variant = PomoButtonVariant.Tonal) {
-                        Text("Export Recovery")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PomoButton(
+                        onClick = onExportRecovery,
+                        modifier = Modifier.weight(1f),
+                        variant = PomoButtonVariant.Tonal,
+                        shape = ManageCrewButtonShape,
+                    ) {
+                        Text("Export")
                     }
-                    PomoButton(onClick = onImportRecovery, variant = PomoButtonVariant.Ghost) {
-                        Text("Restore Recovery")
+                    PomoButton(
+                        onClick = onImportRecovery,
+                        modifier = Modifier.weight(1f),
+                        variant = PomoButtonVariant.Ghost,
+                        shape = ManageCrewButtonShape,
+                    ) {
+                        Text("Restore")
                     }
                 }
             }
@@ -213,19 +243,28 @@ internal fun ManageCrewScreen(
                 PomoButton(
                     onClick = { onReviewJoin(joinCode) },
                     enabled = joinCode.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
                     variant = PomoButtonVariant.Tonal,
+                    shape = ManageCrewButtonShape,
                 ) { Text("Review Join") }
             }
             item { SectionHeader("Create another") }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     PomoButton(
                         onClick = { createRequest = CreateCrewRequest(profileDisplayName) },
+                        modifier = Modifier.weight(1f),
                         variant = PomoButtonVariant.Tonal,
+                        shape = ManageCrewButtonShape,
                     ) { Text("Create") }
                     PomoButton(
-                        onClick = { onLeaveCrew(board.crewId) },
+                        onClick = { showLeaveConfirmation = true },
+                        modifier = Modifier.weight(1f),
                         variant = PomoButtonVariant.Ghost,
+                        shape = ManageCrewButtonShape,
                     ) { Text("Leave Crew") }
                 }
             }
@@ -251,36 +290,110 @@ internal fun ManageCrewScreen(
             onDismiss = { pendingHide = null },
         )
     }
+    if (showLeaveConfirmation) {
+        PomoDialog(
+            onDismissRequest = { showLeaveConfirmation = false },
+            title = { Text("Leave ${board.crewName}?") },
+            body = {
+                Text(
+                    "Your membership and this phone's cached leaderboard for this Crew will be " +
+                        "removed. Other members may still see your last shared stats until they " +
+                        "age out. You'll need a current Crew link or code to rejoin.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = PomoTokens.colors.onSurfaceMuted,
+                )
+            },
+            actions = {
+                TextButton(
+                    onClick = { showLeaveConfirmation = false },
+                    shape = ManageCrewButtonShape,
+                ) { Text("Cancel") }
+                TextButton(
+                    onClick = {
+                        showLeaveConfirmation = false
+                        onLeaveCrew(board.crewId)
+                    },
+                    shape = ManageCrewButtonShape,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Leave Crew") }
+            },
+        )
+    }
 }
 
 @Composable
-private fun ActiveMemberRow(
-    row: CrewBoardRow,
-    onHide: () -> Unit,
-) {
+private fun MemberTableHeader() {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = row.displayName,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "${formatMinutes(row.selectedFocusMinutes)} · ${row.identityPublicKey.take(4).uppercase(Locale.ROOT)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = PomoTokens.colors.onSurfaceMuted,
-                fontFamily = FontFamily.Monospace,
-            )
-        }
-        IconButton(onClick = onHide) {
+        Text(
+            text = "MEMBER",
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelSmall,
+            color = PomoTokens.colors.onSurfaceMuted,
+        )
+        Text(
+            text = "FOCUS",
+            modifier = Modifier.width(64.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = PomoTokens.colors.onSurfaceMuted,
+            textAlign = TextAlign.End,
+        )
+        Text(
+            text = "KEY",
+            modifier = Modifier.width(40.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = PomoTokens.colors.onSurfaceMuted,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.width(48.dp))
+    }
+}
+
+@Composable
+private fun MemberTableRow(
+    displayName: String,
+    focusMinutes: Int,
+    identityPublicKey: String,
+    isHidden: Boolean,
+    onToggleHidden: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = displayName,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = formatMinutes(focusMinutes),
+            modifier = Modifier.width(64.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontFamily = FontFamily.Monospace,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+        )
+        Text(
+            text = identityPublicKey.take(4).uppercase(Locale.ROOT),
+            modifier = Modifier.width(40.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = PomoTokens.colors.onSurfaceMuted,
+            fontFamily = FontFamily.Monospace,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+        )
+        IconButton(onClick = onToggleHidden) {
             Icon(
-                Icons.Outlined.VisibilityOff,
-                contentDescription = "Hide ${row.displayName}",
+                imageVector = if (isHidden) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                contentDescription = if (isHidden) "Unhide $displayName" else "Hide $displayName",
                 tint = PomoTokens.colors.onSurfaceMuted,
                 modifier = Modifier.size(20.dp),
             )
@@ -307,40 +420,10 @@ internal fun HideMemberConfirmDialog(
             )
         },
         actions = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-            TextButton(onClick = onConfirm) { Text("Hide") }
+            TextButton(onClick = onDismiss, shape = ManageCrewButtonShape) { Text("Cancel") }
+            TextButton(onClick = onConfirm, shape = ManageCrewButtonShape) { Text("Hide") }
         },
     )
-}
-
-@Composable
-private fun HiddenMemberRow(
-    member: CrewHiddenMember,
-    onUnhide: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = member.displayName,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = formatMinutes(member.selectedFocusMinutes),
-                style = MaterialTheme.typography.bodySmall,
-                color = PomoTokens.colors.onSurfaceMuted,
-                fontFamily = FontFamily.Monospace,
-            )
-        }
-        PomoButton(onClick = onUnhide, variant = PomoButtonVariant.Ghost) {
-            Text("Unhide")
-        }
-    }
 }
 
 @Composable
@@ -440,6 +523,7 @@ internal fun JoinConfirmationSheet(
                 onClick = { normalizedDisplayName?.let(onConfirm) },
                 enabled = normalizedDisplayName != null,
                 modifier = Modifier.fillMaxWidth(),
+                shape = ManageCrewButtonShape,
             ) { Text("Join Crew") }
         }
     }
@@ -494,6 +578,7 @@ internal fun CreateCrewSheet(
                 },
                 enabled = normalizedCrewName != null && normalizedDisplayName != null,
                 modifier = Modifier.fillMaxWidth(),
+                shape = ManageCrewButtonShape,
             ) { Text("Create Crew") }
         }
     }

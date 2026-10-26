@@ -158,7 +158,7 @@ public fun ReleaseNotesScreen(onBack: () -> Unit) {
         Column(
             modifier =
                 Modifier
-                    .fillMaxSize()
+                    .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp),
         ) {

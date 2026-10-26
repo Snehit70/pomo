@@ -32,6 +32,7 @@ public fun PomoSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     skipPartiallyExpanded: Boolean = false,
+    titleAction: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     ModalBottomSheet(
@@ -56,6 +57,7 @@ public fun PomoSheet(
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
+            titleAction?.invoke()
             IconButton(onClick = onDismissRequest) {
                 Icon(Icons.Outlined.Close, contentDescription = "Close")
             }

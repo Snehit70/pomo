@@ -10,9 +10,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -80,7 +82,10 @@ public fun TimerScreen(
     onAddTime: (Int) -> Unit,
     onStatsClick: () -> Unit,
     currentTag: String? = null,
+    currentTagColor: Color? = null,
+    extensionAvailableSeconds: Int = 0,
     onTagSelected: (String?) -> Unit = {},
+    onUndoExtension: () -> Unit = {},
     availableTags: List<String> = emptyList(),
 ) {
     val colors = PomoTokens.colors
@@ -94,57 +99,116 @@ public fun TimerScreen(
             else -> "FOCUS"
         }
 
+    val isWorkRunning =
+        state?.phase == TimerState.PHASE_WORK &&
+            (state.status == TimerState.STATUS_RUNNING || state.status == TimerState.STATUS_PAUSED)
+
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize().background(colors.bg),
+    ) {
+        val landscape = maxWidth > maxHeight
+        if (landscape) {
+            TimerLandscapeLayout(
+                state = state,
+                stats = stats,
+                dailyGoal = dailyGoal,
+                fallbackWorkSeconds = fallbackWorkSeconds,
+                phaseLabel = phaseLabel,
+                isRunning = isRunning,
+                isPaused = isPaused,
+                isWorkRunning = isWorkRunning,
+                currentTag = currentTag,
+                currentTagColor = currentTagColor,
+                availableTags = availableTags,
+                extensionAvailableSeconds = extensionAvailableSeconds,
+                onTagSelected = onTagSelected,
+                onStatsClick = onStatsClick,
+                onAddTime = onAddTime,
+                onUndoExtension = onUndoExtension,
+                onToggle = onToggle,
+                onSkip = onSkip,
+                onReset = onReset,
+            )
+        } else {
+            TimerPortraitLayout(
+                state = state,
+                stats = stats,
+                dailyGoal = dailyGoal,
+                fallbackWorkSeconds = fallbackWorkSeconds,
+                phaseLabel = phaseLabel,
+                isRunning = isRunning,
+                isPaused = isPaused,
+                isWorkRunning = isWorkRunning,
+                currentTag = currentTag,
+                currentTagColor = currentTagColor,
+                availableTags = availableTags,
+                extensionAvailableSeconds = extensionAvailableSeconds,
+                onTagSelected = onTagSelected,
+                onStatsClick = onStatsClick,
+                onAddTime = onAddTime,
+                onUndoExtension = onUndoExtension,
+                onToggle = onToggle,
+                onSkip = onSkip,
+                onReset = onReset,
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimerPortraitLayout(
+    state: TimerState?,
+    stats: TimerStats,
+    dailyGoal: Int,
+    fallbackWorkSeconds: Int,
+    phaseLabel: String,
+    isRunning: Boolean,
+    isPaused: Boolean,
+    isWorkRunning: Boolean,
+    currentTag: String?,
+    currentTagColor: Color?,
+    availableTags: List<String>,
+    extensionAvailableSeconds: Int,
+    onTagSelected: (String?) -> Unit,
+    onStatsClick: () -> Unit,
+    onAddTime: (Int) -> Unit,
+    onUndoExtension: () -> Unit,
+    onToggle: () -> Unit,
+    onSkip: () -> Unit,
+    onReset: () -> Unit,
+) {
     Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(colors.bg)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         TimerHeader()
-
         Spacer(Modifier.height(24.dp))
-
-        // Caps phase label.
         Text(
             text = phaseLabel,
             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.14.sp.value.sp),
-            color = colors.onSurfaceMuted,
+            color = PomoTokens.colors.onSurfaceMuted,
             fontWeight = FontWeight.SemiBold,
         )
-
         Spacer(Modifier.height(12.dp))
-
         TimerReadout(state = state, fallbackWorkSeconds = fallbackWorkSeconds)
-
         Spacer(Modifier.height(10.dp))
-
         LiveStateIndicator(isRunning = isRunning, isPaused = isPaused)
-
         Spacer(Modifier.height(28.dp))
-
         LinearProgress(
             progress = derivedProgress(state, fallbackWorkSeconds),
             modifier = Modifier.fillMaxWidth(),
         )
-
         Spacer(Modifier.height(24.dp))
-
         LaunchPips(
             completed = state?.completed ?: 0,
             goal = dailyGoal.coerceAtLeast(1),
             isRunning = isRunning,
         )
-
         Spacer(Modifier.height(24.dp))
-
-        val isWorkRunning =
-            state?.phase == TimerState.PHASE_WORK &&
-                (state.status == TimerState.STATUS_RUNNING || state.status == TimerState.STATUS_PAUSED)
         if (availableTags.isNotEmpty()) {
             TagChip(
                 tag = currentTag,
+                tagColor = currentTagColor,
                 onClick = { if (!isWorkRunning) onTagSelected(currentTag) },
                 enabled = !isWorkRunning,
             )
@@ -152,32 +216,107 @@ public fun TimerScreen(
         } else {
             Spacer(Modifier.weight(1f))
         }
-
         StatsStrip(stats, sessionsOverride = state?.completed, onClick = onStatsClick)
-
         Spacer(Modifier.height(12.dp))
-
-        if (isRunning) {
-            AddTimeStepper(onAddTime = onAddTime)
+        if (isRunning || extensionAvailableSeconds > 0) {
+            AddTimeStepper(onAddTime, extensionAvailableSeconds, isRunning, onUndoExtension)
             Spacer(Modifier.height(16.dp))
         } else {
             Spacer(Modifier.height(20.dp))
         }
-
-        ControlsRow(
-            isRunning = isRunning,
-            isPaused = isPaused,
-            onToggle = onToggle,
-            onSkip = onSkip,
-            onReset = onReset,
-        )
-
+        ControlsRow(isRunning, isPaused, onToggle, onSkip, onReset)
         Spacer(Modifier.height(8.dp))
     }
 }
 
 @Composable
-private fun AddTimeStepper(onAddTime: (Int) -> Unit) {
+private fun TimerLandscapeLayout(
+    state: TimerState?,
+    stats: TimerStats,
+    dailyGoal: Int,
+    fallbackWorkSeconds: Int,
+    phaseLabel: String,
+    isRunning: Boolean,
+    isPaused: Boolean,
+    isWorkRunning: Boolean,
+    currentTag: String?,
+    currentTagColor: Color?,
+    availableTags: List<String>,
+    extensionAvailableSeconds: Int,
+    onTagSelected: (String?) -> Unit,
+    onStatsClick: () -> Unit,
+    onAddTime: (Int) -> Unit,
+    onUndoExtension: () -> Unit,
+    onToggle: () -> Unit,
+    onSkip: () -> Unit,
+    onReset: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            TimerHeader()
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = phaseLabel,
+                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.14.sp.value.sp),
+                color = PomoTokens.colors.onSurfaceMuted,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(4.dp))
+            TimerReadout(state = state, fallbackWorkSeconds = fallbackWorkSeconds, compact = true)
+            Spacer(Modifier.height(6.dp))
+            LiveStateIndicator(isRunning = isRunning, isPaused = isPaused)
+            Spacer(Modifier.height(12.dp))
+            LinearProgress(
+                progress = derivedProgress(state, fallbackWorkSeconds),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            LaunchPips(
+                completed = state?.completed ?: 0,
+                goal = dailyGoal.coerceAtLeast(1),
+                isRunning = isRunning,
+            )
+            if (availableTags.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                TagChip(
+                    tag = currentTag,
+                    tagColor = currentTagColor,
+                    onClick = { if (!isWorkRunning) onTagSelected(currentTag) },
+                    enabled = !isWorkRunning,
+                )
+            }
+        }
+        Spacer(Modifier.width(24.dp))
+        Column(
+            modifier = Modifier.weight(1.2f).fillMaxHeight(),
+            verticalArrangement = Arrangement.Bottom,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            StatsStrip(stats, sessionsOverride = state?.completed, onClick = onStatsClick)
+            if (isRunning || extensionAvailableSeconds > 0) {
+                Spacer(Modifier.height(8.dp))
+                AddTimeStepper(onAddTime, extensionAvailableSeconds, isRunning, onUndoExtension)
+            }
+            Spacer(Modifier.height(8.dp))
+            ControlsRow(isRunning, isPaused, onToggle, onSkip, onReset)
+        }
+    }
+}
+
+@Composable
+private fun AddTimeStepper(
+    onAddTime: (Int) -> Unit,
+    extensionAvailableSeconds: Int,
+    canExtend: Boolean,
+    onUndoExtension: () -> Unit,
+) {
     val colors = PomoTokens.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -194,11 +333,20 @@ private fun AddTimeStepper(onAddTime: (Int) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AddTimeButton(label = "+1", description = "Add 1 minute") {
-                onAddTime(60)
+            if (extensionAvailableSeconds > 0) {
+                AddTimeButton(
+                    label = "UNDO ${extensionAvailableSeconds / 60}m",
+                    description = "Undo added time",
+                    onClick = onUndoExtension,
+                )
             }
-            AddTimeButton(label = "+5", description = "Add 5 minutes") {
-                onAddTime(300)
+            if (canExtend) {
+                AddTimeButton(label = "+1", description = "Add 1 minute") {
+                    onAddTime(60)
+                }
+                AddTimeButton(label = "+5", description = "Add 5 minutes") {
+                    onAddTime(300)
+                }
             }
         }
     }
@@ -219,7 +367,7 @@ private fun AddTimeButton(
                     contentDescription = description
                     role = Role.Button
                 }
-                .clip(RoundedCornerShape(999.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(colors.accent.copy(alpha = 0.14f))
                 .clickable {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -255,6 +403,7 @@ private fun TimerHeader() {
 private fun TimerReadout(
     state: TimerState?,
     fallbackWorkSeconds: Int,
+    compact: Boolean = false,
 ) {
     // ~60 fps tick loop while running, so the ms field rolls smoothly.
     val now = remember { mutableStateOf(System.currentTimeMillis()) }
@@ -279,7 +428,7 @@ private fun TimerReadout(
         Text(
             text = formatClock(seconds),
             color = PomoTokens.colors.onSurface,
-            style = TimerHeroStyle,
+            style = if (compact) TimerHeroStyle.copy(fontSize = 72.sp) else TimerHeroStyle,
         )
         // Ms digits as a vertical telemetry column beside the hero — the instrument-panel
         // detail the user asked for. Width-constrained so the hero stays optically centered.
@@ -288,15 +437,15 @@ private fun TimerReadout(
             Column(
                 modifier =
                     Modifier
-                        .width(32.dp)
-                        .padding(top = 8.dp),
+                        .width(if (compact) 24.dp else 32.dp)
+                        .padding(top = if (compact) 6.dp else 8.dp),
                 horizontalAlignment = Alignment.Start,
             ) {
                 formatMs(seconds).forEach { ch ->
                     Text(
                         text = ch.toString(),
                         color = PomoTokens.colors.onSurfaceFaint,
-                        style = TimerMsStyle,
+                        style = if (compact) TimerMsStyle.copy(fontSize = 24.sp) else TimerMsStyle,
                     )
                 }
             }
@@ -460,6 +609,7 @@ private fun StatDivider() {
 @Composable
 private fun TagChip(
     tag: String?,
+    tagColor: Color?,
     onClick: () -> Unit,
     enabled: Boolean = true,
 ) {
@@ -481,6 +631,11 @@ private fun TagChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        if (tagColor != null) {
+            Box(
+                modifier = Modifier.size(8.dp).background(tagColor, CircleShape),
+            )
+        }
         Text(
             text = displayText,
             style = MaterialTheme.typography.labelMedium,
@@ -519,51 +674,59 @@ private fun ControlsRow(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(56.dp)
-                    .semantics {
-                        customActions =
-                            listOf(
-                                CustomAccessibilityAction(label = "Reset timer") {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onReset()
-                                    true
-                                },
-                            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(56.dp)
+                        .semantics {
+                            customActions =
+                                listOf(
+                                    CustomAccessibilityAction(label = "Reset timer") {
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onReset()
+                                        true
+                                    },
+                                )
+                        }
+                        .clip(CircleShape)
+                        .combinedClickable(
+                            interactionSource = resetInteractionSource,
+                            indication = null,
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onReset()
+                            },
+                            onLongClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onReset()
+                            },
+                        ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (resetFill > 0f) {
+                        Box(
+                            modifier =
+                                Modifier
+                                    .size((24 + 18 * resetFill).dp)
+                                    .clip(CircleShape)
+                                    .background(colors.accent.copy(alpha = 0.18f * resetFill)),
+                        )
                     }
-                    .clip(CircleShape)
-                    .combinedClickable(
-                        interactionSource = resetInteractionSource,
-                        indication = null,
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onReset()
-                        },
-                        onLongClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onReset()
-                        },
-                    ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                if (resetFill > 0f) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .size((24 + 18 * resetFill).dp)
-                                .clip(CircleShape)
-                                .background(colors.accent.copy(alpha = 0.18f * resetFill)),
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Reset timer",
+                        tint = colors.onSurfaceMuted,
                     )
                 }
-                Icon(
-                    Icons.Default.Refresh,
-                    contentDescription = "Reset timer",
-                    tint = colors.onSurfaceMuted,
-                )
             }
+            Text(
+                text = stringResource(R.string.action_reset).uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceMuted,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
         Spacer(Modifier.width(26.dp))
         FloatingActionButton(
@@ -590,14 +753,22 @@ private fun ControlsRow(
             )
         }
         Spacer(Modifier.width(26.dp))
-        IconButton(
-            onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onSkip()
-            },
-            modifier = Modifier.size(56.dp),
-        ) {
-            Icon(Icons.Default.SkipNext, contentDescription = "Skip", tint = colors.onSurfaceMuted)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            IconButton(
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onSkip()
+                },
+                modifier = Modifier.size(56.dp),
+            ) {
+                Icon(Icons.Default.SkipNext, contentDescription = "Skip", tint = colors.onSurfaceMuted)
+            }
+            Text(
+                text = stringResource(R.string.action_skip).uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceMuted,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
@@ -32,6 +33,7 @@ public fun PomoButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     compact: Boolean = false,
+    shape: Shape = ButtonDefaults.shape,
     contentPadding: PaddingValues = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
     content: @Composable RowScope.() -> Unit,
 ) {
@@ -50,6 +52,7 @@ public fun PomoButton(
             Button(
                 onClick = clickWithHaptic,
                 modifier = minSize,
+                shape = shape,
                 enabled = enabled && !loading,
                 interactionSource = interactionSource,
                 contentPadding = contentPadding,
@@ -66,6 +69,7 @@ public fun PomoButton(
             Button(
                 onClick = clickWithHaptic,
                 modifier = minSize,
+                shape = shape,
                 enabled = enabled && !loading,
                 interactionSource = interactionSource,
                 contentPadding = contentPadding,
@@ -86,6 +90,7 @@ public fun PomoButton(
             TextButton(
                 onClick = clickWithHaptic,
                 modifier = minSize,
+                shape = shape,
                 enabled = enabled && !loading,
                 interactionSource = interactionSource,
                 contentPadding = contentPadding,

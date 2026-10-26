@@ -203,6 +203,24 @@ public class OfflineTimer(
         observer.onTimerUpdate(state)
     }
 
+    public fun removeAddedTime(secondsToRemove: Int) {
+        if (completionJob?.isActive == true) return
+        if (state.status != TimerState.STATUS_RUNNING && state.status != TimerState.STATUS_PAUSED) return
+
+        val baseDuration = getDurationForPhase(state.phase)
+        val extension = (state.duration - baseDuration).coerceAtLeast(0.0)
+        val requested = secondsToRemove.coerceAtLeast(0).toDouble()
+        val removable = minOf(requested, extension, (state.remaining - 1.0).coerceAtLeast(0.0))
+        if (removable <= 0.0) return
+
+        state.duration -= removable
+        state.remaining -= removable
+        state.last_action_time = System.currentTimeMillis() / 1000
+
+        if (state.status == TimerState.STATUS_RUNNING) startLocalTimer()
+        observer.onTimerUpdate(state)
+    }
+
     private fun recalculateNextPhase() {
         if (TimerState.PHASE_WORK == state.phase) {
             val nextCompleted = state.completed + 1

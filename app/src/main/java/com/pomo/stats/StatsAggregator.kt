@@ -263,6 +263,7 @@ public object StatsAggregator {
             bestDay = bestDayOf(days),
             bestWeek = if (days.isEmpty()) null else computeBestWeek(days),
             longestStreak = bestStreak,
+            bestMonth = bestMonthOf(days),
         )
 
     /**
@@ -278,6 +279,29 @@ public object StatsAggregator {
 
     /** Best week over the whole of [days], grouped into Sunday-anchored weeks. */
     public fun bestWeekOf(days: List<DayStatsEntity>): BestWeek? = if (days.isEmpty()) null else computeBestWeek(days)
+
+    /** Best calendar month over the whole of [days], ranked by total Focus minutes. */
+    public fun bestMonthOf(days: List<DayStatsEntity>): BestMonth? {
+        val minutesByMonth = HashMap<String, Int>()
+        val blocksByMonth = HashMap<String, Int>()
+        days.forEach { day ->
+            if (day.workMinutes <= 0) return@forEach
+            val month = day.date.take(7)
+            minutesByMonth[month] = (minutesByMonth[month] ?: 0) + day.workMinutes
+            blocksByMonth[month] = (blocksByMonth[month] ?: 0) + day.completed
+        }
+        val (month, minutes) =
+            minutesByMonth.entries
+                .maxWithOrNull(compareBy<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                ?.let { it.key to it.value }
+                ?: return null
+        if (minutes <= 0) return null
+        return BestMonth(
+            monthStart = "$month-01",
+            sessions = blocksByMonth[month] ?: 0,
+            minutes = minutes,
+        )
+    }
 
     private fun computeBestWeek(days: List<DayStatsEntity>): BestWeek? {
         val df = SimpleDateFormat(DATE_PATTERN, Locale.US)

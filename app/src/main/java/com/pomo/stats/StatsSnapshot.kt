@@ -117,8 +117,11 @@ public data class Records(
     val bestDay: BestDay?,
     val bestWeek: BestWeek?,
     val longestStreak: Int,
+    val bestMonth: BestMonth? = null,
 )
 
 public data class BestDay(val date: String, val sessions: Int, val minutes: Int)
 
 public data class BestWeek(val weekStart: String, val sessions: Int, val minutes: Int)
+
+public data class BestMonth(val monthStart: String, val sessions: Int, val minutes: Int)

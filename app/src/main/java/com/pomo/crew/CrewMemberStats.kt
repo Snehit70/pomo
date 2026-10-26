@@ -2,6 +2,7 @@ package com.pomo.crew
 
 import com.pomo.db.DayStatsEntity
 import com.pomo.stats.BestDay
+import com.pomo.stats.BestMonth
 import com.pomo.stats.BestWeek
 import com.pomo.stats.HourRhythm
 import com.pomo.stats.Lifetime
@@ -71,6 +72,9 @@ public fun CrewBoardRow.toStatsSnapshot(
                 bestDay = stats?.bestDay() ?: base.records.bestDay,
                 bestWeek = stats?.bestWeek() ?: base.records.bestWeek,
                 longestStreak = bestStreak,
+                // Old snapshots do not carry a lifetime best month. Their short daily window
+                // cannot prove this record, so leave it blank instead of presenting a partial one.
+                bestMonth = stats?.bestMonth(),
             ),
     )
 }
@@ -122,6 +126,12 @@ private fun CrewStatsExtras.bestWeek(): BestWeek? {
     val weekStart = bestWeekStartDate ?: return null
     val minutes = bestWeekFocusMinutes ?: return null
     return BestWeek(weekStart = weekStart, sessions = bestWeekWorkBlocks ?: 0, minutes = minutes)
+}
+
+private fun CrewStatsExtras.bestMonth(): BestMonth? {
+    val monthStart = bestMonthStartDate ?: return null
+    val minutes = bestMonthFocusMinutes ?: return null
+    return BestMonth(monthStart = monthStart, sessions = bestMonthWorkBlocks ?: 0, minutes = minutes)
 }
 
 private fun String.toIsoDateOrNull(): LocalDate? = runCatching { LocalDate.parse(this) }.getOrNull()

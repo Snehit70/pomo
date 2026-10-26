@@ -81,7 +81,7 @@ public fun AboutScreen(onBack: () -> Unit) {
         Column(
             modifier =
                 Modifier
-                    .fillMaxSize()
+                    .weight(1f)
                     .verticalScroll(scroll)
                     .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

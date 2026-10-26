@@ -473,6 +473,10 @@ public class PomodoroService : Service(), TimerObserver {
         executeCommand(TimerCommand.AddTime(secondsDelta))
             .also { Log.i(TAG, "Timer command executed: add_time seconds=$secondsDelta remaining=${it.remaining}") }
 
+    public suspend fun removeAddedTimeBlocking(secondsToRemove: Int): TimerState =
+        executeCommand(TimerCommand.RemoveAddedTime(secondsToRemove))
+            .also { Log.i(TAG, "Timer command executed: remove_added_time seconds=$secondsToRemove remaining=${it.remaining}") }
+
     public suspend fun extendTimerBlocking(minutes: Int): TimerState = addTimeBlocking(minutes.coerceAtLeast(1) * 60)
 
     public fun nextCompletionCueVariant(family: CompletionCueFamily): CueVariant = cueEngine.nextVariant(family)
@@ -508,14 +512,17 @@ public class PomodoroService : Service(), TimerObserver {
                         TimerCommand.Skip -> StateCueEvent.SkipTapped
                         TimerCommand.Reset -> StateCueEvent.ResetTapped
                         is TimerCommand.AddTime -> null
+                        is TimerCommand.RemoveAddedTime -> null
                     }
                 when (event) {
                     StateCueEvent.StartOrResumeTapped, StateCueEvent.PauseTapped -> offlineTimer.toggle()
                     StateCueEvent.SkipTapped -> offlineTimer.skip()
                     StateCueEvent.ResetTapped -> offlineTimer.reset()
                     else ->
-                        if (command is TimerCommand.AddTime) {
-                            offlineTimer.extend(command.secondsDelta)
+                        when (command) {
+                            is TimerCommand.AddTime -> offlineTimer.extend(command.secondsDelta)
+                            is TimerCommand.RemoveAddedTime -> offlineTimer.removeAddedTime(command.secondsToRemove)
+                            else -> Unit
                         }
                 }
                 if (runningAcrossMidnight && currentState.status != TimerState.STATUS_RUNNING) {
@@ -536,6 +543,8 @@ public class PomodoroService : Service(), TimerObserver {
         object Reset : TimerCommand()
 
         data class AddTime(val secondsDelta: Int) : TimerCommand()
+
+        data class RemoveAddedTime(val secondsToRemove: Int) : TimerCommand()
     }
 
     private fun didStateChange(
@@ -880,6 +889,8 @@ public class PomodoroService : Service(), TimerObserver {
                 historyCacheRepository.updateSessionTag(startTime, tag)
             }
         }
+        runCatching { crewRepository.publishCurrentSnapshot() }
+            .onFailure { Log.w(TAG, "Could not publish updated Crew tag statistics", it) }
     }
 
     public suspend fun getLatestCompletedWorkSession(): com.pomo.db.SessionEntity? {

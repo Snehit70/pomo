@@ -56,6 +56,28 @@ public data class CrewStatsExtras(
     val bestWeekStartDate: String? = null,
     val bestWeekFocusMinutes: Int? = null,
     val bestWeekWorkBlocks: Int? = null,
+    val bestMonthStartDate: String? = null,
+    val bestMonthFocusMinutes: Int? = null,
+    val bestMonthWorkBlocks: Int? = null,
+    /** Aggregated tag counts only; raw session timestamps and tag-to-session links are not shared. */
+    val tagBreakdown: List<CrewTagAggregate>? = null,
+)
+
+public data class CrewTagRangeStats(
+    val sessions: Int = 0,
+    val focusMinutes: Int = 0,
+)
+
+/** One named tag, or the neutral overflow category, summarized over the Stats range choices. */
+public data class CrewTagAggregate(
+    /** Empty only when [isOther] is true. */
+    val tag: String,
+    val isOther: Boolean = false,
+    val today: CrewTagRangeStats = CrewTagRangeStats(),
+    val yesterday: CrewTagRangeStats = CrewTagRangeStats(),
+    val sevenDays: CrewTagRangeStats = CrewTagRangeStats(),
+    val thirtyDays: CrewTagRangeStats = CrewTagRangeStats(),
+    val allTime: CrewTagRangeStats = CrewTagRangeStats(),
 )
 
 public data class CrewSnapshot(

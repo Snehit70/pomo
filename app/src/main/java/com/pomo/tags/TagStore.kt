@@ -62,12 +62,22 @@ public class TagStore(context: Context) {
     /** Return stable presentation slots for tags, assigning slots only when first encountered. */
     public fun getColorSlots(tags: Collection<String>): Map<String, Int> {
         val slots = readColorSlots().toMutableMap()
-        val used = slots.values.toMutableSet()
+        val used = mutableSetOf<Int>()
         var changed = false
-        tags.filter { it.isNotBlank() }.distinct().forEach { tag ->
-            if (tag !in slots) {
-                slots[tag] = nextColorSlot(used)
-                used += slots.getValue(tag)
+        val orderedTags = (getTags() + tags + slots.keys).filter { it.isNotBlank() }.distinct()
+        orderedTags.forEach { tag ->
+            val existing = slots[tag]
+            if (existing == null || existing in used) {
+                val replacement = nextColorSlot(used)
+                if (existing != replacement) {
+                    slots[tag] = replacement
+                    changed = true
+                }
+                used += replacement
+            } else {
+                used += existing
+            }
+            if (existing == null) {
                 changed = true
             }
         }
@@ -96,7 +106,7 @@ public class TagStore(context: Context) {
         private const val PREF_KEY_TAGS = "pomo_session_tags"
         private const val PREF_KEY_DEFAULT_TAG = "pomo_default_tag"
         private const val PREF_KEY_TAG_COLOR_SLOTS = "pomo_tag_color_slots"
-        internal const val COLOR_SLOT_COUNT = 10
+        internal const val COLOR_SLOT_COUNT = 16
         internal val DEFAULT_TAGS = listOf("Work", "Study", "Personal", "Exercise")
     }
 
@@ -105,7 +115,7 @@ public class TagStore(context: Context) {
         newName: String,
     ) {
         val slots = getColorSlots(listOf(oldName)).toMutableMap()
-        slots[newName] = slots.remove(oldName) ?: 0
+        slots[newName] = slots.remove(oldName) ?: slots[newName] ?: 0
         writeColorSlots(slots)
     }
 
@@ -136,3 +146,15 @@ public class TagStore(context: Context) {
         if (slots.remove(tag) != null) writeColorSlots(slots)
     }
 }
+
+/** Sort configured tags by usage, keeping their configured order when counts tie. */
+internal fun orderTagsByUsage(
+    tags: List<String>,
+    usageCounts: Map<String, Int>,
+): List<String> =
+    tags.withIndex()
+        .sortedWith(
+            compareByDescending<IndexedValue<String>> { usageCounts[it.value] ?: 0 }
+                .thenBy { it.index },
+        )
+        .map { it.value }

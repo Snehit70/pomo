@@ -1,5 +1,12 @@
 package com.pomo.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,11 +31,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -72,7 +83,9 @@ import com.pomo.ui.components.SectionHeader
 import com.pomo.ui.components.SegmentedToggle
 import com.pomo.ui.components.SegmentedToggleOption
 import com.pomo.ui.components.StatTile
+import com.pomo.ui.theme.PomoMotion
 import com.pomo.ui.theme.PomoTokens
+import com.pomo.ui.theme.isReducedMotion
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -112,7 +125,6 @@ internal fun CrewBoardContent(
             onBack = { showManage = false },
             onCreateCrew = onCreateCrew,
             onReviewJoin = { joinCode -> onJoinCrew(joinCode, "") },
-            onSwitchCrew = onSwitchCrew,
             onLeaveCrew = onLeaveCrew,
             onMemberHiddenChange = onMemberHiddenChange,
             onExportRecovery = onExportRecovery,
@@ -121,110 +133,138 @@ internal fun CrewBoardContent(
         return
     }
 
-    var search by remember { mutableStateOf("") }
-    var showInactive by remember { mutableStateOf(false) }
-    val activeRows = board.rows.filterNot { it.isInactive }
-    val inactiveRows = board.rows.filter { it.isInactive }
-    val duplicateNames =
-        activeRows.groupingBy { it.displayName.trim().lowercase(Locale.ROOT) }
-            .eachCount()
-            .filterValues { it > 1 }
-            .keys
-    val visibleRows = activeRows.filter { row -> row.matchesSearch(search, duplicateNames) }
-    val tiedRanks =
-        activeRows.mapNotNull { it.rank }
-            .groupingBy { it }
-            .eachCount()
-            .filterValues { it > 1 }
-            .keys
+    var search by remember(board.crewId) { mutableStateOf("") }
+    var showInactive by remember(board.crewId) { mutableStateOf(false) }
+    val reduceMotion = isReducedMotion()
+    AnimatedContent(
+        targetState = board,
+        contentKey = { it.crewId },
+        transitionSpec = {
+            if (reduceMotion) {
+                fadeIn(tween(100)) togetherWith fadeOut(tween(100))
+            } else {
+                (
+                    fadeIn(tween(PomoMotion.DurationM, easing = PomoMotion.EaseOutExpo)) +
+                        slideInHorizontally(
+                            animationSpec = tween(PomoMotion.DurationM, easing = PomoMotion.EaseOutExpo),
+                            initialOffsetX = { it / 24 },
+                        )
+                ) togetherWith (
+                    fadeOut(tween(PomoMotion.DurationXs)) +
+                        slideOutHorizontally(
+                            animationSpec = tween(PomoMotion.DurationXs),
+                            targetOffsetX = { -it / 40 },
+                        )
+                )
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+        label = "crew-switch",
+    ) { animatedBoard ->
+        val activeRows = animatedBoard.rows.filterNot { it.isInactive }
+        val inactiveRows = animatedBoard.rows.filter { it.isInactive }
+        val duplicateNames =
+            activeRows.groupingBy { it.displayName.trim().lowercase(Locale.ROOT) }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
+        val visibleRows = activeRows.filter { row -> row.matchesSearch(search, duplicateNames) }
+        val tiedRanks =
+            activeRows.mapNotNull { it.rank }
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
 
-    LazyColumn(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
-    ) {
-        item(key = "header") {
-            CrewHeader(
-                board = board,
-                isSyncing = isSyncing,
-                onManage = { showManage = true },
-                onPickDay = { showDayPicker = true },
-            )
-            Spacer(Modifier.height(20.dp))
-        }
-        item(key = "window") {
-            RankingWindowControl(board.rankingMode, onRankingModeChange)
-            (board.rankingMode as? CrewRankingMode.Day)?.let { day ->
-                Spacer(Modifier.height(10.dp))
-                SelectedDayChip(
-                    localDate = day.localDate,
-                    onClear = { onRankingModeChange(CrewRankingMode.Today) },
+        LazyColumn(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
+        ) {
+            item(key = "header") {
+                CrewHeader(
+                    board = animatedBoard,
+                    isSyncing = isSyncing,
+                    onManage = { showManage = true },
+                    onPickDay = { showDayPicker = true },
+                    onSwitchCrew = onSwitchCrew,
                 )
+                Spacer(Modifier.height(20.dp))
             }
-            Spacer(Modifier.height(20.dp))
-        }
-        item(key = "summary") {
-            CrewSummary(activeRows)
-            Spacer(Modifier.height(20.dp))
-        }
-        item(key = "standing") {
-            YourStanding(activeRows, tiedRanks)
-            Spacer(Modifier.height(20.dp))
-        }
-        if (activeRows.size > SEARCH_THRESHOLD) {
-            item(key = "search") {
-                OutlinedTextField(
-                    value = search,
-                    onValueChange = { search = it },
-                    label = { Text("Search members") },
-                    singleLine = true,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
-                )
+            item(key = "window") {
+                RankingWindowControl(animatedBoard.rankingMode, onRankingModeChange)
+                (animatedBoard.rankingMode as? CrewRankingMode.Day)?.let { day ->
+                    Spacer(Modifier.height(10.dp))
+                    SelectedDayChip(
+                        localDate = day.localDate,
+                        onClear = { onRankingModeChange(CrewRankingMode.Today) },
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
             }
-        }
-        item(key = "leaderboard-heading") {
-            SectionHeader("Leaderboard")
-            Spacer(Modifier.height(8.dp))
-            LeaderboardColumnHeader()
-        }
-        items(visibleRows, key = { it.identityPublicKey }) { row ->
-            CrewRow(
-                row = row,
-                showFingerprint = row.displayName.trim().lowercase(Locale.ROOT) in duplicateNames,
-                isTied = row.rank in tiedRanks,
-                onClick = { selectedMember = row },
-            )
-            HorizontalDivider(color = PomoTokens.colors.outline)
-        }
-        if (visibleRows.isEmpty()) {
-            item(key = "no-results") {
-                Text(
-                    text = if (search.isBlank()) "NO ACTIVE MEMBERS" else "NO MATCHES",
-                    modifier = Modifier.padding(vertical = 24.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = PomoTokens.colors.onSurfaceMuted,
-                )
+            item(key = "summary") {
+                CrewSummary(activeRows)
+                Spacer(Modifier.height(20.dp))
             }
-        }
-        if (inactiveRows.isNotEmpty()) {
-            item(key = "inactive-toggle") {
-                PomoButton(
-                    onClick = { showInactive = !showInactive },
-                    variant = PomoButtonVariant.Ghost,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (showInactive) "Hide inactive" else "Inactive · ${inactiveRows.size}")
+            item(key = "standing") {
+                YourStanding(activeRows, tiedRanks)
+                Spacer(Modifier.height(20.dp))
+            }
+            if (activeRows.size > SEARCH_THRESHOLD) {
+                item(key = "search") {
+                    OutlinedTextField(
+                        value = search,
+                        onValueChange = { search = it },
+                        label = { Text("Search members") },
+                        singleLine = true,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                    )
                 }
             }
-            if (showInactive) {
-                items(inactiveRows, key = { "inactive-${it.identityPublicKey}" }) { row ->
-                    CrewRow(row, showFingerprint = false, isTied = false, onClick = { selectedMember = row })
-                    HorizontalDivider(color = PomoTokens.colors.outline)
+            item(key = "leaderboard-heading") {
+                SectionHeader("Leaderboard")
+                Spacer(Modifier.height(8.dp))
+                LeaderboardColumnHeader()
+            }
+            items(visibleRows, key = { it.identityPublicKey }) { row ->
+                CrewRow(
+                    row = row,
+                    showFingerprint = row.displayName.trim().lowercase(Locale.ROOT) in duplicateNames,
+                    isTied = row.rank in tiedRanks,
+                    onClick = { selectedMember = row },
+                )
+                HorizontalDivider(color = PomoTokens.colors.outline)
+            }
+            if (visibleRows.isEmpty()) {
+                item(key = "no-results") {
+                    Text(
+                        text = if (search.isBlank()) "NO ACTIVE MEMBERS" else "NO MATCHES",
+                        modifier = Modifier.padding(vertical = 24.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = PomoTokens.colors.onSurfaceMuted,
+                    )
+                }
+            }
+            if (inactiveRows.isNotEmpty()) {
+                item(key = "inactive-toggle") {
+                    PomoButton(
+                        onClick = { showInactive = !showInactive },
+                        variant = PomoButtonVariant.Ghost,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (showInactive) "Hide inactive" else "Inactive · ${inactiveRows.size}")
+                    }
+                }
+                if (showInactive) {
+                    items(inactiveRows, key = { "inactive-${it.identityPublicKey}" }) { row ->
+                        CrewRow(row, showFingerprint = false, isTied = false, onClick = { selectedMember = row })
+                        HorizontalDivider(color = PomoTokens.colors.outline)
+                    }
                 }
             }
         }
@@ -277,16 +317,67 @@ private fun CrewHeader(
     isSyncing: Boolean,
     onManage: () -> Unit,
     onPickDay: () -> Unit,
+    onSwitchCrew: (String) -> Unit,
 ) {
+    var switchMenuExpanded by remember(board.crewId) { mutableStateOf(false) }
+    val switchableCrews = board.memberships.filterNot { it.isArchived }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = board.crewName,
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = board.crewName,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.displayMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (switchableCrews.size > 1) {
+                    Box {
+                        IconButton(
+                            onClick = { switchMenuExpanded = true },
+                            modifier = Modifier.size(48.dp),
+                        ) {
+                            Icon(
+                                Icons.Outlined.ExpandMore,
+                                contentDescription = "Switch Crew",
+                                tint = PomoTokens.colors.accent,
+                                modifier = Modifier.size(28.dp),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = switchMenuExpanded,
+                            onDismissRequest = { switchMenuExpanded = false },
+                        ) {
+                            switchableCrews.forEach { crew ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = crew.crewName,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    },
+                                    onClick = {
+                                        switchMenuExpanded = false
+                                        if (!crew.isActive) onSwitchCrew(crew.crewId)
+                                    },
+                                    enabled = !crew.isActive,
+                                    trailingIcon = {
+                                        if (crew.isActive) {
+                                            Icon(
+                                                Icons.Filled.Check,
+                                                contentDescription = "Current Crew",
+                                                tint = PomoTokens.colors.accent,
+                                            )
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
             Text(
                 text = freshnessLabel(board, isSyncing),
                 style = MaterialTheme.typography.labelSmall,
