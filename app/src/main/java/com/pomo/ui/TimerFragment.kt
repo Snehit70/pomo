@@ -25,7 +25,10 @@ import com.pomo.timer.TimerState
 import com.pomo.ui.screens.TimerScreen
 import com.pomo.ui.screens.TimerStats
 import com.pomo.ui.theme.PomoTheme
+import com.pomo.ui.theme.PomoTokens
 import com.pomo.ui.theme.ThemeMode
+import com.pomo.ui.theme.tagPalette
+import com.pomo.ui.theme.tagPaletteLight
 import com.pomo.util.DateLogic
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +41,7 @@ import kotlinx.coroutines.launch
 public class TimerFragment : Fragment() {
     private val timerState = MutableStateFlow<TimerState?>(null)
     private val timerStats = MutableStateFlow(TimerStats())
+    private val tagUsageCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
 
     private val mainActivity: MainActivity?
         get() = activity as? MainActivity
@@ -67,7 +71,12 @@ public class TimerFragment : Fragment() {
                     val goal = mainActivity?.prefs?.dailyGoal ?: 8
                     val effectiveGoal = if ((state?.goal ?: 0) > 0) state!!.goal else goal
                     val workMinutes = mainActivity?.prefs?.pomodoroDuration ?: 25
-                    val availableTags = remember { tagStore.getTags() }
+                    val configuredTags = remember { tagStore.getTags() }
+                    val usageCounts by tagUsageCounts.collectAsState()
+                    val availableTags = remember(configuredTags, usageCounts) {
+                        com.pomo.tags.orderTagsByUsage(configuredTags, usageCounts)
+                    }
+                    val palette = if (PomoTokens.colors.isDark) tagPalette else tagPaletteLight
                     var tagInitialized by remember { mutableStateOf(false) }
 
                     // Initialize active tag from default on first non-null state
@@ -81,6 +90,22 @@ public class TimerFragment : Fragment() {
                     }
 
                     val displayTag = state?.tag?.takeIf { it.isNotEmpty() } ?: defaultTag
+                    val colorSlots = remember(availableTags, displayTag) {
+                        tagStore.getColorSlots(availableTags + displayTag)
+                    }
+                    val currentTagColor = colorSlots[displayTag]?.let(palette::getOrNull)
+                    val phaseBaseDuration =
+                        when (state?.phase) {
+                            TimerState.PHASE_SHORT -> (mainActivity?.prefs?.shortBreakDuration ?: 5) * 60
+                            TimerState.PHASE_LONG -> (mainActivity?.prefs?.longBreakDuration ?: 15) * 60
+                            else -> workMinutes * 60
+                        }
+                    val extensionAvailableSeconds =
+                        state?.let {
+                            val extension = (it.duration - phaseBaseDuration).coerceAtLeast(0.0)
+                            val removable = minOf(extension, (it.remaining - 1.0).coerceAtLeast(0.0))
+                            (removable.toInt() / 60) * 60
+                        } ?: 0
 
                     TimerScreen(
                         state = state,
@@ -113,7 +138,12 @@ public class TimerFragment : Fragment() {
                                 .onFailure { Log.w(TAG, "Could not navigate to stats", it) }
                         },
                         currentTag = displayTag,
+                        currentTagColor = currentTagColor,
+                        extensionAvailableSeconds = extensionAvailableSeconds,
                         onTagSelected = { showTagPicker = true },
+                        onUndoExtension = {
+                            if (extensionAvailableSeconds > 0) mainActivity?.removeAddedTime(extensionAvailableSeconds)
+                        },
                         availableTags = availableTags,
                     )
 
@@ -145,6 +175,7 @@ public class TimerFragment : Fragment() {
             mainActivity?.service?.stateSnapshot()?.let { updateUI(it) }
         }
         observeStats()
+        observeTagUsage()
     }
 
     public fun updateUI(state: TimerState) {
@@ -178,6 +209,15 @@ public class TimerFragment : Fragment() {
                 )
             }.collectLatest { stats ->
                 timerStats.value = stats
+            }
+        }
+    }
+
+    private fun observeTagUsage() {
+        val ctx = context ?: return
+        viewLifecycleOwner.lifecycleScope.launch {
+            HistoryCacheRepository(ctx).observeWorkTagUsageCounts().collectLatest { counts ->
+                tagUsageCounts.value = counts
             }
         }
     }

@@ -3,7 +3,6 @@ package com.pomo.ui
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,11 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -47,7 +42,6 @@ import com.pomo.ui.components.PomoButton
 import com.pomo.ui.components.PomoButtonVariant
 import com.pomo.ui.components.PomoDialog
 import com.pomo.ui.components.PomoSheet
-import com.pomo.ui.theme.PomoRadius
 import com.pomo.ui.theme.PomoTokens
 import com.pomo.ui.theme.SuccessGreenDark
 import com.pomo.ui.theme.SuccessGreenLight
@@ -66,7 +60,22 @@ internal fun TagManagerDialog(onDismiss: () -> Unit) {
     var editingTag by remember { mutableStateOf<String?>(null) }
     var deletingTag by remember { mutableStateOf<String?>(null) }
 
-    PomoSheet(title = stringResource(R.string.session_tags_title), onDismissRequest = onDismiss) {
+    PomoSheet(
+        title = stringResource(R.string.session_tags_title),
+        onDismissRequest = onDismiss,
+        titleAction = {
+            IconButton(
+                onClick = { showAddDialog = true },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    Icons.Outlined.Add,
+                    contentDescription = stringResource(R.string.session_tags_add),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        },
+    ) {
         Text(
             stringResource(R.string.session_tags_sheet_sub),
             style = MaterialTheme.typography.bodySmall,
@@ -91,38 +100,6 @@ internal fun TagManagerDialog(onDismiss: () -> Unit) {
                     color = tagColorSlot(tag, index, tagStore),
                     onEdit = { editingTag = tag },
                     onDelete = { deletingTag = tag },
-                )
-            }
-        }
-        Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-            val dashEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
-            val outlineColor = MaterialTheme.colorScheme.outline
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .drawBehind {
-                            drawRoundRect(
-                                color = outlineColor,
-                                cornerRadius = CornerRadius(PomoRadius.Md.toPx()),
-                                style = Stroke(width = 1.dp.toPx(), pathEffect = dashEffect),
-                            )
-                        }
-                        .clickable { showAddDialog = true },
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    Icons.Outlined.Add,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp).padding(end = 2.dp),
-                )
-                Text(
-                    stringResource(R.string.session_tags_add),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

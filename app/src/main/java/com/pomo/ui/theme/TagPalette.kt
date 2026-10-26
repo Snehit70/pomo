@@ -15,6 +15,12 @@ public val tagPalette: List<Color> =
         Color(0xFF90A4AE),
         Color(0xFFAED581),
         Color(0xFF7986CB),
+        Color(0xFFFFD54F),
+        Color(0xFF26A69A),
+        Color(0xFF9575CD),
+        Color(0xFFEC407A),
+        Color(0xFF8D6E63),
+        Color(0xFF78909C),
     )
 
 public val tagPaletteLight: List<Color> =
@@ -29,6 +35,12 @@ public val tagPaletteLight: List<Color> =
         Color(0xFF455A64),
         Color(0xFF558B2F),
         Color(0xFF3949AB),
+        Color(0xFFF9A825),
+        Color(0xFF00796B),
+        Color(0xFF5E35B1),
+        Color(0xFFAD1457),
+        Color(0xFF5D4037),
+        Color(0xFF37474F),
     )
 
 /** Success green from the UI-round mock (Installed chip, picker check, connected dot). */

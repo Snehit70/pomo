@@ -199,6 +199,10 @@ public class MainActivity : AppCompatActivity() {
         dispatchTimerCommand("add_time") { addTimeBlocking(secondsDelta) }
     }
 
+    public fun removeAddedTime(secondsToRemove: Int) {
+        dispatchTimerCommand("remove_added_time") { removeAddedTimeBlocking(secondsToRemove) }
+    }
+
     private fun dispatchTimerCommand(
         name: String,
         command: suspend PomodoroService.() -> com.pomo.timer.TimerState,

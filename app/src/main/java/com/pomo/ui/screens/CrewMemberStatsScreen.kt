@@ -48,6 +48,7 @@ internal fun CrewMemberStatsScreen(
 
     StatsContent(
         snapshot = snapshot,
+        tagBreakdown = row.stats?.tagBreakdown,
         emptyBody = "${row.displayName} hasn't shared any focus yet.",
         header = { MemberStatsHeader(row = row, onBack = onBack) },
         rhythmTitle = "When ${row.displayName} focuses",

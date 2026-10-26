@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +41,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -56,9 +58,8 @@ import com.patrykandpatrick.vico.core.chart.values.AxisValuesOverrider
 import com.patrykandpatrick.vico.core.chart.values.ChartValues
 import com.patrykandpatrick.vico.core.entry.ChartEntryModelProducer
 import com.patrykandpatrick.vico.core.entry.FloatEntry
+import com.pomo.crew.CrewTagAggregate
 import com.pomo.db.SessionEntity
-import com.pomo.stats.BestDay
-import com.pomo.stats.BestWeek
 import com.pomo.stats.ChartTrend
 import com.pomo.stats.HabitWindow
 import com.pomo.stats.HeatCell
@@ -139,6 +140,7 @@ internal fun StatsContent(
     snapshot: StatsSnapshot,
     sessions: List<SessionEntity> = emptyList(),
     tagColorSlots: Map<String, Int> = emptyMap(),
+    tagBreakdown: List<CrewTagAggregate>? = null,
     emptyBody: String,
     header: @Composable () -> Unit,
     rhythmTitle: String = "When you focus",
@@ -201,11 +203,11 @@ internal fun StatsContent(
         Spacer(Modifier.height(14.dp))
         HabitFooterFacts(snapshot)
 
-        if (sessions.isNotEmpty()) {
+        if (sessions.isNotEmpty() || tagBreakdown != null) {
             Spacer(Modifier.height(36.dp))
             SectionHeader("Tags")
             Spacer(Modifier.height(14.dp))
-            TagPieChart(sessions = sessions, tagColorSlots = tagColorSlots)
+            TagPieChart(sessions = sessions, tagColorSlots = tagColorSlots, tagBreakdown = tagBreakdown)
         }
 
         Spacer(Modifier.height(36.dp))
@@ -462,17 +464,34 @@ private fun weekCaption(week: WeekShape): String? {
 
 @Composable
 private fun RecordsList(records: Records) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        RecordRow(label = "best day", value = records.bestDay?.let { formatBestDay(it) } ?: "—")
-        RecordRow(label = "best week", value = records.bestWeek?.let { formatBestWeek(it) } ?: "—")
+    Column {
         RecordRow(
-            label = "longest streak",
+            label = "Best day",
+            value = records.bestDay?.let { formatMinutes(it.minutes) } ?: "—",
+            detail = records.bestDay?.let { formatPrettyDate(it.date) },
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
+        RecordRow(
+            label = "Best week",
+            value = records.bestWeek?.let { formatMinutes(it.minutes) } ?: "—",
+            detail = records.bestWeek?.let { "week of ${formatPrettyDate(it.weekStart)}" },
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
+        RecordRow(
+            label = "Best month",
+            value = records.bestMonth?.let { formatMinutes(it.minutes) } ?: "—",
+            detail = records.bestMonth?.let { formatPrettyMonth(it.monthStart) },
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
+        RecordRow(
+            label = "Longest streak",
             value =
                 if (records.longestStreak > 0) {
                     "${records.longestStreak} day" + if (records.longestStreak == 1) "" else "s"
                 } else {
                     "—"
                 },
+            detail = "all time",
         )
     }
 }
@@ -481,32 +500,46 @@ private fun RecordsList(records: Records) {
 private fun RecordRow(
     label: String,
     value: String,
+    detail: String?,
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            label,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Medium,
-        )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (detail != null) {
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = PomoTokens.colors.onSurfaceMuted,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+            )
+        }
     }
 }
 
-private fun formatBestDay(d: BestDay): String {
-    val pretty = formatPrettyDate(d.date)
-    return "${formatMinutes(d.minutes)}  ·  $pretty"
-}
-
-private fun formatBestWeek(w: BestWeek): String {
-    val pretty = formatPrettyDate(w.weekStart)
-    return "${formatMinutes(w.minutes)}  ·  wk of $pretty"
-}
+private fun formatPrettyMonth(iso: String): String =
+    try {
+        val input = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val output = SimpleDateFormat("MMM yyyy", Locale.US)
+        input.parse(iso)?.let { output.format(it) } ?: iso
+    } catch (_: Exception) {
+        iso
+    }
 
 private fun formatPrettyDate(iso: String): String =
     try {
@@ -715,10 +748,15 @@ private const val MAX_VISIBLE_TAGS = 8
 private fun TagPieChart(
     sessions: List<SessionEntity>,
     tagColorSlots: Map<String, Int>,
+    tagBreakdown: List<CrewTagAggregate>? = null,
 ) {
     var range by remember { mutableStateOf(TagRange.Days7) }
 
-    val slices = remember(sessions, range) { computeTagDistribution(sessions, range, nowFormatted()) }
+    val slices =
+        remember(sessions, range, tagBreakdown) {
+            tagBreakdown?.let { computeSharedTagDistribution(it, range) }
+                ?: computeTagDistribution(sessions, range, nowFormatted())
+        }
     val totalSessions = slices.sumOf { it.count }
 
     Row(
@@ -738,36 +776,39 @@ private fun TagPieChart(
         return
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PieChartCanvas(slices = slices, total = totalSessions, tagColorSlots = tagColorSlots)
-        Spacer(Modifier.width(24.dp))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            PieChartCanvas(slices = slices, total = totalSessions, tagColorSlots = tagColorSlots)
+        }
+        Spacer(Modifier.height(16.dp))
         TagLegend(slices = slices, tagColorSlots = tagColorSlots)
     }
 
     Spacer(Modifier.height(8.dp))
-    val maxSlice = slices.maxByOrNull { it.count }
-    if (maxSlice != null) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            val rangeLabel =
-                when (range) {
-                    TagRange.Today -> "today"
-                    TagRange.Yesterday -> "yesterday"
-                    TagRange.Days7 -> "last 7 days"
-                    TagRange.Days30 -> "last 30 days"
-                    TagRange.All -> "all time"
-                }
-            Text(
-                text = "$totalSessions session${if (totalSessions == 1) "" else "s"} · $rangeLabel",
-                style = MaterialTheme.typography.labelSmall,
-                color = PomoTokens.colors.onSurfaceMuted,
-            )
+    val maxSlice = slices.filterNot { it.isOther }.maxByOrNull { it.count }
+    val rangeLabel =
+        when (range) {
+            TagRange.Today -> "today"
+            TagRange.Yesterday -> "yesterday"
+            TagRange.Days7 -> "last 7 days"
+            TagRange.Days30 -> "last 30 days"
+            TagRange.All -> "all time"
+        }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "$totalSessions session${if (totalSessions == 1) "" else "s"} · $rangeLabel",
+            style = MaterialTheme.typography.labelSmall,
+            color = PomoTokens.colors.onSurfaceMuted,
+        )
+        if (maxSlice != null) {
             Text(
                 text = "most: ${maxSlice.tag} (${maxSlice.count})",
                 style = MaterialTheme.typography.labelSmall,
                 color = PomoTokens.colors.onSurfaceMuted,
+                maxLines = 2,
             )
         }
     }
@@ -829,37 +870,71 @@ private fun TagLegend(
 ) {
     val palette = if (PomoTokens.colors.isDark) tagPalette else tagPaletteLight
     val mutedColor = PomoTokens.colors.onSurfaceMuted
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val sessionColumn = Modifier.width(64.dp)
+    val focusColumn = Modifier.width(92.dp)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("TAG", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = mutedColor)
+            Text(
+                "SESSIONS",
+                modifier = sessionColumn,
+                style = MaterialTheme.typography.labelSmall,
+                color = mutedColor,
+                textAlign = TextAlign.End,
+            )
+            Text(
+                "FOCUS",
+                modifier = focusColumn,
+                style = MaterialTheme.typography.labelSmall,
+                color = mutedColor,
+                textAlign = TextAlign.End,
+            )
+        }
         slices.forEach { slice ->
             val hours = slice.minutes / 60
             val mins = slice.minutes % 60
             val timeStr = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(8.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(sliceColor(slice, tagColorSlots, palette, mutedColor)),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = slice.tag,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(Modifier.width(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(8.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(sliceColor(slice, tagColorSlots, palette, mutedColor)),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = slice.tag,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                    )
+                }
                 Text(
                     text = "${slice.count}",
+                    modifier = sessionColumn,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
                 )
-                Spacer(Modifier.width(4.dp))
                 Text(
                     text = timeStr,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = PomoTokens.colors.onSurfaceMuted,
+                    modifier = focusColumn,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.End,
                 )
+            }
+            if (slice != slices.last()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
             }
         }
     }
@@ -918,6 +993,34 @@ private fun computeTagDistribution(
             minutes = (remainderSeconds + 59) / 60,
             isOther = true,
         )
+}
+
+private fun computeSharedTagDistribution(
+    aggregates: List<CrewTagAggregate>,
+    range: TagRange,
+): List<TagSlice> {
+    val named = mutableListOf<TagSlice>()
+    var other: TagSlice? = null
+    aggregates.forEach { aggregate ->
+        val summary =
+            when (range) {
+                TagRange.Today -> aggregate.today
+                TagRange.Yesterday -> aggregate.yesterday
+                TagRange.Days7 -> aggregate.sevenDays
+                TagRange.Days30 -> aggregate.thirtyDays
+                TagRange.All -> aggregate.allTime
+            }
+        if (summary.sessions == 0) return@forEach
+        val slice =
+            TagSlice(
+                tag = if (aggregate.isOther) "Other" else aggregate.tag,
+                count = summary.sessions,
+                minutes = summary.focusMinutes,
+                isOther = aggregate.isOther,
+            )
+        if (aggregate.isOther) other = slice else named += slice
+    }
+    return named.sortedWith(compareByDescending<TagSlice> { it.count }.thenBy { it.tag }) + listOfNotNull(other)
 }
 
 private fun stableTagSlot(

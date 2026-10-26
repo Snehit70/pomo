@@ -4,12 +4,17 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
-public class CrewStore(context: Context) {
+public class CrewStore internal constructor(
+    context: Context,
+    private val injectedCipher: CrewStoreCipher?,
+) {
+    public constructor(context: Context) : this(context, null)
+
     private val prefs =
         context.applicationContext
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
-    private val cipher: CrewSecretCipher by lazy { CrewSecretCipher() }
+    private val cipher: CrewStoreCipher by lazy { injectedCipher ?: CrewSecretCipher() }
 
     init {
         archiveLegacyMembershipsIfNeeded()
@@ -187,4 +192,10 @@ public class CrewStore(context: Context) {
         private const val LEGACY_CURRENT_CREW_KEY: String = "current_crew"
         private const val LEGACY_MEMBERSHIPS_KEY: String = "memberships"
     }
+}
+
+internal interface CrewStoreCipher {
+    public fun encryptString(plaintext: String): String
+
+    public fun decryptString(envelope: String): String?
 }

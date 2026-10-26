@@ -263,45 +263,6 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
 
     private fun buildItems(onCuePreviewsClick: () -> Unit): List<SettingsItem> =
         buildList {
-            add(SettingsItem.Section(getString(R.string.category_connection)))
-            add(
-                SettingsItem.BoolPref(
-                    key = "phone_server_enabled",
-                    title = getString(R.string.phone_api_enabled_title),
-                    summary = getString(R.string.phone_api_enabled_summary),
-                    default = true,
-                    icon = Icons.Outlined.WifiTethering,
-                ),
-            )
-            add(
-                SettingsItem.BoolPref(
-                    key = "phone_server_wifi_only",
-                    title = getString(R.string.phone_api_wifi_only_title),
-                    summary = getString(R.string.phone_api_wifi_only_summary),
-                    default = true,
-                    icon = Icons.Outlined.Wifi,
-                ),
-            )
-            add(
-                SettingsItem.IntPref(
-                    key = "phone_server_port",
-                    title = getString(R.string.phone_api_port_title),
-                    summary = getString(R.string.phone_api_port_summary),
-                    default = 9876,
-                    min = 1024,
-                    max = 65535,
-                    allowRandom = true,
-                    icon = Icons.Outlined.Lan,
-                ),
-            )
-            add(
-                SettingsItem.Action(
-                    title = getString(R.string.pair_desktop_title),
-                    summary = getString(R.string.pair_desktop_summary),
-                    onClick = ::onPairingClick,
-                    icon = Icons.Outlined.QrCode2,
-                ),
-            )
             add(SettingsItem.Section(getString(R.string.category_timer)))
             add(
                 SettingsItem.IntPref(
@@ -363,6 +324,46 @@ public class SettingsFragment : Fragment(), SharedPreferences.OnSharedPreference
                     onClick = { defaultTagPicker.value = true },
                     icon = Icons.Outlined.Flag,
                     valueProvider = { TagStore(requireContext()).getDefaultTag() },
+                ),
+            )
+
+            add(SettingsItem.Section(getString(R.string.category_connection)))
+            add(
+                SettingsItem.BoolPref(
+                    key = "phone_server_enabled",
+                    title = getString(R.string.phone_api_enabled_title),
+                    summary = getString(R.string.phone_api_enabled_summary),
+                    default = true,
+                    icon = Icons.Outlined.WifiTethering,
+                ),
+            )
+            add(
+                SettingsItem.BoolPref(
+                    key = "phone_server_wifi_only",
+                    title = getString(R.string.phone_api_wifi_only_title),
+                    summary = getString(R.string.phone_api_wifi_only_summary),
+                    default = true,
+                    icon = Icons.Outlined.Wifi,
+                ),
+            )
+            add(
+                SettingsItem.IntPref(
+                    key = "phone_server_port",
+                    title = getString(R.string.phone_api_port_title),
+                    summary = getString(R.string.phone_api_port_summary),
+                    default = 9876,
+                    min = 1024,
+                    max = 65535,
+                    allowRandom = true,
+                    icon = Icons.Outlined.Lan,
+                ),
+            )
+            add(
+                SettingsItem.Action(
+                    title = getString(R.string.pair_desktop_title),
+                    summary = getString(R.string.pair_desktop_summary),
+                    onClick = ::onPairingClick,
+                    icon = Icons.Outlined.QrCode2,
                 ),
             )
 

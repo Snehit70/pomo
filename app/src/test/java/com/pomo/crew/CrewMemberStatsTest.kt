@@ -3,6 +3,7 @@ package com.pomo.crew
 import com.pomo.stats.RhythmPattern
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -66,6 +67,17 @@ public class CrewMemberStatsTest {
                 bestWeekStartDate = "2025-10-26",
                 bestWeekFocusMinutes = 1_500,
                 bestWeekWorkBlocks = 50,
+                bestMonthStartDate = "2025-09-01",
+                bestMonthFocusMinutes = 6_200,
+                bestMonthWorkBlocks = 205,
+                tagBreakdown =
+                    listOf(
+                        CrewTagAggregate(
+                            tag = "machine learning",
+                            today = CrewTagRangeStats(sessions = 2, focusMinutes = 50),
+                            allTime = CrewTagRangeStats(sessions = 43, focusMinutes = 2_122),
+                        ),
+                    ),
             )
         val row = board(snapshot(stats = stats))
 
@@ -81,6 +93,11 @@ public class CrewMemberStatsTest {
         assertEquals(2, memberStats.weekShape.strongestDayIndex)
         assertEquals(480, memberStats.records.bestDay?.minutes)
         assertEquals(1_500, memberStats.records.bestWeek?.minutes)
+        assertEquals("2025-09-01", memberStats.records.bestMonth?.monthStart)
+        assertEquals(6_200, memberStats.records.bestMonth?.minutes)
+        // Shared tag aggregates reach the crew member screen without any raw sessions.
+        assertEquals("machine learning", row.stats?.tagBreakdown?.single()?.tag)
+        assertEquals(43, row.stats?.tagBreakdown?.single()?.allTime?.sessions)
         assertEquals(19, memberStats.records.longestStreak)
         assertEquals(4, memberStats.habit.currentStreak)
         assertTrue(row.hasFullStats())
@@ -98,6 +115,33 @@ public class CrewMemberStatsTest {
         assertEquals(RhythmPattern.None, memberStats.rhythm.pattern)
         // Falls back to the 30 daily aggregates every snapshot has always carried.
         assertEquals(120, memberStats.records.bestDay?.minutes)
+        // Thirty days of aggregates cannot prove an all-time monthly record.
+        assertNull(memberStats.records.bestMonth)
+    }
+
+    @Test
+    public fun malformedSharedTagAggregatesRejectTheSnapshot() {
+        val duplicateTags =
+            CrewStatsExtras(
+                tagBreakdown =
+                    listOf(
+                        CrewTagAggregate(tag = "Work"),
+                        CrewTagAggregate(tag = "Work"),
+                    ),
+            )
+        assertFalse(CrewValidation.isValidSnapshot(snapshot(stats = duplicateTags)))
+
+        val negativeCount =
+            CrewStatsExtras(
+                tagBreakdown =
+                    listOf(
+                        CrewTagAggregate(
+                            tag = "Work",
+                            allTime = CrewTagRangeStats(sessions = -1, focusMinutes = 20),
+                        ),
+                    ),
+            )
+        assertFalse(CrewValidation.isValidSnapshot(snapshot(stats = negativeCount)))
     }
 
     private fun board(snapshot: CrewSnapshot): CrewBoardRow =

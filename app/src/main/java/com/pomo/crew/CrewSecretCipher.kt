@@ -9,10 +9,10 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-internal class CrewSecretCipher {
+internal class CrewSecretCipher : CrewStoreCipher {
     private val keyStore: KeyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
 
-    fun encryptString(plaintext: String): String {
+    override fun encryptString(plaintext: String): String {
         val cipher = Cipher.getInstance(CIPHER_ALGORITHM)
         cipher.init(Cipher.ENCRYPT_MODE, wrappingKey())
         val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
@@ -23,7 +23,7 @@ internal class CrewSecretCipher {
         ).joinToString(".")
     }
 
-    fun decryptString(envelope: String): String? {
+    override fun decryptString(envelope: String): String? {
         return runCatching {
             val parts = envelope.split('.')
             require(parts.size == 3 && parts[0] == ENVELOPE_VERSION)

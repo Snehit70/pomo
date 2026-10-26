@@ -4,6 +4,7 @@ package com.pomo.db
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -72,6 +73,9 @@ public class HistoryCacheRepository(context: Context) {
     public fun observeSessionsForDate(date: String): Flow<List<SessionEntity>> = dao.getSessionsForDateFlow(date)
 
     public fun observeAllSessions(): Flow<List<SessionEntity>> = dao.getAllSessionsFlow()
+
+    public fun observeWorkTagUsageCounts(): Flow<Map<String, Int>> =
+        dao.observeWorkTagUsageCounts().map { rows -> rows.associate { it.tag to it.usageCount } }
 
     public suspend fun saveLocalSession(session: com.pomo.models.Session) {
         val segments = splitSessionByCalendarDay(session)

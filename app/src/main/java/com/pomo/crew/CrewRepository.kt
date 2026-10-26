@@ -3,16 +3,19 @@ package com.pomo.crew
 import android.content.Context
 import com.pomo.db.DayStatsEntity
 import com.pomo.db.HistoryCacheRepository
+import com.pomo.db.SessionEntity
 import com.pomo.profile.AvatarStore
 import com.pomo.stats.StatsAggregator
 import com.pomo.timer.TimerState
 import com.pomo.util.DateLogic
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -65,7 +68,7 @@ public class CrewRepository(context: Context) {
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
     public fun observeCurrentBoard(rankingMode: Flow<CrewRankingMode>): Flow<CrewBoard> {
         val membership = crewStore.loadMembership() ?: return emptyFlow()
-        val memberships = crewStore.loadMemberships()
+        val memberships = crewStore.loadMemberships() + crewStore.loadArchivedMemberships()
         return relayStore.observeProjection(membership.crewId)
             .combine(rankingMode) { projection, mode -> projection.toBoard(membership, memberships, mode) }
             .sample(100L)
@@ -85,7 +88,13 @@ public class CrewRepository(context: Context) {
         val membership = crewStore.loadMembership() ?: return false
         val lastSuccessfulPublish = relayStore.lastPublishSuccessEpochSeconds(membership.crewId)
         val now = System.currentTimeMillis() / 1000L
-        if (lastSuccessfulPublish != null && now - lastSuccessfulPublish < maxAgeSeconds) return false
+        val ownSnapshot =
+            relayStore.loadProjection(membership.crewId).snapshots
+                .firstOrNull { it.identityPublicKey == identityPublicKey }
+        val missingTagBreakdown = ownSnapshot?.stats?.tagBreakdown == null
+        if (!missingTagBreakdown && lastSuccessfulPublish != null && now - lastSuccessfulPublish < maxAgeSeconds) {
+            return false
+        }
         publishSelfSnapshot(membership)
         return true
     }
@@ -244,8 +253,9 @@ public class CrewRepository(context: Context) {
     }
 
     private suspend fun publishSelfSnapshot(membership: CrewMembership) {
-        val identity = identity()
+        val identity = withContext(Dispatchers.Default) { identity() }
         val history = historyRepository.getHistoryPayload()
+        val sessions = historyRepository.getCachedSessions()
         val today = historyRepository.getEffectiveDateString()
         val activeDates =
             history
@@ -286,11 +296,13 @@ public class CrewRepository(context: Context) {
                 dailyAggregates = dailyAggregates,
                 currentStreak = DateLogic.currentStreak(activeDates, System.currentTimeMillis()),
                 lastFocusedAtEpochSeconds = lastFocusedAt,
-                stats = buildStatsExtras(history, today, zoneId),
+                stats = buildStatsExtras(history, sessions, today, zoneId),
             )
         relayStore.publish(
             snapshot = snapshot,
-            payload = CrewSnapshotCodec.encodeEncrypted(snapshot, membership.key, identity),
+                payload = withContext(Dispatchers.Default) {
+                    CrewSnapshotCodec.encodeEncrypted(snapshot, membership.key, identity)
+                },
             relays = membership.relays,
         )
     }
@@ -303,6 +315,7 @@ public class CrewRepository(context: Context) {
      */
     private fun buildStatsExtras(
         history: Map<String, HistoryCacheRepository.ServerDayEntry>,
+        sessions: List<SessionEntity>,
         today: String,
         zoneId: ZoneId,
     ): CrewStatsExtras {
@@ -331,6 +344,7 @@ public class CrewRepository(context: Context) {
             }
         val bestDay = StatsAggregator.bestDayOf(days)
         val bestWeek = StatsAggregator.bestWeekOf(days)
+        val bestMonth = StatsAggregator.bestMonthOf(days)
         val activeDates = history.filterValues { it.completed > 0 }.keys.toSet()
         val firstFocusDate = history.filterValues { it.work_minutes > 0 }.keys.minOrNull()
 
@@ -362,7 +376,58 @@ public class CrewRepository(context: Context) {
             bestWeekStartDate = bestWeek?.weekStart,
             bestWeekFocusMinutes = bestWeek?.minutes,
             bestWeekWorkBlocks = bestWeek?.sessions,
+            bestMonthStartDate = bestMonth?.monthStart,
+            bestMonthFocusMinutes = bestMonth?.minutes,
+            bestMonthWorkBlocks = bestMonth?.sessions,
+            tagBreakdown = buildTagBreakdown(sessions, today),
         )
+    }
+
+    private fun buildTagBreakdown(
+        sessions: List<SessionEntity>,
+        today: String,
+    ): List<CrewTagAggregate> {
+        val taggedWork =
+            sessions.filter {
+                it.type == TimerState.PHASE_WORK && !it.tag.isNullOrBlank()
+            }
+        val grouped =
+            taggedWork.groupBy { it.tag!! }
+                .entries
+                .sortedWith(compareByDescending<Map.Entry<String, List<SessionEntity>>> { it.value.size }.thenBy { it.key })
+        val visible = grouped.take(CrewValidation.MAX_SHARED_TAGS)
+        val overflow = grouped.drop(CrewValidation.MAX_SHARED_TAGS).flatMap { it.value }
+
+        fun aggregate(
+            tag: String,
+            isOther: Boolean,
+            taggedSessions: List<SessionEntity>,
+        ): CrewTagAggregate {
+            fun rangeStats(matches: (SessionEntity) -> Boolean): CrewTagRangeStats {
+                val inRange = taggedSessions.filter(matches)
+                return CrewTagRangeStats(
+                    sessions = inRange.size,
+                    focusMinutes = (inRange.sumOf { it.duration } + 59) / 60,
+                )
+            }
+
+            val todayDate = LocalDate.parse(today)
+            val yesterday = todayDate.minusDays(1).toString()
+            val sevenDayStart = todayDate.minusDays(6).toString()
+            val thirtyDayStart = todayDate.minusDays(29).toString()
+            return CrewTagAggregate(
+                tag = tag,
+                isOther = isOther,
+                today = rangeStats { it.date == today },
+                yesterday = rangeStats { it.date == yesterday },
+                sevenDays = rangeStats { it.date >= sevenDayStart },
+                thirtyDays = rangeStats { it.date >= thirtyDayStart },
+                allTime = rangeStats { true },
+            )
+        }
+
+        val result = visible.map { (tag, sessionsForTag) -> aggregate(tag, false, sessionsForTag) }
+        return if (overflow.isEmpty()) result else result + aggregate("", true, overflow)
     }
 
     private fun CrewProjection.toBoard(

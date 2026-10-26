@@ -23,6 +23,7 @@ public object CrewValidation {
     public const val MAX_HISTORY_DAYS: Int = 120
     public const val HOUR_BUCKETS: Int = 24
     public const val WEEKDAY_BUCKETS: Int = 7
+    public const val MAX_SHARED_TAGS: Int = 8
 
     public fun normalizeDisplayName(value: String): String? = normalizeName(value, MAX_DISPLAY_NAME_GRAPHEMES)
 
@@ -78,16 +79,34 @@ public object CrewValidation {
         if (stats.firstFocusLocalDate != null && !isIsoDate(stats.firstFocusLocalDate)) return false
         if (stats.bestDayLocalDate != null && !isIsoDate(stats.bestDayLocalDate)) return false
         if (stats.bestWeekStartDate != null && !isIsoDate(stats.bestWeekStartDate)) return false
+        if (stats.bestMonthStartDate != null && !isIsoDate(stats.bestMonthStartDate)) return false
         if (listOf(
                 stats.bestDayFocusMinutes,
                 stats.bestDayWorkBlocks,
                 stats.bestWeekFocusMinutes,
                 stats.bestWeekWorkBlocks,
+                stats.bestMonthFocusMinutes,
+                stats.bestMonthWorkBlocks,
             ).any { it != null && it < 0 }
         ) {
             return false
         }
-        return isValidHistory(stats)
+        return isValidHistory(stats) && isValidTagBreakdown(stats.tagBreakdown)
+    }
+
+    private fun isValidTagBreakdown(tags: List<CrewTagAggregate>?): Boolean {
+        if (tags == null) return true
+        if (tags.size > MAX_SHARED_TAGS + 1 || tags.count { it.isOther } > 1) return false
+        val namedTags = tags.filterNot { it.isOther }
+        if (namedTags.size > MAX_SHARED_TAGS) return false
+        if (namedTags.any { it.tag.isBlank() || it.tag.length > 24 }) return false
+        if (namedTags.map { it.tag }.distinct().size != namedTags.size) return false
+        if (tags.any { it.isOther && it.tag.isNotEmpty() }) return false
+        return tags.all { tag ->
+            listOf(tag.today, tag.yesterday, tag.sevenDays, tag.thirtyDays, tag.allTime).all { range ->
+                range.sessions >= 0 && range.focusMinutes >= 0
+            }
+        }
     }
 
     private fun isValidHistory(stats: CrewStatsExtras): Boolean {

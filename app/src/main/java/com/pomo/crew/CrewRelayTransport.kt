@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -67,7 +68,7 @@ public class CrewRelayTransport(
         relays: List<String>,
     ): List<CrewRelayPublishResult> =
         coroutineScope {
-            val event = signedEvent(crewId, payload)
+            val event = withContext(Dispatchers.Default) { signedEvent(crewId, payload) }
             filterValidRelayUrls(relays)
                 .map { relay -> async(Dispatchers.IO) { publishToRelay(relay, event) } }
                 .awaitAll()

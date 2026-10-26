@@ -214,7 +214,7 @@ public class StatsAggregatorTest {
     }
 
     @Test
-    public fun records_pickBestDayAndBestWeek() {
+    public fun records_pickBestDayBestWeekAndBestMonth() {
         // Sunday-anchored weeks:
         //  week of 2026-05-10 (Sun) → 2026-05-10..16
         //  week of 2026-05-17 (Sun) → 2026-05-17..23
@@ -246,6 +246,10 @@ public class StatsAggregatorTest {
         assertNotNull(snap.records.bestWeek)
         assertEquals("2026-05-10", snap.records.bestWeek!!.weekStart)
         assertEquals(19, snap.records.bestWeek!!.sessions)
+        assertNotNull(snap.records.bestMonth)
+        assertEquals("2026-05-01", snap.records.bestMonth!!.monthStart)
+        assertEquals(650, snap.records.bestMonth!!.minutes)
+        assertEquals(26, snap.records.bestMonth!!.sessions)
     }
 
     @Test

@@ -54,6 +54,9 @@ public interface HistoryDao {
     @Query("SELECT * FROM sessions ORDER BY start ASC")
     public suspend fun getAllSessionsSnapshot(): List<SessionEntity>
 
+    @Query("SELECT tag, COUNT(*) AS usageCount FROM sessions WHERE type = 'work' AND tag IS NOT NULL AND TRIM(tag) != '' GROUP BY tag")
+    public fun observeWorkTagUsageCounts(): Flow<List<TagUsageCount>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     public suspend fun insertSession(session: SessionEntity)
 
@@ -160,6 +163,12 @@ public interface HistoryDao {
     @Query("SELECT * FROM sessions WHERE date = :date AND type = 'work' AND completed = 1 ORDER BY start DESC LIMIT 1")
     public suspend fun getLatestCompletedWorkSession(date: String): SessionEntity?
 }
+
+/** Session count for one tag, used to put frequently chosen timer tags first. */
+public data class TagUsageCount(
+    val tag: String,
+    val usageCount: Int,
+)
 
 /**
  * Chunk-safe wrapper for [HistoryDao.markAsSynced].
