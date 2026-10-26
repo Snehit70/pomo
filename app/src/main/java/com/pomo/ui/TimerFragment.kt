@@ -73,9 +73,10 @@ public class TimerFragment : Fragment() {
                     val workMinutes = mainActivity?.prefs?.pomodoroDuration ?: 25
                     val configuredTags = remember { tagStore.getTags() }
                     val usageCounts by tagUsageCounts.collectAsState()
-                    val availableTags = remember(configuredTags, usageCounts) {
-                        com.pomo.tags.orderTagsByUsage(configuredTags, usageCounts)
-                    }
+                    val availableTags =
+                        remember(configuredTags, usageCounts) {
+                            com.pomo.tags.orderTagsByUsage(configuredTags, usageCounts)
+                        }
                     val palette = if (PomoTokens.colors.isDark) tagPalette else tagPaletteLight
                     var tagInitialized by remember { mutableStateOf(false) }
 
@@ -90,9 +91,10 @@ public class TimerFragment : Fragment() {
                     }
 
                     val displayTag = state?.tag?.takeIf { it.isNotEmpty() } ?: defaultTag
-                    val colorSlots = remember(availableTags, displayTag) {
-                        tagStore.getColorSlots(availableTags + displayTag)
-                    }
+                    val colorSlots =
+                        remember(availableTags, displayTag) {
+                            tagStore.getColorSlots(availableTags + displayTag)
+                        }
                     val currentTagColor = colorSlots[displayTag]?.let(palette::getOrNull)
                     val phaseBaseDuration =
                         when (state?.phase) {

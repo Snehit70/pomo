@@ -300,7 +300,8 @@ public class CrewRepository(context: Context) {
             )
         relayStore.publish(
             snapshot = snapshot,
-                payload = withContext(Dispatchers.Default) {
+            payload =
+                withContext(Dispatchers.Default) {
                     CrewSnapshotCodec.encodeEncrypted(snapshot, membership.key, identity)
                 },
             relays = membership.relays,

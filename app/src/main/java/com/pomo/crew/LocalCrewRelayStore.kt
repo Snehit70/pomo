@@ -132,9 +132,10 @@ public class LocalCrewRelayStore(context: Context) {
         crewKey: String,
         persist: Boolean,
     ): CrewSnapshot? {
-        val snapshot = withContext(Dispatchers.Default) {
-            CrewSnapshotCodec.decodeEncrypted(event.content, crewKey)
-        } ?: return null
+        val snapshot =
+            withContext(Dispatchers.Default) {
+                CrewSnapshotCodec.decodeEncrypted(event.content, crewKey)
+            } ?: return null
         val now = System.currentTimeMillis() / 1000L
         if (snapshot.identityPublicKey != event.authorPublicKey) return null
         if (event.createdAtEpochSeconds > now + MAX_CLOCK_SKEW_SECONDS) return null
