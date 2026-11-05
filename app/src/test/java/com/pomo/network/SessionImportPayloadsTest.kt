@@ -47,7 +47,7 @@ public class SessionImportPayloadsTest {
                   "sessions": [
                     {"client_id":"t","type":"focus","duration":60,"completed":true},
                     {"client_id":"d","type":"work","duration":0,"completed":true},
-                    {"client_id":"c","type":"work","duration":60,"completed":false},
+                    {"client_id":"c","type":"work","duration":59,"completed":false},
                     {"client_id":"","type":"work","duration":60,"completed":true}
                   ]
                 }
@@ -59,8 +59,33 @@ public class SessionImportPayloadsTest {
         assertEquals(4, result.rejected.size)
         assertEquals("invalid type", result.rejected[0].error)
         assertEquals("duration must be > 0", result.rejected[1].error)
-        assertEquals("completed must be true", result.rejected[2].error)
+        assertEquals("partial under 60s", result.rejected[2].error)
         assertEquals("client_id required", result.rejected[3].error)
+    }
+
+    @Test
+    public fun parseAndValidate_acceptsPartialWorkFromDeskSkip() {
+        val result =
+            SessionImportPayloads.parseAndValidate(
+                """
+                {
+                  "sessions": [
+                    {"client_id":"p","type":"work","duration":600,"completed":false,"start":${now - 700}},
+                    {"client_id":"b","type":"short","duration":120,"completed":false},
+                    {"client_id":"n","type":"work","duration":600}
+                  ]
+                }
+                """.trimIndent(),
+                nowSeconds = now,
+            )
+
+        assertEquals(1, result.accepted.size)
+        assertEquals("p", result.accepted[0].clientId)
+        assertFalse(result.accepted[0].session.completed)
+        assertEquals(600, result.accepted[0].session.duration)
+        assertEquals(2, result.rejected.size)
+        assertEquals("partial must be work", result.rejected[0].error)
+        assertEquals("completed required", result.rejected[1].error)
     }
 
     @Test
