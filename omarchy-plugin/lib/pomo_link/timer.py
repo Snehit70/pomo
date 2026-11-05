@@ -18,6 +18,7 @@ from .constants import (
     DEFAULT_LONG_MINUTES,
     DEFAULT_SHORT_MINUTES,
     DEFAULT_WORK_MINUTES,
+    MIN_PARTIAL_WORK_S,
     PHASES,
     STATUSES,
 )
@@ -45,6 +46,8 @@ class TimerModel:
         self.long_after = DEFAULT_LONG_AFTER
         self.phase_complete_handler = None
         self.session_complete_handler = None
+        # (elapsed_seconds, start_time) for a skipped work block (ADR 0002).
+        self.partial_work_handler = None
 
     def set_config(self, work_minutes, short_minutes, long_minutes, long_after, goal):
         if work_minutes > 0:
@@ -245,6 +248,8 @@ class TimerModel:
         if not self.local_owner:
             return
         if self.phase == "work":
+            self._record_partial_work()
+        if self.phase == "work":
             self._advance_after_work_skip()
         else:
             self.phase = "work"
@@ -253,6 +258,19 @@ class TimerModel:
         self.start_time = 0.0
         self.status = "stopped"
         self._arm_projection_baseline()
+
+    def _record_partial_work(self):
+        """ADR 0002: a skipped work block keeps its focus time (no block
+        credit) once at least MIN_PARTIAL_WORK_S ran. Reset keeps nothing."""
+        if not self.is_live():
+            return
+        if self.is_running():
+            self.snap_remaining()
+        elapsed = int(self.duration - self.remaining)
+        if elapsed < MIN_PARTIAL_WORK_S:
+            return
+        if self.partial_work_handler:
+            self.partial_work_handler(elapsed, self.start_time)
 
     def reset(self):
         if not self.local_owner:

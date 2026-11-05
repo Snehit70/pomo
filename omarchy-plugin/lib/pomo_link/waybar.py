@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 
-WORK_ICON = ""
-BREAK_ICON = ""
-OFFLINE_ICON = ""
+WORK_ICON = "\uf252"
+BREAK_ICON = "\uf0f4"
+OFFLINE_ICON = "\uf071"
 SEP = "│"
 DIM = "#6a6a6a"
+
+CONTROL_ICONS = {"skip": "⏭", "extend": "+5", "reset": "⟳"}
 
 
 def format_mmss(seconds):
@@ -25,16 +27,39 @@ def _sep():
     return "<span foreground='%s'>%s</span>" % (DIM, SEP)
 
 
+def _dump(doc):
+    return json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
+
+
+def link_state(status):
+    """Who owns the clock, as one CSS class.
+
+    online      SYNCED, the phone is the clock
+    local       OFFLINE, this daemon is the clock (a normal, working state)
+    connecting  BOOT / DISCOVERING / CONNECTING, transient
+    unpaired    no token or token rejected; needs the user
+    dead        no daemon status at all
+    """
+    if not isinstance(status, dict):
+        return "dead"
+    mode = str(status.get("mode") or "")
+    if mode == "SYNCED":
+        return "online"
+    if mode == "UNPAIRED" or status.get("has_token") is not True:
+        return "unpaired"
+    if mode == "OFFLINE":
+        return "local"
+    return "connecting"
+
+
 def format_waybar(status):
     if not isinstance(status, dict):
-        return json.dumps(
+        return _dump(
             {
                 "text": "%s %s --:--" % (OFFLINE_ICON, _sep()),
-                "class": "stopped work offline",
+                "class": "stopped work dead",
                 "tooltip": "pomo-link is not running",
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
+            }
         )
 
     mode = str(status.get("mode") or "")
@@ -43,12 +68,12 @@ def format_waybar(status):
     remaining = status.get("remaining") or 0
     completed = status.get("completed") or 0
     goal = status.get("goal") or 0
-    has_token = status.get("has_token") is True
     local_owner = status.get("local_owner") is True
-    online = mode == "SYNCED"
-    net = "online" if online else "offline"
+    busy = status.get("busy") is True
+    message = str(status.get("message") or "").strip()
+    net = link_state(status)
 
-    if mode == "UNPAIRED" or not has_token:
+    if net == "unpaired":
         icon = OFFLINE_ICON
     elif phase in ("short", "long"):
         icon = BREAK_ICON
@@ -57,18 +82,39 @@ def format_waybar(status):
 
     text = "%s %s %s" % (icon, _sep(), format_mmss(remaining))
     tooltip = "%s %s - %s/%s sessions" % (st, phase, completed, goal)
-    if not online:
+    if net != "online":
         if local_owner:
             tooltip += " (local)"
         elif mode:
             tooltip += " (%s)" % mode.lower()
+    if busy:
+        tooltip += "\nsending to phone…"
+    if message:
+        tooltip += "\n%s" % message
 
-    return json.dumps(
-        {
-            "text": text,
-            "class": "%s %s %s" % (st, phase, net),
-            "tooltip": tooltip,
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
+    classes = [st, phase, net]
+    if busy:
+        classes.append("busy")
+    return _dump({"text": text, "class": " ".join(classes), "tooltip": tooltip})
+
+
+def format_control(status, kind):
+    """One drawer button (skip / extend / reset) for themes that group them."""
+    icon = CONTROL_ICONS.get(kind, "?")
+    if not isinstance(status, dict):
+        return _dump({"text": icon, "class": "inactive", "tooltip": "pomo-link is not running"})
+    st = str(status.get("status") or "stopped")
+    phase = str(status.get("phase") or "work")
+    if kind == "extend":
+        active = st == "running"
+        tooltip = "Add 5 min" if active else "Timer not running"
+    elif kind == "reset":
+        active = st in ("running", "paused")
+        tooltip = "Reset this phase" if active else "Nothing to reset"
+    else:
+        active = True
+        tooltip = "Skip to break" if phase == "work" else "Skip to work"
+    if status.get("busy") is True:
+        active = False
+        tooltip = "sending to phone…"
+    return _dump({"text": icon, "class": "active" if active else "inactive", "tooltip": tooltip})

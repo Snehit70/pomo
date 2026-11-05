@@ -16,6 +16,12 @@ public object SessionImportPayloads {
     /** Completed offline sessions older than this are rejected as implausible. */
     public const val MAX_START_AGE_SECONDS: Long = 14L * 24L * 60L * 60L
 
+    /**
+     * ADR 0002: a desk Skip may send its partial work time as `completed: false`. Shorter
+     * partials record nothing on the phone either, so they are rejected here.
+     */
+    public const val MIN_PARTIAL_WORK_SECONDS: Int = 60
+
     /** Starts more than this far ahead of phone wall-clock are rejected. */
     public const val MAX_START_FUTURE_SKEW_SECONDS: Long = 5L * 60L
 
@@ -55,6 +61,7 @@ public object SessionImportPayloads {
         val clientId: String,
         val type: String,
         val duration: Int,
+        val completed: Boolean,
         val start: Long?,
         val tag: String?,
     )
@@ -94,9 +101,20 @@ public object SessionImportPayloads {
                 continue
             }
 
-            if (item.completed != true) {
-                rejected += Rejected(clientId = clientId, error = "completed must be true")
+            val completed = item.completed
+            if (completed == null) {
+                rejected += Rejected(clientId = clientId, error = "completed required")
                 continue
+            }
+            if (!completed) {
+                if (type != TimerState.PHASE_WORK) {
+                    rejected += Rejected(clientId = clientId, error = "partial must be work")
+                    continue
+                }
+                if (duration < MIN_PARTIAL_WORK_SECONDS) {
+                    rejected += Rejected(clientId = clientId, error = "partial under 60s")
+                    continue
+                }
             }
 
             val start = item.start
@@ -111,6 +129,7 @@ public object SessionImportPayloads {
                     clientId = clientId,
                     type = type,
                     duration = duration,
+                    completed = completed,
                     start = start,
                     tag = tag,
                 )
@@ -153,7 +172,7 @@ public object SessionImportPayloads {
                     type = row.type,
                     start = start,
                     duration = row.duration,
-                    completed = true,
+                    completed = row.completed,
                     tag = row.tag,
                 )
 

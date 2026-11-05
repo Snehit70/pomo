@@ -169,6 +169,9 @@ class PomoClient:
         # True while a phone gesture is outstanding; status exposes it and
         # further gestures wait instead of stacking.
         self.busy = False
+        # A gesture whose phone POST failed while the link was not SYNCED; the
+        # engine re-applies it locally once OFFLINE owns the clock.
+        self.replay_gesture = None
         self.resync_after_command = False
         self.last_ping_at = 0.0
         self.connect_failures = 0
@@ -1352,7 +1355,20 @@ class PomoClient:
                 self.resync_after_command = True
             return
         if code == 0:
-            self.note_error("%s failed: phone unreachable" % tag)
+            if self.mode == "SYNCED":
+                # The socket still looks alive; let a resync decide. If REST is
+                # dead too it drops to OFFLINE and the next click works locally.
+                # No replay: the POST may have landed with only the reply lost.
+                self.note_error("%s failed: phone unreachable" % tag)
+                self.soft_resync("command failed")
+                return
+            # Reconnecting with the phone gone. Take the clock now so the click
+            # still does something instead of vanishing.
+            self.note_error("%s: phone unreachable, applied locally" % tag)
+            if self.mode != "UNPAIRED":
+                self.enter_offline("phone unreachable")
+            if self.model.local_owner:
+                self.replay_gesture = tag
             return
         self.note_error("%s failed: http %s" % (tag, code))
 
