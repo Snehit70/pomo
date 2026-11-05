@@ -72,6 +72,7 @@ class Engine:
         self.pending_events = []
         self.model.phase_complete_handler = self._on_phase_complete
         self.model.session_complete_handler = self._on_session_complete
+        self.model.partial_work_handler = self._on_partial_work
         self._restore_timer()
         if not self.model.has_state:
             # Stopped work idle for the bar during `.` probe. No local ownership
@@ -95,6 +96,8 @@ class Engine:
         # IPC commands are discrete requests from the CLI; preserve their
         # order instead of applying stdin's last-wins coalescing rule.
         self.pending_ipc_gestures = []
+        # Gesture whose phone POST is outstanding (valid while client.busy).
+        self.inflight_gesture = None
         self._handling_ipc = False
         self._stdin_remainder = b""
         self._stdin_draining = False
@@ -166,6 +169,7 @@ class Engine:
             self.pending_ipc_gestures.pop(0)
         else:
             self.pending_gesture = None
+        self.inflight_gesture = gesture if went_async else None
         if not went_async:
             self.client.busy = False
             if self.model.local_owner:
@@ -247,6 +251,15 @@ class Engine:
             if start_epoch < 0:
                 start_epoch = 0
         self.queue.enqueue(client_id, phase, duration_sec, start_epoch, "")
+
+    def _on_partial_work(self, elapsed_sec, start_time):
+        seq = self.store.take_next_client_seq()
+        client_id = "omarchy-%04x" % (seq & 0xFFFF)
+        if start_time and start_time > 0:
+            start_epoch = int(start_time)
+        else:
+            start_epoch = max(0, int(time.time()) - int(elapsed_sec))
+        self.queue.enqueue(client_id, "work", elapsed_sec, start_epoch, "", completed=False)
 
     def persist_live_timer(self):
         if not self.model.local_owner or not self.model.is_live():
@@ -332,6 +345,26 @@ class Engine:
             except OSError:
                 pass
 
+    def _is_repeat_ipc_gesture(self, cmd):
+        """A repeat of the gesture already waiting or in flight.
+
+        The bar shows nothing new until the phone answers, so a second
+        identical click in that window is a re-press, not a new intent.
+        Distinct commands (toggle then skip) still queue in order.
+        """
+        if self.pending_ipc_gestures:
+            return self.pending_ipc_gestures[-1] == cmd
+        return self.client.busy and self.inflight_gesture == cmd
+
+    def _queue_replay_gesture(self):
+        """A phone POST that failed while the link was down comes back here
+        to be applied locally, ahead of anything queued after it."""
+        replay = self.client.replay_gesture
+        if not replay:
+            return
+        self.client.replay_gesture = None
+        self.pending_ipc_gestures.insert(0, replay)
+
     def _handle_ipc_line(self, line):
         self._handling_ipc = True
         try:
@@ -376,6 +409,9 @@ class Engine:
             return self.last_status
         if cmd in GESTURE_COMMANDS:
             if self._handling_ipc:
+                if self._is_repeat_ipc_gesture(cmd):
+                    self.emit_status(force=True)
+                    return self.last_status
                 self.pending_ipc_gestures.append(cmd)
             else:
                 self.pending_gesture = cmd
@@ -497,6 +533,7 @@ class Engine:
 
         self.client.tick()
         self.client.drain_worker_results()
+        self._queue_replay_gesture()
         self.ensure_local_day()
         for msg in self.client.drain_errors():
             _emit_error(msg)

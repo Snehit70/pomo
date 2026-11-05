@@ -56,7 +56,9 @@ class SessionQueue:
                 "client_id": client_id,
                 "type": typ,
                 "duration": duration,
-                "completed": True,
+                # Only an explicit false is a partial (ADR 0002); older files
+                # wrote True for everything.
+                "completed": row.get("completed") is not False,
             }
             if "start" in row and row["start"] is not None:
                 try:
@@ -78,7 +80,7 @@ class SessionQueue:
                 "client_id": item["client_id"],
                 "type": item["type"],
                 "duration": int(item["duration"]),
-                "completed": True,
+                "completed": item.get("completed") is not False,
             }
             if item.get("start"):
                 row["start"] = int(item["start"])
@@ -88,7 +90,7 @@ class SessionQueue:
         atomic_write(self.path, {"sessions": rows}, mode=0o600)
         return True
 
-    def enqueue(self, client_id, typ, duration_sec, start_epoch, tag=""):
+    def enqueue(self, client_id, typ, duration_sec, start_epoch, tag="", completed=True):
         if not client_id:
             return False
         if not _valid_type(typ):
@@ -102,7 +104,7 @@ class SessionQueue:
             "client_id": str(client_id),
             "type": typ,
             "duration": duration_sec,
-            "completed": True,
+            "completed": bool(completed),
         }
         if start_epoch is not None and int(start_epoch) >= 0:
             item["start"] = int(start_epoch)

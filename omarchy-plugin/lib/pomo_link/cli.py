@@ -14,7 +14,7 @@ from .ipc import send_command
 from .main import run_engine
 from .paths import local_bin_dir, socket_path, status_path, systemd_unit_path
 from .persist import load_json
-from .waybar import format_waybar
+from .waybar import CONTROL_ICONS, format_control, format_waybar
 
 USAGE = """pomo-link
 
@@ -23,7 +23,9 @@ Commands:
   --daemon               Waybar daemon: unix socket + status file
   cmd <toggle|skip|reset|extend|ping>
                          Send a command to the running daemon
-  waybar                 Stream Waybar JSON from the daemon status file
+  waybar [skip|extend|reset]
+                         Stream Waybar JSON from the daemon status file
+                         (with a kind: one drawer control button)
   service install        Write and enable the systemd user unit
   service start|stop|status
   pair-json '<payload>'  Send a {url, token} payload to the daemon
@@ -126,44 +128,70 @@ def run_pair_json(raw):
     return 0
 
 
-def _daemon_alive(path, timeout=0.3):
-    import socket
+# The daemon rewrites its status file at least every 2s (emit_status), so a
+# file that stops changing means a dead or wedged daemon. Clean exit unlinks it.
+STATUS_STALE_S = 10.0
+FOLLOW_POLL_S = 0.25
 
-    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    probe.settimeout(timeout)
+
+def _status_mtime_ns(path):
     try:
-        probe.connect(path)
+        return os.stat(path).st_mtime_ns
     except OSError:
-        return False
-    finally:
-        try:
-            probe.close()
-        except OSError:
-            pass
-    return True
+        return None
 
 
-def run_waybar():
+def run_waybar(args=None):
+    args = list(args or [])
+    kind = args[0] if args else ""
+    if kind and kind not in CONTROL_ICONS:
+        sys.stderr.write("usage: pomo-link waybar [skip|extend|reset]\n")
+        return 2
     path = status_path()
-    sock = socket_path()
 
     def _stop(_signum, _frame):
         raise SystemExit(0)
 
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
-    last = None
+
+    def _render(data):
+        data = data if isinstance(data, dict) else None
+        return format_control(data, kind) if kind else format_waybar(data)
+
+    last_line = None
+    seen_mtime = None
+    data = None
+    first_read = True  # the startup file may be stale; keep the backdate
+    # Freshness on the monotonic clock: suspend does not advance it, so the
+    # bar does not flash "not running" for the tick before the daemon wakes.
+    changed_at = time.monotonic()
+    mtime = _status_mtime_ns(path)
+    if mtime is not None and time.time() - mtime / 1e9 > STATUS_STALE_S:
+        changed_at -= STATUS_STALE_S  # left behind by a daemon that died
     try:
         while True:
-            data = load_json(path)
-            if not _daemon_alive(sock):
+            mtime = _status_mtime_ns(path)
+            now = time.monotonic()
+            if mtime is None:
                 data = None
-            line = format_waybar(data if isinstance(data, dict) else None)
-            if line != last:
+                seen_mtime = None
+                first_read = False
+            elif mtime != seen_mtime:
+                loaded = load_json(path)
+                if isinstance(loaded, dict):
+                    data = loaded
+                    if not first_read:
+                        changed_at = now
+                    first_read = False
+                    seen_mtime = mtime
+            stale = mtime is None or now - changed_at > STATUS_STALE_S
+            line = _render(None if stale else data)
+            if line != last_line:
                 sys.stdout.write(line + "\n")
                 sys.stdout.flush()
-                last = line
-            time.sleep(0.5)
+                last_line = line
+            time.sleep(FOLLOW_POLL_S)
     except BrokenPipeError:
         return 0
     return 0
@@ -244,7 +272,7 @@ def main(argv=None):
     if head == "cmd":
         return run_cmd(argv[1:])
     if head == "waybar":
-        return run_waybar()
+        return run_waybar(argv[1:])
     if head == "service":
         return run_service(argv[1:])
     if head == "pair-json":
